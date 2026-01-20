@@ -1,39 +1,30 @@
-import os
-from efris_client import EfrisManager
+"""
+Main entry point for the EFRIS Multi-Tenant API Server.
 
-# Example usage
+This file starts the multi-tenant EFRIS API with QuickBooks integration.
+All functionality is now in api_multitenant.py.
+
+To run the server:
+    py main.py
+    
+Or directly with uvicorn:
+    py -m uvicorn api_multitenant:app --host 0.0.0.0 --port 8001
+"""
+
+import uvicorn
+
 def main():
-    print("Starting main")
-    client = EfrisManager(tin='1015264035', test_mode=True)  # Set to True for test environment
+    print("=" * 60)
+    print("  EFRIS Multi-Tenant API Server")
+    print("  Starting on http://0.0.0.0:8001")
+    print("=" * 60)
+    
+    uvicorn.run(
+        "api_multitenant:app",
+        host="0.0.0.0",
+        port=8001,
+        reload=False
+    )
 
-    # Example: Get registration details
-    try:
-        details = client.get_registration_details()
-        print('Registration Details:', details)
-    except Exception as e:
-        print('Error:', e)
-
-    # Example: Issue receipt (sample data)
-    # receipt_data = {
-    #     'buyerTin': '1015264035',
-    #     'buyerName': 'John Doe',
-    #     'deviceId': '1015264035_04',  # Device number
-    #     'items': [
-    #         {
-    #             'itemCode': '001',
-    #             'itemName': 'Item 1',
-    #             'quantity': 1,
-    #             'unitPrice': 100.0,
-    #             'taxRate': 18.0
-    #         }
-    #     ],
-    #     'totalAmount': 118.0
-    # }
-    # try:
-    #     receipt = client.issue_receipt(receipt_data)
-    #     print('Receipt:', receipt)
-    # except Exception as e:
-    #     print('Error:', e)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

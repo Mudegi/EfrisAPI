@@ -1,0 +1,3458 @@
+
+=== PAGE 2 ===
+Document History
+2019-04-03 V1.0 Created by URA
+2024-9-10 V23.0 Add new interface T186、T187
+2024-9-24 V23.1 T108 –> Add new field ‘invoiceItemId’;
+T103→ Add new fields issueDebitNote, qrCodeURL;
+T108→ Add new object ‘creditNoteExtend’ to support
+partial issued Credit;
+T110→ Update the error code desc of
+1434: goodsDetails-->qty:Cannot be greater than the
+remaining value of the corresponding commodity line on
+2025-3-18 V23.3 original invoice；
+1460: goodsDetails-->total:Cannot be greater than the
+remaining amount of the corresponding commodity line
+on original invoice；
+T109→ Update the error code desc of 306：Credit note(s)
+have already been issued against this invoice. Please
+cancel the existing credit note(s) to proceed;
+Update T127、T130→ Add a new object for customs UoM:
+2025-4-9 V23.4
+commodityGoodsExtendEntity
+1
+
+=== PAGE 4 ===
+Interface specification
+Introduction
+The system interface uses JSON format to transfer data. The payload is divided into three parts: data,
+globalInfo, and returnStateInfo.
+ The data part contains the inner layer message content and the encryption method of the message.
+ The globalInfo part is a global variable containing interface information and other necessary attributes.
+ returnStateInfo part is the result status information.
+The outer layer protocol format is as follows:
+{
+"data": {
+"content": "encrypted content",
+"signature": "JKQWJK34K32JJEK2JQWJ5678",
+"dataDescription": {
+"codeType": "0",
+"encryptCode": "1",
+"zipCode": "0"
+}
+},
+"globalInfo": {
+"appId": "AP01",
+"version": "1.1.20191201",
+"dataExchangeId": "9230489223014123",
+"interfaceCode": "T101",
+"requestCode": "TP",
+"requestTime": "2025-05-13 15:07:07",
+"responseCode": "TA",
+"userName": "admin",
+"deviceMAC": "FFFFFFFFFFFF",
+"deviceNo": "00022000634",
+"tin": "1009830865",
+3
+
+=== PAGE 5 ===
+"brn": "",
+"taxpayerID": "1",
+"longitude": "116.397128",
+"latitude": "39.916527",
+"agentType": "0",
+"extendField": {
+"responseDateFormat": "dd/MM/yyyy",
+"responseTimeFormat": "dd/MM/yyyy HH:mm:ss",
+"referenceNo": "21PL010020807" ,
+"operatorName": "administrator",
+"itemDescription": "28300 test services both",
+"currency":"UGX",
+"grossAmount":"25",
+"taxAmount":"3.7985",
+"offlineInvoiceException": {
+"errorCode": "",
+"errorMsg": ""
+}
+}
+},
+"returnStateInfo": {
+"returnCode": "",
+"returnMessage": ""
+}
+}
+Request message date format: yyyy-MM-dd HH24:mi:ss
+Return message date format: Follows system time format
+T101 return date format: dd/MM/yyyy HH:mm:ss
+Field description
+Field Field Name Required Length Description
+content Inner message N Unlimite This field can be empty if the
+4
+
+=== PAGE 6 ===
+d request message is empty.
+If the request message is not
+empty, the field must be BASE64
+encoded regardless of encryption.
+signature Signature value Y
+codeType YN encryption Y 1 0-plain text 1- ciphertext
+1 If codeType is 1, encryptCode takes
+effect
+encryptCode Encryption Y
+1-RSA
+2-AES
+zipCode YN compression Y 1 0-uncompressed, 1-compressed
+If set to 1, the content in the
+response is compressed.
+appId Y 5 AP04-for system2system
+AP05-for AskURA
+version version number Y 15 Client software version number
+1.1.20191201
+dataExchangeId Data interaction ID Y 32 UUID
+interfaceCode Interface code Y 5 See the interface code table for
+details.
+requestCode Requester code Y 5 See Requester/Responder Code
+Table for details.
+requestTime Request time Y 20 YYYY-MM-DD HH24:mi:ss
+responseCode Return square code Y 5 See Requester/Responder Code
+Table for details.
+userName username Y 20
+deviceMAC Device MAC Y 25 FFFFFFFFFFFF
+address
+deviceNo device ID Y 20 DSN
+tin tin Y 20 TIN
+brn brn N 100 BRN
+5
+
+=== PAGE 8 ===
+errorMsg errorMsg Unlimite Error Msg of offline invoice
+N
+d exception
+ReturnCode description
+Interface Code ReturnCode Description
+ALL 99 Unknow error
+00 SUCCESS
+01 Interface coding error
+02 White box encryption failed
+03 White box decryption failed
+04 Read white box error
+05 AppID error
+06 The outer message is empty
+07 GlobalInfo content cannot be empty
+08 Data content cannot be empty
+09 ReturnStateInfo content cannot be empty
+10 DataDescription content cannot be empty
+11 InterfaceCode cannot be empty
+12 UserName cannot be empty
+13 TaxpayerID cannot be empty
+14 DeviceMAC cannot be empty
+15 Unpacking data error
+16 AppID cannot be empty
+17 Version cannot be empty
+18 DataExchangeId cannot be empty
+19 RequestCode cannot be empty
+20 RequestTime cannot be empty
+21 ResponseCode cannot be empty
+22 Currency cannot be empty
+23 Tax rate acquisition error
+24 The version cannot be longer than 15 characters
+25 DataExchangeId cannot be greater than 32
+characters!
+26 RequestCode error
+27 ResponseCode error
+28 The difference between RequestTime and the current
+time is greater than ten minutes!
+29 DeviceMAC cannot be greater than 25 characters
+7
+
+=== PAGE 9 ===
+30 AppID error
+31 RequestTime time format error
+32 Version is too low, please upgrade version
+33 Version error
+34 Longitude cannot be empty
+35 Longitude cannot be greater than 60 characters
+36 Latitude cannot be empty
+37 Longitude cannot be greater than 60 characters
+38 Signature value is invalid!
+39 Signature value can not be empty!
+40 Insufficient permissions!
+41 Item does not exist！
+42 Please register for e-Invoicing first!
+43 Outer packet json format is invalid!
+44 Taxpayer branch has been removed!
+45 Partial failure!
+46 database error!
+100 Taxpayer does not exist
+101 Taxpayer status is abnormal
+102 Taxpayer branch status abnormal
+T133 47 The current version does not support incremental
+upgrade.
+T110 、 T113 、 300 The original invoice number does not exist
+T114 301 The original invoice number has not been completed
+303 Update failed
+304 According to the original invoice number, the
+result is null
+305 Invoice approval failed
+306 Credit note(s) have already been issued against
+this invoice. Please cancel the existing credit
+note(s) to proceed.!
+307 Get process template is empty
+308 Approval failed
+309 Items cannot be empty
+310 The date cannot be voided
+311 BusinessKey does not exist
+312 Cannot apply for credit note/ debit note, the
+fiscal document has exceeded the allowable
+application days.
+8
+
+=== PAGE 27 ===
+empty!
+T117 1569 The size of the collection cannot be larger than ? !
+T118 1570 id:cannot be empty!
+1571 id:Byte length cannot be greater than 20!
+T119 1572 'tin' and 'ninBrn' cannot be empty at the same
+time!
+1573 tin:cannot be empty!
+1574 tin:Byte length cannot be greater than 20!
+1575 ninBrn:cannot be empty!
+1576 ninBrn:Byte length cannot be greater than 20!
+T120、T121 1577 businessKey:cannot be empty!
+1578 businessKey:Byte length cannot be greater than 20!
+T120 1579 referenceNo:cannot be empty!
+1580 referenceNo:Byte length cannot be greater than 20!
+1581 currency:cannot be empty!
+1582 currency:Byte length cannot be greater than 3!
+T109 1600 Inventory shortage
+T129 1610 invoiceContent:cannot be empty!
+1611 invoiceSignature:cannot be empty!
+1612 Invoice upload quantity cannot be greater than xx
+1613 Batch upload has problematic invoices, please check
+inner 'invoiceReturnCode' and
+'invoiceReturnMessage'!
+C101 2000 basicInformation-->sadNumber:cannot be empty!
+2001 basicInformation-->sadNumber:Byte length cannot be
+greater than 20!
+2002 basicInformation-->sadDate:cannot be empty!
+2003 basicInformation-->sadDate:The time format must
+beyyyy-MM-dd HH:mm:ss!
+2004 basicInformation-->cpcCode:cannot be empty!
+2005 basicInformation-->cpcCode:Byte length cannot be
+greater than 16!
+2006 basicInformation-->cpcDescription:cannot be empty!
+2007 basicInformation-->cpcDescription:Byte length
+cannot be greater than 256!
+2008 basicInformation-->wareHouseNumber:cannot be
+empty!
+2009 basicInformation-->wareHouseNumber:Byte length
+cannot be greater than 16!
+2010 basicInformation-->wareHouseName:cannot be empty!
+2011 basicInformation-->wareHouseName:Byte length
+26
+
+=== PAGE 34 ===
+2167 otp:Byte length cannot be greater than 6!
+T143 2168 branchId cannot be empty!
+2169 branchId:Byte length cannot be greater than 18!
+2170 deviceNo cannot be empty!
+2171 deviceNo:Byte length cannot be greater than 18!
+T142 2172 otp has expired!
+T143 2173 deviceNo format error!
+2174 branchId does not exist!
+2175 deviceNo already exists
+T131 2176 This product has been stored, it cannot stock in
+using opening stock
+2177 If 'operationType' is '102', stockInType must be
+empty!
+T136 2178 Encryption type does not match!
+2179 The key length of the public key should be 2048!
+T109 2180 basicInformation-->currency:Invalid field value!
+2181 goodsDetails-->exciseCurrency:Invalid field value!
+T109、T110 2182 taxDetails-->exciseCurrency:Invalid field value!
+T109 2183 sellerDetails-->branchId:cannot be empty!
+2184 sellerDetails-->branchId:Byte length cannot be
+greater than 18!
+2185 sellerDetails-->branchId does not belong to current
+taxpayer!
+2186 sellerDetails-->branchName:If 'branchId' is not
+empty, it cannot be empty!
+2187 sellerDetails-->branchName:Byte length cannot be
+greater than 500!
+2188 sellerDetails-->branchName does not belong to
+current taxpayer!
+T106、T107 2189 branchName:cannot be empty!
+2190 branchName:Byte length cannot be greater than 500!
+T131 2191 branchId:cannot be empty!
+2192 branchId:Byte length cannot be greater than 18!
+2193 branchId: branch does not belong to current
+taxpayer!
+T131、T139 2194 goodsCode:cannot be empty!
+2195 goodsCode:Byte length cannot be greater than 50!
+2196 commodityGoodsId and goodsCode cannot be empty at
+the same time!
+T109、T110 2197 Some items details are inconsistent with the goods
+maintenance.
+33
+
+=== PAGE 52 ===
+not be empty!
+3162 FDNs undergoing export processing are unable to
+issue credit note.
+3163 Insufficient remaining quantity,can not apply
+credit note.
+3196 goodsDetails-->goodsCategoryId: The commodity
+category can only be goods!
+Change invoiceIndustryCode to 112
+Interface code table
+Webservice interface code table
+Interface Name Interface Code Description
+Get server time T101
+Client initialization T102
+log in T103
+Get symmetric key and signature T104
+information
+forget password T105
+Invoice /Receipt query T106
+Query Normal Invoice/Receipt T107
+Invoice details T108
+Billing upload T109
+Credit Application T110
+Credit/Cancel Debit Note T111
+Application List Query
+Credit Note application detail T112
+Credit Note issue approval T113
+Credit Note application cancel T114
+System dictionary update T115
+Z-report Daily report upload T116
+Invoice reconciliation T117
+Query Credit Note Application T118
+and Cancel of Debit Note
+Application Details
+Query Taxpayer Information By T119
+TIN
+51
+
+=== PAGE 54 ===
+Upload shift information T163 EDC
+Upload EDC disconnection data T164 EDC
+Update buyer details T166 EDC invoice-change buyer’s info
+EDC Invoice /Receipt inquiry T167 EDC
+Query fuel pump version T168 EDC
+Query fuel pump、fuel nozzle、 T169 EDC
+fuel tank according to pump
+number
+Query efd location T170
+Query EDC UoM exchange rate T171 EDC
+Fuel nozzle status upload T172 EDC
+Query Edc device Version T173 EDC
+Account Creation for USSD T175 USSD
+Upload device issuing status T176 EFD/Offline Enabler
+Negative stock configration T177
+inquiry
+1. Get server time
+Interface Name Get server time
+Description The Client time should be synchronized with the server time.
+Interface Code T101
+Request
+N
+Encrypted
+Response
+N
+Encrypted
+Request Message Null
+{
+Response
+"currentTime": "30/07/2019 15:30:01"
+Message
+}
+Flow Description Null
+Field description
+Field Field Name Required Length Description
+currentTime current time Y 20 dd/MM/yyyy HH:mm:ss
+53
+
+=== PAGE 55 ===
+2. Client initialization
+Interface Name Client initialization
+Description Returns the server’s public key
+Interface Code T102
+Request
+N
+Encrypted
+Response
+N
+Encrypted
+{
+Request Message "otp": "100983"
+}
+{
+"clientPriKey": "vovhW9PY7YUPA98X36BSM8V1OA3gSyF+nTNWAeiVsXMIc",
+Response
+"serverPubKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQ",
+Message
+"keyTable": "OiJ2b3ZoVzlQWTdZVVBBOThYMzZCU004VjFPQTN"
+}
+1. The client requests to obtain the client RSA private key.
+2. The server verifies that tin matches deviceNo and the status is normal.
+3. Get the private key clientPriKey of the device, call the white box encryption
+Flow Description
+program, encrypt the private key, the white box will return the encrypted
+clientPriKey and keyTable, and the server will return these two values to the
+client.
+4. The client receives the data and saves it to the library.
+Field description
+Field Field Name Required Length Description
+otp otp N 6
+Field Field Name Required Length Description
+clientPriKey Encrypted client 4000 The private key of the client,
+private key used to decrypt the encrypted
+Y string returned by the server.
+Only available when appId is
+54
+
+=== PAGE 56 ===
+‘AP01’
+serverPubKey Server public key 4000 Used to verify the signature
+Y
+returned from the server.
+keyTable White box 4000 Used to decrypt the client private
+Y
+key
+3. Sign in
+Interface Name log in
+Description Client login
+Interface Code T103
+Request
+N
+Encrypted
+Response
+Y
+Encrypted
+Request Message Null
+{
+"device": {
+"deviceModel": "AE320",
+"deviceNo": "20190611",
+"deviceStatus": "252",
+"deviceType": "1",
+"validPeriod": "13/06/2019",
+"offlineAmount": "10000000000",
+"offlineDays": "90",
+"offlineValue": "1000000000000"
+},
+Response "taxpayer": {
+Message "id": "112312313213213213",
+"tin": "123456",
+"ninBrn": "2222",
+"legalName": "admin",
+"businessName": "1",
+"taxpayerStatusId": "101",
+"taxpayerRegistrationStatusId": "401",
+"taxpayerType": "201",
+"businessType": "501",
+"departmentId": "000001",
+"contactName": "admin",
+"contactEmail": "123@qq.com",
+55
+
+=== PAGE 62 ===
+partially issued
+qrCodeURL Invoice 200 https://efris.ura.go.ug/site_
+verification mobile/#/invoiceValidation
+Y
+page prefix
+address
+4. Obtaining Symmetric Key and Signature
+Get symmetric key and signature information – Used only for those with online
+Interface Name
+mode
+Description Get symmetric key and signature information
+Interface Code T104
+Request
+N
+Encrypted
+Response
+N
+Encrypted
+Request Message Null
+{
+Response "passowrdDes": "12345678",
+Message "sign": "213456"
+}
+1. The client gets a symmetric key every time you log in, and all subsequent
+encryption is encrypted by symmetric key.
+Flow Description
+2. The server randomly generates an 8-bit symmetric key and a signature value
+for encryption.
+Field description
+Field Field Name Required Length Description
+passowrdDes Encrypted Unlimit Used to encrypt and decrypt all
+Y
+symmetric key ed data after login
+sign Signature value Unlimit
+Y
+ed
+5. Forget Password
+Interface Name forget password
+Description forget password
+61
+
+=== PAGE 63 ===
+Interface Code T105
+Request
+Y
+Encrypted
+Response
+N
+Encrypted
+{
+"userName": "admin",
+Request Message
+"changedPassword": "123456"
+}
+Response
+Null
+Message
+1. The enterprise user forgets the password, resubmits the password
+Flow Description corresponding to the user name, and finds the enterprise user email to send the
+account information.
+Field description
+Field Field Name Required Length Description
+userName username Y 200
+changedPassw Modified password 200
+Y
+ord
+6. Invoice /Receipt query
+Interface Name Invoice inquiry
+Query all invoice information（Invoice/receipt, credit note, debit note, cancel
+Description
+credit note, cancel debit note）
+Interface Code T106
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"oriInvoiceNo": "00000000002",
+"invoiceNo": "00000000001",
+"deviceNo": "00031000092",
+Request Message
+"buyerTin": "7777777777",
+"buyerNinBrn": "00000000001",
+"buyerLegalName": "lisi",
+"combineKeywords": "7777777",
+62
+
+=== PAGE 64 ===
+"invoiceType": "1",
+"invoiceKind": "1",
+"isInvalid": "1",
+"isRefund": "1",
+"startDate": "2019-06-14",
+"endDate": "2019-06-15",
+"pageNo": "1",
+"pageSize": "10",
+"referenceNo": "425502528294126235",
+"branchName": "Mr. HENRY KAMUGISHA",
+"queryType": "1",
+"dataSource": "101",
+"sellerTinOrNin": "1009837013",
+"sellerLegalOrBusinessName": "CLASSY TRENDS BOUTIQUE"
+}
+{
+"page": {
+"pageNo": "1",
+"pageSize": "10",
+"totalSize": " Total number of articles ",
+"pageCount": "total pages"
+},
+"records": [{
+"id": "159078217852531032",
+"invoiceNo": "00000000001",
+"oriInvoiceId": "00000000003",
+"oriInvoiceNo": "00000000002",
+Response
+"issuedDate": "15/06/2019 02:00:00",
+Message
+"buyerTin": "7777777777",
+"buyerLegalName": "test",
+"buyerNinBrn": "00000000001",
+"currency": "UGX",
+"grossAmount ": "2000.00",
+"taxAmount ": "2000.00",
+"dataSource": "101",
+"isInvalid": "1",
+"isRefund": "1",
+"invoiceType": "1",
+"invoiceKind": "1",
+"invoiceIndustryCode": "102",
+63
+
+=== PAGE 69 ===
+operator operator N 100
+userName userName N 500
+7. Query Normal Invoice/Receipt
+Interface Name Apply for invoice inquiry
+Query all Invoice/Receipt invoice information that can be issued with Credit
+Description
+Note, Cancel Debit Note
+Interface Code T107
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"invoiceNo": "00000000001",
+"deviceNo": "00031000092",
+"buyerTin": "7777777777",
+"buyerLegalName": "lisi",
+"invoiceType": "1",
+Request Message
+"startDate": "2019-06-14",
+"endDate": "2019-06-15",
+"pageNo": "1",
+"pageSize": "10",
+"branchName": "Mr. HENRY KAMUGISHA"
+}
+{
+"page": {
+"pageNo": "1",
+"pageSize": "10",
+"totalSize": "Total number of articles",
+"pageCount": "total pages"
+},
+Response "records": [{
+Message "id": "159078217852531032",
+"invoiceNo": "00000000001",
+"oriInvoiceId": "00000000004",
+"oriInvoiceNo": "00000000005",
+"issuedDate": "15/06/2019 02:00:04",
+"buyerTin": "7777777777",
+"buyerBusinessName": "aisino",
+"buyerLegalName": "test",
+68
+
+=== PAGE 72 ===
+Description Invoice details are queried according to Invoice number.
+Interface Code T108
+Request Encrypted Y
+Response Encrypted Y
+{
+Request Message "invoiceNo": "22598049632407113016"
+}
+{
+"sellerDetails": {
+"tin": "201905081705",
+"ninBrn": "201905081705",
+"passportNumber": "201905081705",
+"legalName": "zhangsan",
+"businessName": "lisi",
+"address": "beijin",
+"mobilePhone": "15501234567",
+"linePhone": "010-6689666",
+"emailAddress": "123456@163.com",
+"placeOfBusiness": "beijin",
+"referenceNo": "00000000012",
+"branchId": "207300908813650312",
+"branchName": "KATUSIIME EVEALYNE SPARE PARTS",
+"branchCode": "00"
+},
+Response Message
+"basicInformation": {
+"invoiceId": "1000002",
+"invoiceNo": "00000000001",
+"oriInvoiceNo": "00000000002",
+"antifakeCode": "201905081711",
+"deviceNo": "201905081234",
+"issuedDate": "08/05/2019 17:13:12",
+"oriIssuedDate": "08/05/2019 17:13:12",
+"oriGrossAmount": "9247",
+"operator": "aisino",
+"currency": "UGX",
+"oriInvoiceId": "1",
+"invoiceType": "1",
+"invoiceKind": "1",
+"dataSource": "101",
+"isInvalid": "1",
+"isRefund": "1",
+71
+
+=== PAGE 79 ===
+branchId branchId Y 18
+branchName branchName Y 500
+branchCode branchCode Y 50
+Basic InformationInternal field:
+Field Field Name Required Length Description
+invoiceId Invoice ID Y 32
+invoiceNo Invoice number Y 20 Fiscal document number
+oriInvoiceNo Original Invoice 20
+Y
+number
+antifakeCode Antifake Code Y 20 Digital signature(20 digits)
+deviceNo device Number Y 20 Device Number (20 digits)
+issuedDate Invoice issued date date(DD/MM/YYYY HH24:mm:ss)
+Y
+Date stamp
+oriIssuedDate Original Invoice date date(DD/MM/YYYY HH24:mm:ss)
+Y
+issued Date stamp
+oriGrossAmount Original invoice number
+Y
+amount
+operator Operator Y 150
+currency currency Y 10 UGX
+oriInvoiceId Original Invoice ID 32 When the credit is opened, it is
+N the original invoice number. When
+the ticket is opened, it is empty.
+invoiceType Invoice Type 1 1:Invoice/Receipt
+2:Credit Note
+5:Credit Memo
+Y 4:Debit Note
+Corresponding dictionary
+table invoiceType
+invoiceKind Invoice Kind Y 1 1 :invoice 2: receipt
+dataSource Data Source 3 101:EFD
+102:Windows Client APP
+103:WebService API
+104:Mis
+Y 105:Webportal
+106:Offline Mode Enabler
+107:USSD
+108:ASK URA
+isInvalid Obsolete sign N 1 Obsolete sign
+78
+
+=== PAGE 89 ===
+tin tin N 10-20
+legalName legalName N 256
+businessName businessName N 256
+address address N 500
+creditNoteExtend field:
+Field Field Name Required Length Description
+preGrossAmoun gross amount number Original Invoice/Receipt
+N
+t total gross amount
+preTaxAmount tax amount number Original Invoice/Receipt
+N
+total tax amount
+preNetAmount net amount number Original Invoice/Receipt
+N
+total net amount
+9. Invoice Upload
+Interface Name Invoice Upload
+Description Upload the Invoice/Receipt or Debit Note to the server.
+Interface Code T109
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"sellerDetails": {
+"tin": "201905081705",
+"ninBrn": "201905081705",
+"legalName": "zhangsan",
+"businessName": "lisi",
+"address": "beijin",
+"mobilePhone": "15501234567",
+Request Message "linePhone": "010-6689666",
+"emailAddress": "123456@163.com",
+"placeOfBusiness": "beijin",
+"referenceNo": "00000000012",
+"branchId": "207300908813650312",
+"isCheckReferenceNo": "0"
+},
+"basicInformation": {
+"invoiceNo": "00000000001",
+88
+
+=== PAGE 115 ===
+10. Credit Note Application
+Interface Name Credit Note Application
+Description Credit Note Application
+Interface Code T110
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"oriInvoiceId": "0123456",
+"oriInvoiceNo": "1234556789",
+"reasonCode": "102",
+"reason": "refundreason",
+"applicationTime": "2019-06-15 15:02:02",
+"invoiceApplyCategoryCode": "1",
+"currency": "UGX",
+"contactName": "1",
+"contactMobileNum": "1",
+"contactEmail": "1",
+"source": "101",
+"remarks": "Remarks",
+"sellersReferenceNo": "00000000012",
+"goodsDetails": [{
+Request Message "item": "apple",
+"itemCode": "101",
+"qty": "2",
+"unitOfMeasure": "kg",
+"unitPrice": "150.00",
+"total": "1",
+"taxRate": "0.18",
+"tax": "22.18",
+"orderNumber": "1",
+"deemedFlag": "1",
+"exciseFlag": "2",
+"categoryId": "1123",
+"categoryName": "Test",
+"goodsCategoryId": "1125",
+"goodsCategoryName": "Test",
+"exciseRate": "0.12",
+114
+
+=== PAGE 125 ===
+Attachment format: png、doc、
+pdf、jpg、txt、docx、xlsx、
+cer、crt、der
+importAttachm importAttachment Unlimit
+N
+entContent Content ed
+Basic InformationInternal field:
+Field Field Name Required Length Description
+operator Operator Y 150
+invoiceKind invoice kind Y 1 1 :invoice 2: receipt
+invoiceIndust invoiceIndustryC 3 101:General Industry
+ryCode ode 102:Export
+104:Imported Service
+105:Telecom
+106:Stamp Duty
+N 107:Hotel Service
+108:Other taxes
+109:Airline Business
+110:EDC
+111:Auction
+112:Export Service
+branchId branchId N 18
+currencyRate currencyRate N Number
+AttachmentList field:
+Field Field Name Required Length Description
+fileName fileName N 256
+fileType fileType 5 fileType format: png、doc、
+N pdf、jpg、txt、docx、xlsx、
+cer、crt、der
+fileContent fileContent Unlimit Base64 content
+N
+ed
+11. Credit /Cancel Debit Note Application List Query
+Interface Name Credit/Cancel Debit Note Application List Query
+Description Credit/Cancel Debit Note Application List Query
+Interface Code T111
+Request Encrypted Y
+124
+
+=== PAGE 126 ===
+Response
+Y
+Encrypted
+{
+"referenceNo": "1234556789",
+"oriInvoiceNo": "1234556789",
+"invoiceNo": "1234556789",
+"combineKeywords": "11111",
+"approveStatus": "101",
+"queryType": "1",
+"invoiceApplyCategoryCode": "1",
+"startDate": "2019-06-14",
+Request Message
+"endDate": "2019-06-15",
+"pageNo": "1",
+"pageSize": "10" ,
+"creditNoteType": "1",
+"branchName": "Mr. HENRY KAMUGISHA",
+"sellerTinOrNin": "1009837013",
+"sellerLegalOrBusinessName": "CLASSY TRENDS BOUTIQUE"
+}
+{
+"page": {
+"pageNo": "1",
+"pageSize": "10",
+"totalSize": "Total number of articles",
+"pageCount": "total pages"
+},
+"records": [{
+"id": "1234556789",
+"oriInvoiceNo": "1234556789",
+Response "invoiceNo": "1234556789",
+Message "referenceNo": "1234556789",
+"approveStatus": "101",
+"applicationTime": "16/06/2019 15:02:02",
+"invoiceApplyCategoryCode": "1",
+"grossAmount": "66.00",
+"oriGrossAmount": "123.00",
+"currency": "1",
+"taskId": "1",
+"buyerTin": "7777777777",
+"buyerBusinessName": "aisino",
+"buyerLegalName": "test",
+125
+
+=== PAGE 130 ===
+107:USSD
+108:ASK URA
+taskId Tast Id Y 18
+pageNo current page 3
+number
+pageSize How many records 10
+are displayed per
+page
+totalSize Total number of 10
+articles
+pageCount total pages 10
+12. Credit Note Application Details
+Interface Name credit application details
+Description credit application details
+Interface Code T112
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+Request Message "id": "229700709531101368"
+}
+{
+"id": "229700709531101368",
+"oriInvoiceNo": "27748703589774744343",
+"oriInvoiceId": "27748703589774744343",
+"refundInvoiceNo": "27748703589774744346",
+"referenceNo": "181021206600004292110001",
+"reason": "Buyer refused to accept the invoice incorrect invoice/receipt",
+Response "selectRefundReasonCode": "101",
+Message "approveStatusCode": "101",
+"updateTime": "16/06/2019",
+"applicationTime": "16/06/2019",
+"invoiceApplyCategoryCode": "101",
+"contactName": "1",
+"contactMobileNum": "1",
+"contactEmail": "1",
+"source": "102",
+129
+
+=== PAGE 134 ===
+Num
+buyerPlaceOfB buyerPlaceOfBusi 500 Buyer's place of business
+Y
+usi
+sellersReferenc sellersReferenceNo 50
+N
+eNo
+importBusines Import 500 invoiceIndustryCode is equal
+sName BusinessName N to 104, importbusinessname
+cannot be empty
+importEmailAd Import 50 The byte length cannot be
+dress EmailAddress N less than 6 and cannot be
+greater than 50
+importContact Import 30
+N
+Number ContactNumber
+importAddress Import Address 500 invoiceIndustryCode is equal
+N to 104, importAddress cannot
+be empty
+importInvoice importInvoiceDat date
+N
+Date e
+importAttachm importAttachment 256 importAttachmentName eg:
+entName Name test.png
+N Attachment format: png、doc、
+pdf、jpg、txt、docx、xlsx、
+cer、crt、der
+AttachmentList field:
+Field Field Name Required Length Description
+fileName fileName N 256
+fileType fileType 5 fileType format: png、doc、
+N pdf、jpg、txt、docx、xlsx、
+cer、crt、der
+fileContent fileContent Unlimit Base64 content
+N
+ed
+13. Credit /Debit Note approval
+Interface Name credit application approval
+Description credit application approval
+Interface Code T113
+Request Encrypted Y
+133
+
+=== PAGE 135 ===
+Response
+N
+Encrypted
+{
+"referenceNo": "1234556789",
+"approveStatus": "101",
+Request Message
+"taskId": "1",
+"remark": "Remarks"
+}
+Response
+Null
+Message
+credit application approval
+Flow Description
+Field description
+Field Field Name Required Length Description
+referenceNo referenceNo Y 20
+approveStatus Approval Status 3 101 Approved
+103 Rejected
+Y
+Associated dictionary table
+creditNoteApproveStatus
+remark Remarks Y 1024
+taskId task ID Y 20
+14. Cancel of credit /debit note Application
+Interface Name Cancel Credit Note 、initiate Cancel of Debit Note Application
+Description Cancellation of credit and debit notes
+Interface Code T114
+Request Encrypted Y
+Response
+N
+Encrypted
+{
+"oriInvoiceId": "31000000000000000001",
+Request Message "invoiceNo": "786059685752403327",
+"reason": "reason",
+"reasonCode": "102",
+134
+
+=== PAGE 137 ===
+Field Field Name Required Length Description
+fileName fileName N 256
+fileType fileType 5 fileType format: png、doc、
+N pdf、jpg、txt、docx、xlsx、
+cer、crt、der
+fileContent fileContent Unlimit Base64 content
+N
+ed
+15. System Dictionary Update
+Interface Name System dictionary update
+Description Query system parameters such as VAT, Excise Duty, and Currency
+Interface Code T115
+Request Encrypted N
+Response
+Y
+Encrypted
+Request Message Null
+{
+"creditNoteMaximumInvoicingDays": {
+"value": "90",
+"name": "Credit Node Maximum Invoicing days"
+},
+"currencyType": [{
+"value": "101",
+"name": "UGX"
+}, {
+"value": "102",
+Response "name": "USD"
+Message }],
+"creditNoteValuePercentLimit": {
+"value": "0.6",
+"name": "credit Note Value Percent Limit"
+},
+"rateUnit": [{
+"value": "101",
+"name": "per stick"
+}, {
+"value": "102",
+"name": "per litre"
+136
+
+=== PAGE 140 ===
+timeFormat Time Format Y 20 System date format
+exportRateUnit
+Field Field Name Required Length Description
+value Dictionary value Y 3
+name Name Y 200
+validPeriodFr validPeriodFrom Date Follow System date format
+Y
+om
+periodTo periodTo Y Date Follow System date format
+status status 3 101:Enable
+Y
+102:Disable
+16. Z-report Daily Upload
+Interface Name Z-report Daily Upload
+Description Z-report Daily Upload
+Interface Code T116
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+Request Message To be determined
+}
+Response
+Null
+Message
+Z-report Daily Upload
+Flow Description
+Field description
+Field Field Name Required Length Description
+17. Invoice Checks
+Interface Name Invoice Checks
+139
+
+=== PAGE 141 ===
+Description Contrast client invoice with server invoice consistent
+Interface Code T117
+Request Encrypted Y
+Response
+Y
+Encrypted
+[{
+"invoiceNo": "10239892399",
+"invoiceType": "1"
+}, {
+Request Message
+"invoiceNo": "10239892398",
+"invoiceType": "2"
+}]
+[{
+"invoiceNo": "10239892399",
+"invoiceType": "1"
+Response
+}, {
+Message
+"invoiceNo": "10239892398",
+"invoiceType": "2"
+}]
+1. The client uploads a segment of invoiceNo and invoice category
+2. Query the database in the background and compare the invoice type and
+invoiceNo of the invoice.
+3. Compare the inconsistent invoice number or return the invoice number
+Flow Description
+without results to the client.
+4. If the comparison is consistent, return empty
+5. Query sellerTin equals (outer packet gets Tin)
+6. Query deviceNo equal to the deviceNo of the outer packet.
+Field description
+Field Field Name Required Length Description
+invoiceNo invoiceNo Y 20
+invoiceType invoice type 1 1:Invoice/Receipt
+2:Credit Note With Original
+FDN
+Y
+5:Credit Note Without
+Original FDN
+4:Debit Note
+The size of the collection cannot exceed the set value
+140
+
+=== PAGE 142 ===
+18. Query Credit Note Application and Cancel of Debit Note Application Details
+Interface Name Query Credit Note Application and Cancel of Debit Note Application Details
+Description Query Credit Note and Cancel Debit Note to apply for details
+Interface Code T118
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+Request Message "id": "229700709531101368"
+}
+{
+"goodsDetails": [{
+"itemName": "apple",
+"itemCode": "101",
+"qty": "2",
+"unit": "kg",
+"unitPrice": "150.00",
+"total": "1",
+"taxRate": "0.18",
+"tax": "12.88",
+"discountTotal": "18.00",
+"discountTaxRate": "0.18",
+"orderNumber": "1",
+"discountFlag": "1",
+Response
+"deemedFlag": "1",
+Message
+"exciseFlag": "2",
+"categoryId": "1123",
+"categoryName": "Test",
+"goodsCategoryId": "1125",
+"goodsCategoryName": "Test",
+"exciseRate": "0.12",
+"exciseRule": "1",
+"exciseTax": "20.22",
+"pack": "1",
+"stick": "20",
+"exciseUnit": "101",
+"exciseCurrency": "UGX",
+"exciseRateName": "123",
+141
+
+=== PAGE 147 ===
+107 EFT
+108 POS
+109 RTGS
+110 Swift transfer
+paymentAmou paymentAmount number Tax Receipt total tax amount
+nt Y Must be positive or 0
+Integer digits cannot exceed 16
+orderNumber orderNumber 1 Sort by lowercase letters,
+Y
+such as a, b, c, d, etc.
+BasicInformation field:
+Field Field Name Required Length Description
+invoiceKind invoiceKind Y 1 1 :invoice 2: receipt
+invoiceType invoiceType 3 2:Credit Note
+Y
+4:Debit Note
+invoiceIndustry invoiceIndustryCod 3 101:General Industry
+Code e 102:Export
+104:Imported Service
+105:Telecom
+106:Stamp Duty
+Y 107:Hotel Service
+108:Other taxes
+109:Airline Business
+110:EDC
+111:Auction
+112:Export Service
+19. Query Taxpayer Information By TIN
+Interface Name Query Taxpayer Information By TIN or ninBrn
+Description Query Taxpayer Information By TIN or ninBrn
+Interface Code T119
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"tin": "7777777777",
+Request Message
+"ninBrn": "7777777777"
+}
+146
+
+=== PAGE 149 ===
+Description Void Credit Debit/Note Application
+Interface Code T120
+Request Encrypted Y
+Response
+N
+Encrypted
+{
+"businessKey": "12345678901",
+Request Message
+"referenceNo": "23121212134"
+}
+Response
+null
+Message
+Void Credit Debit/Note Application
+Flow Description
+Field description
+Field Field Name Required Length Description
+businessKey businessKey Y 20 businessKey from T111 id
+referenceNo referenceNo 20 referenceNo from T111
+Y
+referenceNo
+21. Acquiring exchange rate
+Interface Name Acquiring exchange rate
+Description Acquiring exchange rate
+Interface Code T121
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"currency": "USD",
+Request Message "issueDate": "2020-05-16"
+}
+148
+
+=== PAGE 150 ===
+{
+"currency": "USD",
+"rate": "3700",
+Response
+Message "importDutyLevy": "3740.6388",
+"inComeTax": "3740.6388",
+"exportLevy": "3730.6444"
+}
+Acquiring exchange rate
+Flow Description
+Field description
+Field Field Name Required Length Description
+currency currency Y 3
+issueDate issueDate Date issueDate format must be
+N
+yyyyy-MM-dd!
+Field Field Name Required Length Description
+currency currency Y 3
+rate VAT rate Number Exchange rate of target currency
+Y
+to ugx eg: 1usd = 3700ugx
+importDutyLev importDutyLevy Number
+Y
+y
+inComeTax inComeTax Y Number
+exportLevy exportLevy Y Number
+22. Query cancel credit note details
+Interface Name Query cancel credit note details
+Description Query cancel credit note details Mapping to T114
+Interface Code T122
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+Request Message "invoiceNo": "22970000531455"
+}
+149
+
+=== PAGE 151 ===
+{
+"invoiceNo": "22970000531455",
+"currency": "UGX",
+Response "issueDate": "08/05/2019 17:13:12",
+Message "grossAmount": "3700.00",
+"reasonCode": "101",
+"reason": "",
+}
+Query cancel credit note details
+Flow Description
+Field description
+Field Field Name Required Length Description
+invoiceNo invoiceNo Y 20
+Field Field Name Required Length Description
+invoiceNo invoiceNo Y 20
+currency currency Y 10
+issueDate issueDate Y Date
+grossAmount grossAmount Y Number
+reason Cancel reason Y 1024
+reasonCode Refund reason 3 Corresponding dictionary
+Y
+code cancelRefundReason
+23. Query Commodity Category
+Interface Name Query Commodity Category
+Description Query Commodity Category
+Interface Code T123
+Request Encrypted N
+Response
+N
+Encrypted
+Request Message Null
+[{
+"commodityCategoryCode": "100000000",
+Response
+"parentCode": "0",
+Message
+"commodityCategoryName": "Standard",
+"commodityCategoryLevel": "1",
+150
+
+=== PAGE 153 ===
+goryLevel Level
+rate rate Correspond tax
+ratecodeTAX_RATE_CODE
+Y
+taxRate
+0.18 18%
+isLeafNode isLeafNode 101:Y
+Y
+102:N
+serviceMark serviceMark 101:Y
+Y
+102:N
+isZeroRate isZeroRate 101:Y
+Y
+102:N
+zeroRateStartD zeroRateStartDate
+N
+ate
+zeroRateEndDa zeroRateEndDate
+N
+te
+isExempt isExempt 101:Y
+Y
+102:N
+exemptRateStar exemptRateStartDat
+N
+tDate e
+exemptRateEnd exemptRateEndDate
+N
+Date
+enableStatusCo enableStatusCode 1:enable:
+Y
+de 0:disable
+exclusion exclusion 0:Zero
+Y 1:Exempt
+2:No exclusion
+24. Query Commodity Category Pagination
+Interface Name Query Commodity Category pagination
+Description Query Commodity Category pagination
+Interface Code T124
+Request Encrypted N
+Response
+N
+Encrypted
+{
+"pageNo": "1",
+Request Message
+"pageSize": "10"
+}
+152
+
+=== PAGE 156 ===
+de
+exclusion exclusion 1 0:Zero
+1:Exempt
+Y
+2:No exclusion
+3:Both 0% & '-'
+excisable excisable 3 101:Y
+Y
+102:N
+pageNo current page 3
+Y
+number
+pageSize How many records 10
+are displayed per Y
+page
+totalSize Total number of 10
+Y
+articles
+pageCount total pages Y 10
+vatOutScopeCo VAT Out of Scope 3 101:Yes
+Y
+de 102:No
+25. Query Excise Duty
+Interface Name Query Excise Duty
+Description Query Excise Duty
+Interface Code T125
+Request Encrypted N
+Response
+N
+Encrypted
+Request Message Null
+{
+"exciseDutyList": [{
+"id": "000023",
+"exciseDutyCode": "LED060000",
+"goodService": "Soft cup",
+Response "parentCode": "LED000000",
+Message "rateText": "18.00%,shs.100.00 Per minute",
+"isLeafNode": "0",
+"effectiveDate": "29/08/2019",
+"exciseDutyDetailsList": [{
+"exciseDutyId": "000023",
+"type": "101",
+155
+
+=== PAGE 158 ===
+parentCode Good parentCode Y 20
+rateText tax rateText Y 50
+exciseDutyId Good category ID Y 18 Corresponding dictionaryrateType
+isLeafNode isLeafNode 1 1:Y
+Y
+0:N
+effectiveDate effectiveDate Y Date
+exciseDutyId exciseDutyId Y 20
+type tax rate Calculate 10 101 Percentage
+Y
+type 102 Unit of measurement
+rate tax rate Y number
+unit unit of 3 be empty if type=101,
+measurement can not empty if type=102,
+N
+Corresponding dictionarycode
+rateUnit
+26. Get All Exchange Rates
+Interface Name get all exchange rates
+Description get all exchange rates
+Interface Code T126
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+Request Message "issueDate": "2020-05-16"
+}
+[
+{
+"currency": "USD",
+"rate": "3700",
+Response
+Message "importDutyLevy": "3740.6388",
+"inComeTax": "3740.6388",
+"exportLevy": "3730.6444"
+}
+]
+Acquiring exchange rate
+Flow Description
+157
+
+=== PAGE 159 ===
+Field description
+Field Field Name Required Length Description
+issueDate issueDate Date issueDate format must be
+N
+yyyyy-MM-dd!
+Field Field Name Required Length Description
+currency currency Y 3
+rate VAT rate Number Exchange rate of target currency
+Y
+to ugx eg: 1usd = 3700ugx
+importDutyLev importDutyLevy Number
+Y
+y
+inComeTax inComeTax Y Number
+exportLevy exportLevy Y Number
+27. Goods/Services Inquiry
+Interface Name Goods/Services Inquiry
+Description Goods/Services Inquiry
+Interface Code T127
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"goodsCode": "0001",
+"goodsName ": "cat",
+"commodityCategoryName": "cat",
+"pageNo": "10",
+"pageSize": "10",
+"branchId": "206637528324276772",
+Request Message "serviceMark": "101",
+"haveExciseTax": "101",
+"startDate": "2021-09-10",
+"endDate": "2021-09-11",
+"combineKeywords": "425502528294126235",
+"goodsTypeCode": "101",
+"tin": "1009837013",
+"queryType": "1"
+158
+
+=== PAGE 164 ===
+ice 12, decimal digits cannot
+exceed 8;
+packageScaled packageScaledVal Number Integer digits cannot exceed
+ValueCustoms ueCustoms Y 12, decimal digits cannot
+exceed 8;
+customsScaled customsScaledVal Number Integer digits cannot exceed
+Value ue Y 12, decimal digits cannot
+exceed 8;
+goodsOtherUnits
+Field Field Name Required Length Description
+id goodsOtherUnits 18
+N
+id
+commodityGoo Goods id N 18
+dsId
+otherUnit otherUnit N 3 T115 rateUnit
+otherPrice otherPrice Y Number
+otherScaled otherScaled N Number Integer digits cannot exceed
+12, decimal digits cannot
+exceed 8;
+packageScaled packageScaled N Number Integer digits cannot exceed
+12, decimal digits cannot
+exceed 8;
+28. Query the stock quantity by goods id
+Interface Name Query the stock quantity by goods id
+Description Query the stock quantity by goods id
+Interface Code T128
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"id": "290707933831281139",
+Request Message
+"branchId": "298324457142214047"
+}
+163
+
+=== PAGE 165 ===
+{
+Response "stock": "12",
+Message "stockPrewarning": "10"
+}
+Query the stock quantity by goods id
+Flow Description
+Field description
+Field Field Name Required Length Description
+id Goods id Y 18
+branchId branchId N 18
+Field Field Name Required Length Description
+stock currency Y Number
+stockPrewarnin stockPrewarning Number
+Y
+g
+29. Batch Invoice Upload
+Interface Name Batch Invoice Upload
+Description Batch Invoice Upload
+Interface Code T129
+Request Encrypted Y
+Response
+Y
+Encrypted
+[
+{
+"invoiceContent": "T109 Request information plaintext",
+Request Message
+"invoiceSignature": "JKQWJK34K32JJEK2JQWJ5678"
+}
+]
+[
+{
+"invoiceContent": "T109 Response information plaintext",
+Response
+"invoiceReturnCode": "00",
+Message
+"invoiceReturnMessage": "SUCCESS"
+}
+]
+164
+
+=== PAGE 166 ===
+Batch Invoice Upload
+Flow Description
+Field description
+Field Field Name Required Length Description
+invoiceContent invoiceContent Unlimite
+Y
+d
+invoiceSignatur Signature value Unlimite
+Y
+e d
+Field Field Name Required Length Description
+invoiceContent Invoice Content Unlimite
+Y
+d
+invoiceReturnC Invoice Return Unlimite
+Y
+ode Message d
+invoiceReturnM Invoice Return Unlimite When the "returnCode" value is
+essage Message Y d 99, the exception information will
+be assigned to the field.
+30. Goods Upload
+Interface Name Goods Upload
+Description Goods Upload
+Interface Code T130
+Request Encrypted Y
+Response
+Y
+Encrypted
+[{
+"operationType": "101",
+"goodsName": "apple",
+"goodsCode": "001",
+"measureUnit": "101",
+Request Message "unitPrice": "6999.99",
+"currency": "101",
+"commodityCategoryId": "10111301",
+"haveExciseTax": "101",
+"description": "1",
+"stockPrewarning": "10",
+165
+
+=== PAGE 171 ===
+exceed 8;
+customsScaled customsScaledVal Number Integer digits cannot exceed
+Value ue Y 12, decimal digits cannot
+exceed 8;
+Other UoM:
+Field Field Name Required Length Description
+otherUnit otherUnit 3 T115 rateUnit
+otherUnit cannot be equal to
+measureunit
+Y
+If 'havePieceUnit :
+101',otherUnit cannot be
+equal to pieceMeasureUnit
+otherPrice otherPrice N Number
+otherScaled otherScaled Number Integer digits cannot exceed
+Y 12, decimal digits cannot
+exceed 8;
+packageScaled packageScaled Number Integer digits cannot exceed
+Y 12, decimal digits cannot
+exceed 8;
+31. Goods Stock Maintain
+Interface Name Goods Stock Maintain
+Description Goods Stock Maintain
+Interface Code T131
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+"goodsStockIn": {
+"operationType": "101",
+"supplierTin": "1010039929",
+Request Message
+"supplierName": "Mr. EMUR SAM",
+"adjustType": "101",
+"remarks": "Increase inventory",
+"stockInDate": "2020-09-01",
+170
+
+=== PAGE 175 ===
+or It is not required. The default
+value is 0.
+fuelTankId fuelTankId N 18
+goodsTypeCode goodsTypeCode 3 101: Goods
+102: Fuel
+N
+Not required. The default
+value is 101.
+lossQuantity lossQuantity Number Integer digits cannot exceed
+N 12, decimal digits cannot
+exceed 8;
+originalQuant originalQuantity Number Integer digits cannot exceed
+ity N 12, decimal digits cannot
+exceed 8;
+32. Upload exception log
+Interface Name Upload exception log
+Description Upload exception log
+Interface Code T132
+Request Encrypted Y
+Response
+N
+Encrypted
+[{
+"interruptionTypeCode": "101",
+"description": "Login failed",
+"errorDetail": "Login failed",
+"interruptionTime": "2020-04-26 17:13:12"
+Request Message },{
+"interruptionTypeCode": "101",
+"description": "Login failed",
+"errorDetail": "Login failed",
+"interruptionTime": "2020-04-26 17:13:12"
+}]
+Response
+Null
+Message
+174
+
+=== PAGE 176 ===
+When the cash in machine logs in, upload the abnormal log information in the
+Flow Description
+last login period.
+Field description
+Field Field Name Required Length Description
+interruptionTyp interruptionTypeCo 3 101:Number of Disconnected
+eCode de 102:Login Failure
+Y 103:Receipt Upload Failure
+104:System related errors
+105:Paper roll replacement
+description description Y 3000
+errorDetail errorDetail N 4000
+interruptionTim interruptionTime Date yyyy-MM-dd HH24:mm:ss
+Y
+e
+33. TCS upgrade system file download
+Interface Name TCS upgrade system file download
+Query the files needed to upgrade the system by version number and operation
+Description
+type number, including uploading attachments and required sql files!
+Interface Code T133
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"tcsVersion": "1",
+Request Message
+"osType": "1"
+}
+{
+"precommand": "/as/",
+"precommandurl": "./jmeter/bin",
+"precommandfilename": "abc.txt",
+Response
+"command": "000",
+Message
+"commandurl": "./home/tomcat",
+"commandfilename": "a.docx",
+"tcsversion": "1",
+"fileList": [
+175
+
+=== PAGE 178 ===
+updatesql updatesql Y CLOB Sql file
+34. Commodity category incremental update
+Interface Name Commodity category incremental update
+Returns only the commodity category changes since the local version up to
+Description
+current version.
+Interface Code T134
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+Request Message "commodityCategoryVersion": "1.0"
+}
+[{
+"commodityCategoryCode": "100000000",
+"parentCode": "0",
+"commodityCategoryName": "Standard",
+"commodityCategoryLevel": "1",
+"rate": "0.18",
+"isLeafNode": "101",
+"serviceMark": "101",
+"isZeroRate": "101",
+"zeroRateStartDate": "01/12/2019",
+"zeroRateEndDate": "05/12/2019",
+"isExempt": "101",
+Response
+"exemptRateStartDate": "06/12/2019",
+Message
+"exemptRateEndDate": "10/12/2019",
+"enableStatusCode": "1",
+"exclusion": "1"
+"excisable": "101",
+"vatOutScopeCode": "102"
+}, {
+"commodityCategoryCode": "100000000",
+"parentCode": "0",
+"commodityCategoryName": "Standard",
+"commodityCategoryLevel": "1",
+"rate": "0.18",
+"isLeafNode": "101",
+177
+
+=== PAGE 179 ===
+"serviceMark": "101",
+"isZeroRate": "101",
+"zeroRateStartDate": "01/12/2019",
+"zeroRateEndDate": "05/12/2019",
+"isExempt": "101",
+"exemptRateStartDate": "06/12/2019",
+"exemptRateEndDate": "10/12/2019",
+"enableStatusCode": "1",
+"exclusion": "1"
+"excisable": "101",
+"vatOutScopeCode": "102"
+}]
+1. Check T103. If the commodityCategoryVersion is higher than local, then call
+T134 and specify the local version.
+2. Loop through the results. If the returned category code exists in the local
+Flow Description
+repository, delete it and insert the one returned. If it does not exist, then insert it
+into the local repository. continue until all items are processed.
+3. Update the version of the local repository.
+Field description
+Field Field Name Required Length Description
+commodityCate commodityCategor Number Local commodityCategoryVersion
+Y
+goryVersion yVersion
+commodityCate commodityCategor 18
+Y
+goryCode yCode
+parentCode parentCode Y 18
+commodityCate commodityCategor 200
+Y
+goryName yName
+commodityCate commodityCategor 1
+Y
+goryLevel yLevel
+rate rate 4 Correspond tax
+ratecodeTAX_RATE_CODE
+Y
+taxRate
+0.18 18%
+isLeafNode isLeafNode Y 3 101:Y 102:N
+serviceMark serviceMark Y 3 101:Y 102:N
+isZeroRate isZeroRate Y 3 101:Y 102:N
+zeroRateStartD zeroRateStartDate Date
+N
+ate
+178
+
+=== PAGE 180 ===
+zeroRateEndDa zeroRateEndDate Date
+N
+te
+isExempt isExempt Y 3 101:Y 102:N
+exemptRateStar exemptRateStartDa Date
+N
+tDate te
+exemptRateEnd exemptRateEndDat Date
+N
+Date e
+enableStatusCo enableStatusCode 1 1:enable: 0:disable
+Y
+de
+exclusion exclusion 1 0:Zero
+1:Exempt
+Y
+2:No exclusion
+3:Both 0% & '-'
+excisable excisable 3 101:Y
+Y
+102:N
+vatOutScopeCo VAT Out OF Scope 3 101:Yes
+Y
+de 102:No
+35. Get Tcs Latest Version
+Interface Name Get Tcs Latest Version
+Description Get Tcs Latest Version
+Interface Code T135
+Request Encrypted N
+Response
+Y
+Encrypted
+Request Message NULL
+{
+Response
+"latesttcsversion":"5"
+Message
+}
+Get Tcs Latest Version
+Flow Description
+Field description
+Field Field Name Required Length Description
+latesttcsversion latesttcsversion Y Number
+179
+
+=== PAGE 181 ===
+36. Certificate public key upload
+Interface Name Certificate public key upload
+Description Certificate public key upload
+Interface Code T136
+Request Encrypted N
+Response
+N
+Encrypted
+{
+"fileName": "Certum Trusted NetWork CA 2.cer",
+"verifyString": "MDQwNDAxMDcxNVowMzELMAkGA1UEBhMCRU4x",
+"fileContent":
+"MIIDFjCCAf6gAwIBAgIRAKPGAol99EKUPlA/VZYC+u8wDQYJKoZIhvcNAQELB
+QAwMzELMAkGA1UEBhMCRU4xJDAiBgNVBAMMG0NlcnR1bSBUcnVzdGVkIE5
+ldFdvcmsgQ0EgMjAgFw0wMDA0MTkwMTA3MTVaGA8yMDYwMDQwNDAxM
+DcxNVowMzELMAkGA1UEBhMCRU4xJDAiBgNVBAMMG0NlcnR1bSBUcnVzdG
+VkIE5ldFdvcmsgQ0EgMjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCg
+gEBANEC+sWUcfJFToC57ghh7WvGLDrfx5lIp0yrZDEiHXtx32GqAFokXmwzJ82i
+DVwIrbDSIf62NBQ5zt5NENdk5oi36rwYlDNWMTEs8rtwGMWJuiZRMaleVPVjL1
+Request Message Ecf2T4cCWiGw83qvNyWDAd4OaYV0DCvBe3YPR7bOKrznwEv/Eycp+NiBOkpid
+Ynyrdb/A4gsMBuEKYjIQ3z5lrrEuAUrpJADf2jlxTTJ7ede1Dmyga1yzoOeAuc0ZLE
+JKaqNG2cwK+tOZ9W7OL/KmHgY/+FhMOd9xzuJoEJnFycjn5x7Ha1+GyScMPU
+acT3Z3X9+ukYXyQriyAavLOwwTYdZ4hn+ECAwEAAaMjMCEwDwYDVR0TAQH
+/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYwDQYJKoZIhvcNAQELBQADggEB
+AHIGw8c873dM1gMglwffWS9hx8U+36S3z2zmJPELJo/Vf9qsl+75UCRL0ORagy
+X1yy5rxN+Wf5TXlHluEosjC+aR0P4NXUqKF9bSz8H4Q/yPgjR0tjiWKDHpxCMdz
+SGhpVFcdBCHUu2o25k2IeKdw8gm5lkZQW1CxgQpb/C8xwzwD8faqwPKMEf+
+m96axUoVzi9fgnnP+awERdUVJEhFo6JJVKIX8mTbQv83VC3gI5eq/xSprXEwQy
+QvELJ9S1TvJtkqbSdgRrnCEdpkIoFa8huM6zfj1WEBRxteoo6PH46un4FGj4N6ioI
+GzVr9G40uhQGdm16ZU+q44XjW2oUnI9w="
+}
+Response
+NULL
+Message
+Certificate public key upload
+Flow Description
+180
+
+=== PAGE 182 ===
+Field description
+Field Field Name Required Length Description
+fileName fileName 256 FileName must be in '.crt' and
+Y
+'.cer' format!
+verifyString verifyString Unlimite TIN Intercept the top 10 +
+Y d yymmdd as AES Key to encrypt file
+name
+fileContent fileContent Unlimite base64 string
+Y
+d
+37. Check exempt/Deemed taxpayer
+Interface Name Check exempt/Deemed taxpayer
+Description Check whether the taxpayer is tax exempt/Deemed
+Interface Code T137
+Request Encrypted Y
+Response
+Y
+Encrypted
+{
+"tin": "1009830845",
+Request Message
+"commodityCategoryCode": "10000000,10000001",
+}
+{
+"taxpayerType": "101",
+"exemptType": "101",
+"commodityCategory": [{
+"commodityCategoryCode": "10000000",
+"commodityCategoryTaxpayerType": "101"
+}],
+Response
+"deemedAndExemptProjectList": [{
+Message
+"projectId": "10000000",
+"projectName": "101",
+"deemedExemptCode": "101",
+"commodityCategoryCode": "10000000",
+"serviceMark": "101",
+"unit": "101",
+"currentQty": "101",
+181
+
+=== PAGE 184 ===
+105:VAT & Excise Duty Exempt
+106:Excise Duty Exempt
+107:Mining Licensee
+108:EACOP Licensee
+109:EACOP Level 1 Contractor
+commodityCate commodityCategor 18
+Y
+goryCode yCode
+serviceMark serviceMark 3 101:Y
+Y
+102:N
+unit unit Y 3 T115 rateUnit
+currentQty currentQty N Number
+currentAmount currentAmount Y Number
+38. Get all branches
+Interface Name Get all branches
+Description Returns all branches
+Interface Code T138
+Request
+N
+Encrypted
+Response
+Y
+Encrypted
+Request Message NULL
+[{
+"branchId": "206637525568955296",
+"branchName": "Mr. STEPHEN BUNJO"
+Response Message }, {
+"branchId": "206637528324276772",
+"branchName": "ARINAIT AND SONS CO. LIMITED"
+}]
+Get all branches by current tin
+Flow Description
+Field description
+Field Field Name Required Length Description
+branchId branchId Y 18
+branchName branchName Y 500
+183
+
+=== PAGE 185 ===
+39. Goods Stock Transfer
+Interface Name Goods Stock Transfer
+Description Transfer of stock between branches.
+Interface Code T139
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+"goodsStockTransfer": {
+"sourceBranchId": "206637525568955296",
+"destinationBranchId": "206637528324276772",
+"transferTypeCode": "101",
+"remarks": "Others",
+"rollBackIfError": "0",
+"goodsTypeCode": "101"
+},
+Request Message "goodsStockTransferItem": [{
+"commodityGoodsId": "287700992426868373",
+"goodsCode": "287700992426",
+"measureUnit": "101",
+"quantity": "100",
+"remarks": "Others",
+"sourceFuelTankId": "568654903587001037",
+"destinationFuelTankId": "568654903587001037"
+}]
+}
+[{
+"commodityGoodsId": "287700992426868373",
+"measureUnit": "100",
+"quantity": "100",
+"remarks": "Others",
+Response Message
+"sourceFuelTankId": "568654903587001037",
+"destinationFuelTankId": "568654903587001037",
+"returnCode": "601",
+"returnMessage": "quantity:Invalid field value!"
+}]
+Goods Stock Transfer
+Flow Description
+184
+
+=== PAGE 187 ===
+remarks remarks N 1024
+returnCode returnCode 10 Leave empty in the request.
+N It will be populated with the
+status code in the response.
+returnMessage returnMessage 1024 Leave empty in the request.
+N It will be populated with the
+status code in the response.
+40. Goods/Services Inquiry by goods Code
+Interface Name Goods/Services Inquiry by goods Code
+Description Goods/Services Inquiry by goods Code
+Interface Code T144
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+Request "goodsCode": "0001,0002",
+Message "tin": "1009837013"
+}
+[{
+"goodsCode": "0001",
+"measureUnit": "101",
+"havePieceUnit": "101",
+"pieceMeasureUnit": "101",
+"haveOtherUnit": "101",
+Response "packageScaledValue": "1",
+Message "pieceScaledValue": "500",
+"goodsOtherUnits": [{
+"otherUnit": "AF",
+"otherScaled": "1000",
+"packageScaled": "1"
+}]
+}]
+Batch query goods by goodsCode array.
+Flow
+Description
+Query result data is the goods with status enabled
+186
+
+=== PAGE 188 ===
+Field description
+Field Field Name Required Length Description
+goodsCode goodsCode Unlimit Goodscode support multiple
+Y ed parameters, split,for
+example:“0001,0002”
+tin tin N 20 Principal agent TIN
+Field Field Name Required Length Description
+goodsCode Goods Code Y 50
+measureUnit Measure Unit Y 3 T115 rateUnit
+pieceMeasureU pieceMeasureUnit 3 If havePieceUnit= 101，
+nit pieceMeasureUnit cannot be
+empty
+N
+If havePieceUnit= 102，
+pieceMeasureUnit must be
+empty
+havePieceUnit havePieceUnit Y 3 101:Y 102:N
+haveOtherUnit haveOtherUnit 3 Is there other unit (101:yes ;
+Y
+102:no)
+packageScaled packageScaledVal Number
+Y
+Value ue
+pieceScaledVa pieceScaledValue Number
+lue Y
+otherUnit otherUnit N 3 T115 rateUnit
+otherScaled otherScaled Y Number
+packageScaled packageScaled Y Number
+41. Goods Stock recods query
+Interface Name Goods Stock recods query
+Description Goods Stock recods query
+Interface Code T145
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+187
+
+=== PAGE 191 ===
+Interface Code T146
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+"categoryCode": "00000000001",
+Request
+"type": "1",
+Message
+"issueDate": "2021-06-23 17:13:12"
+}
+{
+"commodityCategory": {
+"commodityCategoryCode": "100000000",
+"parentCode": "0",
+"commodityCategoryName": "Standard",
+"commodityCategoryLevel": "1",
+"rate": "0.18",
+"isLeafNode": "101",
+"serviceMark": "101",
+"isZeroRate": "101",
+"zeroRateStartDate": "01/12/2019",
+"zeroRateEndDate": "05/12/2019",
+"isExempt": "101",
+"exemptRateStartDate": "06/12/2019",
+"exemptRateEndDate": "10/12/2019",
+Response "enableStatusCode": "1",
+Message "exclusion": "1"
+"excisable": "101",
+"vatOutScopeCode": "102"
+},
+"exciseDuty": {
+"effectiveDate": "02/01/2020",
+"exciseDutyCode": "LED010300",
+"goodService": "Un-denatured spirits m",
+"id": "320389606969887681",
+"isLeafNode": "1",
+"parentCode": "LED010000",
+"rateText": "60%,UGX2000 per Kg",
+"exciseDutyDetailsList": [{
+"currency": "101",
+"exciseDutyId": "320389606969887681",
+"rate": "2000",
+190
+
+=== PAGE 194 ===
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+"combineKeywords": "425502528294126235",
+"stockInType": "101",
+"startDate": "2021-09-10",
+Request "endDate": "2021-09-11",
+Message "pageNo": "1",
+"pageSize": "10",
+"supplierTin": "1009839122",
+"supplierName": "Mr. EMUR SAM"
+}
+{
+"page": {
+"pageNo": "1",
+"pageSize": "10",
+"totalSize": " Total number of articles ",
+"pageCount": "total pages"
+},
+"records": [{
+"supplierTin": "1010039929",
+"supplierName": "Mr. EMUR SAM",
+"remarks": "Increase inventory",
+Response
+"stockInDate": "2020-09-01",
+Message
+"stockInType": "101",
+"productionBatchNo": "1200983",
+"productionDate": "2020-09-01",
+"branchId": "2020090132456",
+"invoiceNo": "320001127399",
+"referenceNo": "425502528294126235",
+"branchName": "PARAMOUR COSMETICS LIMITED",
+"totalAmount": "1000.00",
+"id": "425502528294126235"
+}]
+}
+Flow
+Goods Stock recods query
+Description
+193
+
+=== PAGE 196 ===
+44. Goods Stock recods detail query
+Interface Name Goods Stock recods detail query
+Description Goods Stock recods detail query
+Interface Code T148
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+Request
+"id": "425502528294126235"
+Message
+}
+{
+"goodsStockIn": {
+"stockInType": "101",
+"remarks": "Increase inventory",
+"invoiceNo": "320001127399",
+"branchId": "2020090132456",
+"branchName": "PARAMOUR COSMETICS LIMITED",
+"stockInDate": "2020-09-01",
+"supplierTin": "1010039929",
+"supplierName": "Mr. EMUR SAM",
+"productionBatchNo": "1200983",
+Response "productionDate": "2020-09-01"
+Message },
+"goodsStockInGoods": [{
+"commodityGoodsId": "287700992426868373",
+"goodsCode": "287700992426",
+"goodsName": "test",
+"measureUnit": "101",
+"currency": "101",
+"quantity": "100",
+"unitPrice": "6999",
+"amount": "69990.00"
+}]
+}
+Flow
+Goods Stock recods detail query
+Description
+195
+
+=== PAGE 198 ===
+unitPrice unitPrice Number Commodity purchase price
+Integer digits cannot exceed
+N
+12, decimal digits cannot
+exceed 8;
+totalAmount totalAmount N Number
+45. Goods Stock Adjust recods query
+Interface Name Goods Stock Adjust recods query
+Description Goods Stock Adjust recods query
+Interface Code T149
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+"referenceNo": "425502528294126235",
+"startDate": "2021-09-10",
+Request
+"endDate": "2021-09-11",
+Message
+"pageNo": "1",
+"pageSize": "10"
+}
+{
+"page": {
+"pageNo": "1",
+"pageSize": "10",
+"totalSize": " Total number of articles ",
+"pageCount": "total pages"
+},
+"records": [{
+Response
+"id": "208178192251887451",
+Message
+"referenceNo": "425502528294126235",
+"branchName": "PARAMOUR COSMETICS LIMITED",
+"adjustDate": "2020-09-01",
+"adjustType": "101",
+"remarks": "Increase inventory",
+"adjustAmount": "500.00"
+}]
+}
+197
+
+=== PAGE 199 ===
+Flow
+Goods Stock Adjust recods query
+Description
+Field description
+Field Field Name Required Length Description
+referenceNo referenceNo N 50
+startDate startDate N Date
+endDate endDate N Date yyyy-MM-dd
+pageNo current page 10 yyyy-MM-dd
+Y
+number
+pageSize How many records 3 Cannot be greater than the
+are displayed per Y integer 100
+page
+Field Field Name Required Length Description
+id id N 18
+referenceNo referenceNo N 50
+branchName branchName N 500
+adjustDate adjustDate N Date
+adjustType adjustType 3 101:Expired Goods
+102:Damaged Goods
+103:Personal Uses
+N
+105:Raw Material(s)
+104:Others. (Please specify)
+remarks remarks N 1024
+adjustAmount adjustAmount Number Integer digits cannot exceed
+N 12, decimal digits cannot
+exceed 8;
+46. Goods Stock Adjust detail query
+Interface Name Goods Stock Adjust detail query
+Description Goods Stock Adjust detail query
+Interface Code T160
+Request
+Y
+Encrypted
+198
+
+=== PAGE 200 ===
+Response
+Y
+Encrypted
+{
+Request
+"id": "425502528294126235"
+Message
+}
+{
+"goodsStockAdjust": {
+"branchId": "2020090132456",
+"branchName": "PARAMOUR COSMETICS LIMITED",
+"adjustDate": "2020-09-01",
+"adjustType": "101",
+"remarks": "Increase inventory",
+"adjustAmount": "69999"
+},
+"goodsStocAdjustGoods": [{
+Response "commodityGoodsId": "287700992426868373",
+Message "goodsCode": "287700992426",
+"goodsName": "test",
+"measureUnit": "101",
+"unitPrice": "6999",
+"stock": "100",
+"adjustQuantity": "10",
+"currentQuantity": "90",
+"adjustAmount": "69990.00",
+"remarks": "remarks"
+}]
+}
+Flow
+Goods Stock Adjust detail query
+Description
+Field description
+Field Field Name Required Length Description
+id id N 50
+Field Field Name Required Length Description
+branchId branchId N 18
+branchName branchName N 500
+adjustDate adjustDate N Date
+adjustType adjustType 3 101:Expired Goods
+N
+102:Damaged Goods
+199
+
+=== PAGE 202 ===
+Request
+N
+Encrypted
+Response
+Y
+Encrypted
+Request
+NULL
+Message
+[{
+"fuelTypeCode": "15101502",
+"parentCode": "15101500",
+Response
+"fuelTypeName": "Kerosene",
+Message
+"fuelTypeLevel": "3",
+"isLeafNode": "101"
+}]
+Flow
+Query fuel type
+Description
+Field description
+Field Field Name Required Length Description
+fuelTypeCode fuelTypeCode Y 18
+parentCode parentCode Y 18
+fuelTypeName fuelTypeName Y 200
+fuelTypeLevel fuelTypeLevel Y 1
+isLeafNode isLeafNode 3 101:Y
+Y
+102:N
+48. Upload shift information
+Interface Name Upload shift information
+Description Upload shift information
+Interface Code T163
+Request
+Y
+Encrypted
+Response
+N
+Encrypted
+{
+Request
+"shiftNo": "20220101-01",
+Message
+"startVolume": "851.91",
+201
+
+=== PAGE 204 ===
+49. Upload EDC disconnection data
+Interface Name Upload EDC disconnection data
+Description Upload EDC disconnection data
+Interface Code T164
+Request
+Y
+Encrypted
+Response
+N
+Encrypted
+[{
+"deviceNumber": "208178192251887451",
+Request "disconnectedType": "101",
+Message "disconnectedTime": "2022-01-20 10:00:00",
+"remarks": "Abnormal transaction"
+}]
+Response
+NULL
+Message
+Flow
+Upload EDC disconnected data
+Description
+Field description
+Field Field Name Required Length Description
+deviceNumber deviceNumber Y 50
+disconnectedT disconnectedType 3 101: TCS disconnected with
+ype Y Controller
+102:Abnormal Transaction
+disconnectedT disconnectedTime Date yyyy-MM-dd HH24:mm:ss
+Y
+ime
+remarks remarks N Text
+50. Update buyer details
+Interface Name Update buyer details
+Description Update buyer details
+Interface Code T166
+203
+
+=== PAGE 205 ===
+Request
+Y
+Encrypted
+Response
+N
+Encrypted
+{
+"invoiceNo": "321000229045",
+"buyerTin": "201905081705",
+"buyerNinBrn": "201905081705",
+"buyerPassportNum": "201905081705",
+"buyerLegalName": "zhangsan",
+"buyerBusinessName": "lisi",
+"buyerAddress": "beijin",
+Request "buyerEmailAddress": "123456@163.com",
+Message "buyerMobilePhone": "15501234567",
+"buyerLinePhone": "010-6689666",
+"buyerPlaceOfBusi": "beijin",
+"buyerType": "1",
+"buyerCitizenship": "1",
+"buyerSector": "1",
+"mvrn": "1",
+"createDateStr": "2022-02-23 14:21:00"
+}
+Response
+NULL
+Message
+Flow
+Update buyer details
+Description
+Field description
+Field Field Name Required Length Description
+invoiceNo invoiceNo Y 20
+buyerTin Buyer TIN 20 If 'buyerType' is '0',
+N
+buyerTin cannot be empty!
+buyerNinBRn Buyer NIN N 100
+buyerPassport Passport number 20
+N
+Num
+buyerLegalNam legal name 256
+N
+e
+buyerBusiness business name 256
+N
+Name
+buyerAddress buyeraddress N 500
+204
+
+=== PAGE 206 ===
+buyerEmailAdd buyeremail 50 Mailbox format
+N
+ress
+buyerMobilePh mobile phone 30
+N
+one
+buyerLinePhon line phone 30
+N
+e
+buyerPlaceOfB place of 500
+N
+usi business
+buyerType Buyer Type 1 0 : B2B
+Y 1 : B2C
+2 : Foreigner
+buyerCitizens Buyer 128
+N
+hip Citizenship
+buyerSector Buyer Sector N 200
+buyerReferenc Buyer 50 EFD and CS do not need to be
+eNo ReferenceNo N transmitted, and the external
+interface is used.
+mvrn mvrn N 32
+createDateStr createDateStr N Date yyyy-MM-dd HH24:mm:ss
+51. EDC Invoice /Receipt Inquiry
+Interface Name EDC Invoice /Receipt inquiry
+Description EDC Invoice /Receipt inquiry
+Interface Code T167
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+"fuelType": "Naphtha",
+"invoiceNo": "321000229045",
+"buyerLegalName": "lisi",
+Request "startDate": "2021-12-28",
+Message "endDate": "2021-12-28",
+"pageNo": "1",
+"pageSize": "10",
+"queryType": "1",
+"branchId": "2020090132456"
+205
+
+=== PAGE 210 ===
+105:Telecom
+106:Stamp Duty
+107:Hotel Service
+108:Other taxes
+109:Airline Business
+110:EDC
+111:Auction
+112:Export Service
+branchName branchName N 500
+deviceNo deviceNo Y 50
+uploadingTime uploadingTime Y Date
+referenceNo referenceNo N 50 Seller's Reference No.
+operator operator N 100
+userName userName N 500
+pumpNo pumpNo N 50
+nozzleNo nozzleNo N 50
+fuelType fuelType N 200
+52. Query fuel pump version
+Interface Name Query fuel pump version
+Description Query fuel pump version
+Interface Code T168
+Request
+N
+Encrypted
+Response
+Y
+Encrypted
+Request
+NULL
+Message
+{
+"fuelPumpList": [{
+"id": "208178192251887451",
+"branchId": "425502528294126235",
+Response "pumpNo": "1223-0011",
+Message "pumpVersion": "1641541077436"
+}],
+"fuelDefaultBuyerList": [{
+"id": "208178192251887451",
+"taxpayerId": "208178192251887451",
+209
+
+=== PAGE 211 ===
+"branchId": "425502528294126235",
+"legalName": "1223-0011"
+}]
+}
+Flow
+Query fuel pump version
+Description
+Field description
+Field Field Name Required Length Description
+id id N 18
+branchId branchId N 18
+pumpNo pumpNo N 50
+pumpVersion pumpVersion N 15
+taxpayerId taxpayerId N 18
+legalName legalName N 200
+53. Query fuel pump、fuel nozzle、fuel tank according to pump no
+Interface Name Query fuel pump、fuel nozzle、fuel tank according to pump no
+Description Query fuel pump、fuel nozzle、fuel tank according to pump no
+Interface Code T169
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+Request Message "id": "689769596689001259"
+}
+{
+"fuelPump": {
+"id": "208178192251887451",
+"branchId": "425502528294126235",
+Response Message "pumpNo": "1223-0011",
+"enableStatusCode": "101",
+"pumpSerialNumber": "1223-002",
+"manufacturerName": "M",
+"manufactureDateStr": "2020-09-01",
+210
+
+=== PAGE 215 ===
+Code e 102: Acquisition Equipment
+103: Level Gauge
+edcDsn edcDsn N 50
+manufacturerN manufacturerName 200
+N
+ame
+manufactureDa manufactureDateS Date
+N
+teStr tr
+enableStatusC enableStatusCode 3 101:enable
+N
+ode 102:disable
+54. Query efd location
+Interface Name Query efd location
+Description Query efd location
+Interface Code T170
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+"deviceNumber": "00031000092",
+Request Message "startDate": "2019-06-14",
+"endDate": "2019-06-15"
+}
+[{
+"deviceNumber": "208178192251887451",
+Response "longitude": "425502528294126235",
+Message "latitude": "1223-0011",
+"recordDate": "101"
+}]
+Query efd location, only return latest X records, X is a configurable
+Flow
+system parameter(LocationCountLimit), default is 10.
+Description
+Field description
+Field Field Name Required Length Description
+deviceNumber deviceNumber Y 20
+startDate startDate N Date yyyy-MM-dd
+214
+
+=== PAGE 216 ===
+endDate endDate N Date yyyy-MM-dd
+Field Field Name Required Length Description
+deviceNumber deviceNumber N 20
+longitude longitude N 60
+latitude latitude N 60
+recordDate recordDate N Date
+55. Query EDC UoM exchange rate
+Interface Name Query EDC UoM exchange rate
+Description Query EDC UoM exchange rate
+Interface Code T171
+Request
+N
+Encrypted
+Response
+Y
+Encrypted
+Request Message NULL
+[{
+"unitOfMeasure": "102",
+Response Message
+"exchangeRate": "1"
+}]
+Query EDC UoM exchange rate
+Flow Description
+Field description
+Field Field Name Required Length Description
+unitOfMeasure unitOfMeasure Y 3
+exchangeRate exchangeRate Y Number
+56. Fuel nozzle status upload
+Interface Name Fuel nozzle status upload
+Description Fuel nozzle status upload
+Interface Code T172
+215
+
+=== PAGE 217 ===
+Request
+Y
+Encrypted
+Response
+N
+Encrypted
+{
+"nozzleId": "208178192251887451",
+Request
+"nozzleNo": "N1225-0011",
+Message
+"status": "1"
+}
+Response
+NULL
+Message
+Flow
+Fuel nozzle status upload
+Description
+Field description
+Field Field Name Required Length Description
+nozzleId nozzleId Y 18
+nozzleNo nozzleNo Y 50
+status status 1 1:Available
+2:Card Plug-in
+3:Nozzle Lift
+4:Fueling
+Y
+5:Nozzle Hang
+6:Settling
+7:Nozzle Locked
+10:Offline
+57. Query Edc device Version
+Interface Name Query Edc device Version
+Description Query Edc device Version
+Interface Code T173
+Request
+N
+Encrypted
+Response
+Y
+Encrypted
+216
+
+=== PAGE 218 ===
+Request
+NULL
+Message
+[{
+"id": "208178192251887451",
+"manufacturerCode": "101",
+Response
+"manufacturerName": "101",
+Message
+"deviceTypeCode": "101",
+"versionNo": "1"
+}]
+Flow
+Query Edc device Version
+Description
+Field description
+Field Field Name Required Length Description
+id id Y 18
+manufacturerC manufacturerCode 3
+Y
+ode
+manufacturerN manufacturerName 200
+Y
+ame
+deviceTypeCod deviceTypeCode 3 101:Controller
+e Y 102:Acquisition Equipment
+103:Level Gauge
+versionNo versionNo Y 20
+58. Account Creation for USSD taxpayer
+Interface Name Account Creation for USSD taxpayer
+Description Account Creation for USSD taxpayer
+Interface Code T175
+Request
+Y
+Encrypted
+Response
+N
+Encrypted
+{
+Request "tin": "1009837013",
+Message "mobileNumber": "155012345678"
+}
+217
+
+=== PAGE 219 ===
+Response
+NULL
+Message
+Flow
+Account Creation for USSD taxpayer
+Description
+Field description
+Field Field Name Required Length Description
+tin Tin Y 10-20
+mobileNumber mobileNumber Y 30
+59. Upload device issuing status
+Interface Name Upload device issuing status
+Description Upload device issuing status
+Interface Code T176
+Request
+N
+Encrypted
+Response
+N
+Encrypted
+{
+Request "deviceNo": "00022080670",
+Message "deviceIssuingStatus": "101"
+}
+Response
+NULL
+Message
+Flow
+Upload device issuing status
+Description
+Field description
+Field Field Name Required Length Description
+deviceNo deviceNo Y 20
+deviceIssuing deviceIssuingSta 3 101:Ready
+Status tus Y 102:Issuing
+103:Printing
+218
+
+=== PAGE 220 ===
+60. Negative stock configuration inquiry
+Interface Name Negative stock configuration inquiry
+Description Negative stock configuration inquiry
+Interface Code T177
+Request
+N
+Encrypted
+Response
+N
+Encrypted
+Request
+NULL
+Message
+{
+"goodsStockLimit": {
+"id": "121242512738902997",
+"periodFrom": "2022-08-01",
+"periodTo": "2022-08-30",
+"allNegativeCode": "101",
+"statusCode": "101"
+Response
+},
+Message
+"goodsStockLimitCategoryList": [{
+"id": "208178192251887451",
+"goodsStockLimitId": "425502528294126235",
+"commodityCategoryCode": "10101501",
+"isSelectAll": "101"
+}]
+}
+Flow
+Negative stock configuration inquiry
+Description
+Field description
+Field Field Name Required Length Description
+id id Y 18
+periodFrom periodFromDate Y Date yyyy-MM-dd
+periodTo periodToDate Y Date yyyy-MM-dd
+allNegativeCo allNegativeCode Y 3 101:Y
+219
+
+=== PAGE 221 ===
+de 102:N
+allNegativeCode = 101
+goodsStockLimitDetails is
+null
+allNegativeCode = 102
+goodsStockLimitDetails is not
+null
+statusCode statusCode 3 101:Enable
+Y
+102:Disable
+Field Field Name Required Length Description
+id id Y 18
+goodsStockLim goodsStockLimitI 18
+Y
+itId d
+commodityCate commodityCategor 18
+Y
+goryCode yCode
+isSelectAll isSelectAll 3 101:Y
+Y
+102:N
+61. EFD Transfer
+Interface Name EFD Transfer
+Description EFD Transfer
+Interface Code T178
+Request
+Y
+Encrypted
+Response
+N
+Encrypted
+{
+Request "destinationBranchId": "214342953041962148",
+Message "remarks": "test"
+}
+Response
+NULL
+Message
+Flow
+EFD Transfer
+Description
+220
+
+=== PAGE 222 ===
+Field description
+Field Field Name Required Length Description
+destinationBr destinationBranc 18
+Y
+anchId hId
+remarks remarks N 1024
+62. Query agent relation information
+Interface Name Query agent relation information
+Description Query agent relation information
+Interface Code T179
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+Request
+"tin": "1009837013"
+Message
+}
+{
+"agentTaxpayerList": [{
+"taxpayerId": "503183431957111174",
+"tin": "1009837013",
+"ninBrn": "0001",
+"legalName": "101",
+"businessName": "13.99",
+"contactNumber": "101",
+Response "contactEmail": "12",
+Message "address": "12",
+"taxpayerType": "101",
+"taxpayerStatus": "101",
+"branchId ": "210059212594887180 ",
+"branchCode": "210059212594887178",
+"branchName": "zhangsan",
+"branchStatus": "101"
+}]
+}
+221
+
+=== PAGE 224 ===
+63. Query Principal agent TIN information
+Interface Name Query Principal agent TIN information
+Description Query Principal agent TIN information
+Interface Code T180
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+Request "tin": "1009837013",
+Message "branchId": "210059212594887180 "
+}
+{
+"taxType": [{
+"taxTypeName": "Value Added Tax",
+"taxTypeCode": "301",
+"registrationDate": "04/09/2019",
+"cancellationDate": "12/09/2019"
+}],
+Response
+"issueTaxTypeRestrictions": "1",
+Message
+"sellersLogo": "1",
+"isAllowBackDate": "0",
+"isDutyFreeTaxpayer": "0",
+"periodDate": "7",
+"isAllowIssueInvoice": "0",
+"isAllowOutOfScopeVAT": "0"
+}
+Flow
+Query Principal agent TIN information
+Description
+Field description
+Field Field Name Required Length Description
+tin tin Y 20
+branchId branchId Y 18
+Field Field Name Required Length Description
+taxTypeName Tax type name Y 200
+223
+
+=== PAGE 225 ===
+taxTypeCode Tax type 50 Corresponding dictionary
+Y
+taxType
+registrationD effective date Date
+Y
+ate
+cancellationD Obsolete date Date
+Y
+ate
+issueTaxTypeR issueTaxTypeRest 1 0:No 1:Yes
+Y
+estrictions rictions
+sellersLogo Sellers Logo Unlimit Base64 content
+Y
+ed
+isAllowBackDa isAllowBackDate 1 0 - no past time allowed, 1 -
+te past time allowed. The
+default value is 0. When the
+Y
+taxpayer is in the list
+maintained by the office and
+is valid, the value is 1
+isDutyFreeTax isDutyFreeTaxpay 1 If the taxpayer is in the
+payer er list and valid, and the
+Y taxpayer has no consumption
+tax, the value is 1,
+otherwise it is 0
+periodDate periodDate Number From the system parameter, if
+Y
+not, the default value is 7
+isAllowIssueI isAllowIssueInvo 1 0:No 1:Yes
+Y
+nvoice ice
+isAllowOutOfS isAllowOutOfScop 1 0:No 1:Yes
+Y
+copeVAT eVAT
+64. Upload Frequent Contacts
+Interface Name Upload Frequent Contacts
+Description Upload Frequent Contacts
+Interface Code T181
+Request
+Y
+Encrypted
+Response
+N
+Encrypted
+Request {
+Message "operationType": "101",
+224
+
+=== PAGE 227 ===
+buyerPassport buyerPassportNum 30
+N
+Num
+65. Get Frequent Contacts
+Interface Name Get Frequent Contacts
+Description Get Frequent Contacts
+Interface Code T182
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+Request "buyerTin": "1009837013",
+Message "buyerLegalName": "Mr. PETER KADDU"
+}
+[{
+"id": "613714332817808478",
+"buyerType": "0",
+"buyerTin": "1009837013",
+"buyerNinBrn": "09656200018719",
+"buyerLegalName": "Mr. PETER KADDU",
+Response
+"buyerBusinessName": "ZAYN KIDS ORNAMENT",
+Message
+"buyerEmail": "123456@163.com",
+"buyerLinePhone": "00256779523165",
+"buyerAddress": "KAZAHI KANUNGU KINKIZI WEST KAYONZA",
+"buyerCitizenship": "UG-Uganda",
+"buyerPassportNum": "1234567890"
+}]
+Flow
+Get Frequent Contacts
+Description
+Field description
+Field Field Name Required Length Description
+buyerTin buyerTin N 20
+buyerLegalNam buyerLegalName 256
+N
+e
+226
+
+=== PAGE 228 ===
+Field Field Name Required Length Description
+id id Y 18
+buyerType buyerType 1 0 : B2B
+1 : B2C
+Y
+2 : Foreigner
+3 : B2G
+buyerTin buyerTin N 20
+buyerNinBrn buyerNinBrn N 100
+buyerLegalNam buyerLegalName 256
+N
+e
+buyerBusiness buyerBusinessNam 256
+N
+Name e
+buyerEmail buyerEmail N 50
+buyerLinePhon buyerLinePhone 30
+N
+e
+buyerAddress buyerAddress N 500
+buyerCitizens buyerCitizenship 128
+N
+hip
+buyerPassport buyerPassportNum 30
+N
+Num
+66. Goods Stock Transfer records query
+Interface Name Goods Stock Transfer records query
+Description Goods Stock Transfer records query
+Interface Code T183
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+"referenceNo": "425502528294126235",
+"sourceBranchId": "206637525568955296",
+Request
+"destinationBranchId": "206637528324276772",
+Message
+"startDate": "2021-09-10",
+"endDate": "2021-09-11",
+"pageNo": "1",
+227
+
+=== PAGE 230 ===
+sourceBranchI sourceBranchId 18
+N
+d
+destinationBr destinationBranc 18
+N
+anchId hId
+transferAmoun transferAmount Number Integer digits cannot exceed
+t N 12, decimal digits cannot
+exceed 8;
+transferDate transferDate N Date
+67. Goods Stock Transfer detail query
+Interface Name Goods Stock Transfer detail query
+Description Goods Stock Transfer detail query
+Interface Code T184
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+Request
+"id": "425502528294126235"
+Message
+}
+{
+"goodsStockTransfer": {
+"sourceBranchId": "206637525568955296",
+"destinationBranchId": "206637528324276772",
+"transferDate": "11/04/2022",
+"transferTypeCode": "101",
+"remarks": "Others"
+},
+"goodsStockTransferItem": [{
+Response
+"commodityGoodsId": "287700992426868373",
+Message
+"goodsCode": "287700992426",
+"goodsName": "test",
+"measureUnit": "101",
+"currency": "101",
+"unitPrice": "100",
+"bookQuantity": "100",
+"transferQuantity": "2",
+"transferAmount": "200",
+"currentQuantity": "98",
+229
+
+=== PAGE 232 ===
+12, decimal digits cannot
+exceed 8;
+transferQuant transferQuantity Number Integer digits cannot exceed
+ity N 12, decimal digits cannot
+exceed 8;
+transferAmoun transferAmount Number Integer digits cannot exceed
+t N 12, decimal digits cannot
+exceed 8;
+currentQuanti currentQuantity Number Integer digits cannot exceed
+ty N 12, decimal digits cannot
+exceed 8;
+remarks remarks 1024 goodsStockTransferItem-
+N
+->remarks
+68. Query HS Code List
+Interface Name Query HS Code List
+Description Query HS Code List
+Interface Code T185
+Request
+N
+Encrypted
+Response
+N
+Encrypted
+Request
+Null
+Message
+[{
+"hsCode": "96151100",
+Response "description": "0",
+Message "isLeaf": "1",
+"parentClass": "246015909942241903"
+}]
+Flow
+Query HS Code List
+Description
+Field description
+Field Field Name Required Length Description
+hsCode hsCode Y
+231
+
+=== PAGE 233 ===
+description description Y
+isLeaf isLeaf Y 0 :yes 1:no
+parentClass parentClass Y
+69. Invoice Remain Details
+Interface
+Invoice Remain details
+Name
+Description Invoice details are queried according to Invoice number.
+Interface
+T186
+Code
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+Request
+"invoiceNo": "159078217852531032"
+Message
+}
+{
+"sellerDetails": {
+"tin": "201905081705",
+"ninBrn": "201905081705",
+"passportNumber": "201905081705",
+"legalName": "zhangsan",
+"businessName": "lisi",
+"address": "beijin",
+"mobilePhone": "15501234567",
+"linePhone": "010-6689666",
+Response "emailAddress": "123456@163.com",
+Message "placeOfBusiness": "beijin",
+"referenceNo": "00000000012",
+"branchId": "207300908813650312",
+"branchName": "KATUSIIME EVEALYNE SPARE PARTS",
+"branchCode": "00"
+},
+"basicInformation": {
+"invoiceId": "1000002",
+"invoiceNo": "00000000001",
+"oriInvoiceNo": "00000000002",
+"antifakeCode": "201905081711",
+232
+
+=== PAGE 239 ===
+businessName Business Name Y 256
+adress seller Adress Y 500
+mobilePhone Mobile Phone Y 30
+linePhone Line Phone Y 30
+emailAddress Seller email Y 50
+placeOfBusine Place Of 500
+N
+ss Business
+referenceNo referenceNo N 50
+branchId branchId Y 18
+branchName branchName Y 500
+branchCode branchCode Y 50
+Basic InformationInternal field:
+Field Field Name Required Length Description
+invoiceId Invoice ID Y 32
+invoiceNo Invoice number Y 20
+oriInvoiceNo Original Invoice 20
+Y
+number
+antifakeCode Antifake Code Y 20 Digital signature(20 digital)
+deviceNo device Number Y 20 Device Number (20 digital)
+issuedDate Invoice issued date date(DD/MM/YYYY HH24:mm:ss)
+Y
+Date stamp
+oriIssuedDate Original Invoice date date(DD/MM/YYYY HH24:mm:ss)
+Y
+issued Date stamp
+oriGrossAmoun Original invoice Number
+Y
+t amount
+operator Operator Y 150
+currency currency Y 10
+oriInvoiceId Original Invoice 32 When the credit is opened, it
+ID is the original invoice
+N
+number. When the ticket is
+opened, it is empty.
+invoiceType Invoice Type 1 1:Invoice/Receipt
+2:Credit Note
+5:Credit Memo
+Y 4:Debit Note
+Corresponding dictionary
+table invoiceType
+invoiceKind Invoice Kind Y 1 1 :invoice 2: receipt
+dataSource Data Source Y 3 101:EFD
+238
+
+=== PAGE 251 ===
+tankNo Tank no. N 50
+pumpNo Pump no. N 50
+nozzleNo Nozzle no. N 50
+controllerNo Controller no. N 50
+acquisitionEq Acquisition 50
+N
+uipmentNo Equipment No.
+levelGaugeNo Level Gauge No. N 50
+mvrn mvrn N 32
+updateTimes Update Times N 2
+agentEntity field:
+Field Field Name Required Length Description
+tin tin N 10-20
+legalName legalName N 256
+businessName businessName N 256
+address address N 500
+70. Query FDN status
+Interface Name Export Invoice Status Query
+Description Query Export FDN status
+Interface Code T187
+Request
+Y
+Encrypted
+Response
+Y
+Encrypted
+{
+Request
+"invoiceNo": "1234567891234"
+Message
+}
+{
+Response "invoiceNo": "1234567891234",
+Message "documentStatusCode": "101"
+}
+Flow
+Query Export FDN status
+Description
+250

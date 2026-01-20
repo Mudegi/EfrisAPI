@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Discount Extraction</title>
+</head>
+<body>
+    <h1>Discount Extraction Test</h1>
+    <div id="output"></div>
+
+    <script>
+        // Sample invoice data with discount
+        const testInvoice = {
+            DocNumber: "1001",
+            TotalAmt: 350000,
+            Line: [
+                {
+                    DetailType: "SalesItemLineDetail",
+                    Amount: 350000,
+                    SalesItemLineDetail: {
+                        ItemRef: { name: "Cement 50kg" },
+                        Qty: 10,
+                        UnitPrice: 35000,
+                        DiscountRate: 10  // 10% discount
+                    }
+                }
+            ]
+        };
+
+        const line = testInvoice.Line[0];
+        const item = line.SalesItemLineDetail || {};
+        const itemName = (item.ItemRef && item.ItemRef.name) || 'Unknown';
+        const qty = item.Qty || 0;
+        const rate = item.UnitPrice || 0;
+        
+        // Extract discount
+        let discountPercent = 0;
+        let discountAmount = 0;
+        
+        if (item.DiscountRate !== undefined && item.DiscountRate !== null) {
+            discountPercent = parseFloat(item.DiscountRate) || 0;
+            console.log("Found DiscountRate:", discountPercent);
+        }
+        
+        if (item.DiscountAmt !== undefined && item.DiscountAmt !== null) {
+            discountAmount = parseFloat(item.DiscountAmt) || 0;
+            console.log("Found DiscountAmt:", discountAmount);
+        }
+        
+        // Calculate discount if percentage provided
+        if (discountPercent > 0 && discountAmount === 0) {
+            discountAmount = (qty * rate * discountPercent) / 100;
+            console.log("Calculated discount amount:", discountAmount);
+        }
+
+        // Display results
+        let output = `
+            <h2>Results:</h2>
+            <p><strong>Item:</strong> ${itemName}</p>
+            <p><strong>Qty:</strong> ${qty}</p>
+            <p><strong>Unit Price:</strong> UGX ${rate.toLocaleString()}</p>
+            <p><strong>Discount Percent:</strong> ${discountPercent}%</p>
+            <p><strong>Discount Amount:</strong> UGX ${discountAmount.toLocaleString()}</p>
+            <p><strong>Expected:</strong> 10% discount on UGX 350,000 = UGX 35,000</p>
+            <p style="color: ${discountAmount === 35000 ? 'green' : 'red'}">
+                <strong>${discountAmount === 35000 ? '✅ PASS' : '❌ FAIL'}</strong>
+            </p>
+        `;
+
+        document.getElementById('output').innerHTML = output;
+        console.log("Full item object:", item);
+    </script>
+</body>
+</html>

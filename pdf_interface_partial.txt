@@ -1,0 +1,104 @@
+
+--- PAGE 1 ---
+API DOCUMENTATION
+(FOR SYSTEM TO SYSTEM USERS)
+Version 23.4.0
+EFRIS
+kakasa@ura.go.ug
+--- PAGE 2 ---
+Document History
+2019-04-03 V1.0 Created by URA
+2024-9-10 V23.0 Add new interface T186、T187
+2024-9-24 V23.1 T108 –> Add new field ‘invoiceItemId’;
+T103→ Add new fields issueDebitNote, qrCodeURL;
+T108→ Add new object ‘creditNoteExtend’ to support
+partial issued Credit;
+T110→ Update the error code desc of
+1434: goodsDetails-->qty:Cannot be greater than the
+remaining value of the corresponding commodity line on
+2025-3-18 V23.3 original invoice；
+1460: goodsDetails-->total:Cannot be greater than the
+remaining amount of the corresponding commodity line
+on original invoice；
+T109→ Update the error code desc of 306：Credit note(s)
+have already been issued against this invoice. Please
+cancel the existing credit note(s) to proceed;
+Update T127、T130→ Add a new object for customs UoM:
+2025-4-9 V23.4
+commodityGoodsExtendEntity
+1
+--- PAGE 3 ---
+TABLE OF CONTENTS
+Interface specification ................................................................................................................................................................ 3
+Introduction ....................................................................................................................................................................... 3
+Field description ................................................................................................................................................................ 4
+ReturnCode description .................................................................................................................................................... 7
+Interface code table ........................................................................................................................................................ 51
+Webservice interface code table .......................................................................................................................... 51
+Request/Response code table ....................................................................................................................................... 51
+2
+--- PAGE 4 ---
+Interface specification
+Introduction
+The system interface uses JSON format to transfer data. The payload is divided into three parts: data,
+globalInfo, and returnStateInfo.
+ The data part contains the inner layer message content and the encryption method of the message.
+ The globalInfo part is a global variable containing interface information and other necessary attributes.
+ returnStateInfo part is the result status information.
+The outer layer protocol format is as follows:
+{
+"data": {
+"content": "encrypted content",
+"signature": "JKQWJK34K32JJEK2JQWJ5678",
+"dataDescription": {
+"codeType": "0",
+"encryptCode": "1",
+"zipCode": "0"
+}
+},
+"globalInfo": {
+"appId": "AP01",
+"version": "1.1.20191201",
+"dataExchangeId": "9230489223014123",
+"interfaceCode": "T101",
+"requestCode": "TP",
+"requestTime": "2025-05-13 15:07:07",
+"responseCode": "TA",
+"userName": "admin",
+"deviceMAC": "FFFFFFFFFFFF",
+"deviceNo": "00022000634",
+"tin": "1009830865",
+3
+--- PAGE 5 ---
+"brn": "",
+"taxpayerID": "1",
+"longitude": "116.397128",
+"latitude": "39.916527",
+"agentType": "0",
+"extendField": {
+"responseDateFormat": "dd/MM/yyyy",
+"responseTimeFormat": "dd/MM/yyyy HH:mm:ss",
+"referenceNo": "21PL010020807" ,
+"operatorName": "administrator",
+"itemDescription": "28300 test services both",
+"currency":"UGX",
+"grossAmount":"25",
+"taxAmount":"3.7985",
+"offlineInvoiceException": {
+"errorCode": "",
+"errorMsg": ""
+}
+}
+},
+"returnStateInfo": {
+"returnCode": "",
+"returnMessage": ""
+}
+}
+Request message date format: yyyy-MM-dd HH24:mi:ss
+Return message date format: Follows system time format
+T101 return date format: dd/MM/yyyy HH:mm:ss
+Field description
+Field Field Name Required Length Description
+content Inner message N Unlimite This field can be empty if the
+4

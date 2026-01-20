@@ -1,0 +1,111 @@
+
+--- PAGE 1 ---
+HOW TO USE EFRIS WEB SERVICE API
+2020/12/27 1
+--- PAGE 2 ---
+Requirements
+The Taxpayer has completed first time registration for EFRIS on the EFRIS
+test portal. https://efristest.ura.go.ug/efrissite
+Upon registration,
+• Taxpayer shall be assigned a virtual device number. The Taxpayer shall be required to Log
+into the portal above to set the device public key. Under
+• A detailed API technical document is also available for download on the test portal under
+Download>>Documents.
+2
+--- PAGE 3 ---
+Integration
+Step1 Test Interface
+At integration, the web service API shall be tested. Interface code T101
+documented in the API technical document issued at registration shall be used.
+Taxpayer will get the server time as the response. This helps the Taxpayer to
+compare the time on there end with the Time at the URA server. For integration
+purposes, we allow a maximum of +-10 minutes time difference between the
+client and the server
+3
+--- PAGE 4 ---
+API format
+The API utilizes a generic json request format to transfer data; The protocal is
+divided into three parts: data, globalInfo, and returnStateInfo. These are
+defined in the API Technical document
+Note:
+1. The entire json string as defined in the technical document is to be
+posted in the body part of the request. We only allow POST
+2. We do not send anything in the header section of the request
+2020/12/27 4
+--- PAGE 5 ---
+API modes
+The API has two major modes i.e Offline and Online modes;
+For both modes, the format of the posted data is the same; This format is defined in
+the Technical document.
+2020/12/27 5
+--- PAGE 6 ---
+Online Mode
+The Online mode is what is defined in the shared the technical document;
+These documents can also be downloaded from available on the EFRIS portal.
+Visit https://efristest.ura.go.ug/efrissite , then Downloads >> Documents
+2020/12/27 6
+--- PAGE 7 ---
+Online Mode Cont’d
+The content field defined in the json string below always gets its value from what is
+defined under the request part of each interface code;
+The API utilizes PKI to do signing of all requests therefore you are expected to sign all
+your requests using your private key.
+The signature is always derived by signing using the string under the content field with
+the private key. Signature = Sign(Encrypted(Content))
+2020/12/27 7
+--- PAGE 8 ---
+Online Mode Cont’d
+ Online mode utilizes AES encryption to encrypt the requests and the AES key can
+be obtained using the steps below;
+ The system will generate a new AES key for the taxpayer, and all transaction data
+shall be encrypted/decrypted with the new AES key.
+ The new AES key is always valid for 24 hours, the client needs to have it updated
+every day, and the interface code for this shall be T104
+ The new AES key will be encrypted using the client's public key, and the client
+should use the obtained private key for decryption.
+8
+--- PAGE 9 ---
+Online Mode Cont’d
+Under the globalInfo,
+1. The appId will always be APP04 for system to system.
+2. Depending on which interface you the interfaceCode varies from interface to
+interface
+3. The requesTime will always be the current time UTC+3
+4. The deviceNo will be assigned to you by URA
+5. The TIN you will use the Taxpayer TIN
+Note:
+1. Detailsofeachfieldcanalwaysbefoundunderthefielddescriptioninthetechnicaldocument
+2. Leavetheotherfieldswithdefaultvaluesasstipulatedinthedocument
+2020/12/27 9
+--- PAGE 10 ---
+Online Mode Cont’d
+Each interface has a definition of;
+1. The request and expected response
+2. The field Definition(s) of both the request and response fields
+2020/12/27 10
+--- PAGE 11 ---
+Offline Mode
+The offline mode can be downloaded from;
+https://efristest.ura.go.ug/efrissite , then Downloads >> Application (Software)
+The request format for offline mode is the same as that for online mode with the only
+difference being that with the offline mode, you will always submit an empty string
+under the signature value of the json string and where content is available, you will
+only base64 encode it.
+Note:
+1. The installation guide for this can be found under Downloads >> Documents
+2020/12/27 11
+--- PAGE 12 ---
+Integration
+Note:
+ The T103 interface contains some system parameters and dictionary versions.
+ The client needs to save these parameters and call T103 once a day to
+compare the dictionary version.
+ Where the versions are inconsistent, the taxpayer need to call the
+corresponding interface to update as summarized below;
+Dictionary Version Field Dictionary Corresponding Interface
+dictionaryVersion T115
+commodityCategoryVersion T123
+exciseDutyVersion T125
+12
+--- PAGE 13 ---
+THANK YOU

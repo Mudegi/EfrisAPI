@@ -1,0 +1,2573 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QuickBooks to EFRIS Control Panel</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .layout {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 260px;
+            background: #2c3e50;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar-header {
+            padding: 1.5rem;
+            background: #1a252f;
+            border-bottom: 1px solid #34495e;
+        }
+        
+        .sidebar-header h1 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: #2ca01c;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4caf50;
+        }
+        
+        .status-dot.off { background: #f44336; }
+        
+        .sidebar-menu {
+            flex: 1;
+            padding: 1rem 0;
+            overflow-y: auto;
+        }
+        
+        .menu-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .menu-section-title {
+            padding: 0.5rem 1.5rem;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #95a5a6;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .menu-btn {
+            width: 100%;
+            padding: 0.875rem 1.5rem;
+            border: none;
+            background: transparent;
+            color: #ecf0f1;
+            text-align: left;
+            cursor: pointer;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.2s;
+        }
+        
+        .menu-btn:hover {
+            background: #34495e;
+            color: white;
+        }
+        
+        .menu-btn.active {
+            background: #2ca01c;
+            color: white;
+            font-weight: 500;
+        }
+        
+        .menu-btn .icon {
+            font-size: 1.2rem;
+        }
+        
+        .sidebar-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #34495e;
+            background: #1a252f;
+        }
+        
+        .connect-btn {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 6px;
+            background: #2ca01c;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .connect-btn:hover {
+            background: #248516;
+        }
+        
+        .connect-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .top-bar {
+            background: white;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .top-bar h2 {
+            color: #2c3e50;
+            font-size: 1.5rem;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary { background: #0077c5; color: white; }
+        .btn-primary:hover { background: #005a94; }
+        .btn-success { background: #2ca01c; color: white; }
+        .btn-success:hover { background: #248516; }
+        .btn-warning { background: #ff9800; color: white; padding: 0.5rem 1rem; font-size: 0.85rem; }
+        .btn-warning:hover { background: #f57c00; }
+        
+        .workspace {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            background: #f5f5f5;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 0.875rem;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #666;
+            font-size: 0.85rem;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+        }
+        
+        .alert-success { background: #e8f5e9; color: #2e7d32; border-color: #4caf50; }
+        .alert-error { background: #ffebee; color: #c62828; border-color: #f44336; }
+        .alert-info { background: #e3f2fd; color: #1565c0; border-color: #2196f3; }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #999;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #999;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2ca01c;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .modal-header h3 {
+            color: #2ca01c;
+            font-size: 1.3rem;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .close-btn:hover { color: #333; }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #2ca01c;
+            box-shadow: 0 0 0 3px rgba(44, 160, 28, 0.1);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        
+        .view {
+            display: none;
+        }
+        
+        .view.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>EFRIS Manager</h1>
+                <div class="status-item">
+                    <span class="status-dot" id="qbDot"></span>
+                    <span id="qbStatus">QuickBooks</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot"></span>
+                    <span>EFRIS Connected</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-menu">
+                <div class="menu-section">
+                    <div class="menu-section-title">Products & Inventory</div>
+                    <button class="menu-btn active" onclick="showView('goods')">
+                        <span class="icon">📦</span>
+                        <span>Goods & Services</span>
+                    </button>
+                    <button class="menu-btn" onclick="showView('stock-purchase')">
+                        <span class="icon">📥</span>
+                        <span>Stock Purchase</span>
+                    </button>
+                </div>
+                
+                <div class="menu-section">
+                    <div class="menu-section-title">Sales & Revenue</div>
+                    <button class="menu-btn" onclick="showView('invoices')">
+                        <span class="icon">📄</span>
+                        <span>Invoices</span>
+                    </button>
+                    <button class="menu-btn" onclick="showView('credit-notes')">
+                        <span class="icon">↩️</span>
+                        <span>Credit Notes</span>
+                    </button>
+                </div>
+                
+                <div class="menu-section">
+                    <div class="menu-section-title">EFRIS Data</div>
+                    <button class="menu-btn" onclick="showView('efris-goods')">
+                        <span class="icon">🏪</span>
+                        <span>EFRIS Goods & Services</span>
+                    </button>
+                    <button class="menu-btn" onclick="showView('efris-invoices')">
+                        <span class="icon">📋</span>
+                        <span>EFRIS Invoices</span>
+                    </button>
+                    <button class="menu-btn" onclick="showView('efris-credit-notes')">
+                        <span class="icon">📝</span>
+                        <span>EFRIS Credit Notes</span>
+                    </button>
+                </div>
+                
+                <div class="menu-section">
+                    <div class="menu-section-title">Reports</div>
+                    <button class="menu-btn" onclick="showView('sync-history')">
+                        <span class="icon">📊</span>
+                        <span>Sync History</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="sidebar-footer">
+                <button class="connect-btn" onclick="connect()" id="connectBtn">🔗 Connect QuickBooks</button>
+                <button class="connect-btn" onclick="clearLocalStorage()" style="margin-top:0.5rem;background:#e74c3c;">🗑️ Clear Saved Data</button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="top-bar">
+                <h2 id="pageTitle">Goods & Services</h2>
+                <div id="statusSummary" style="display:none;margin-left:auto;margin-right:1rem;font-size:0.85rem;color:#666;">
+                    <span style="margin-right:1rem;">📦 Total: <strong id="totalCount">0</strong></span>
+                    <span style="margin-right:1rem;color:#4caf50;">✓ Registered: <strong id="registeredCount">0</strong></span>
+                    <span style="color:#ff9800;">⏳ Pending: <strong id="pendingCount">0</strong></span>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="loadData()" id="loadBtn">📥 Load from QuickBooks</button>
+                    <button class="btn" onclick="refreshStatus()" id="refreshBtn" style="background:#9c27b0;display:none;">🔄 Refresh Status</button>
+                    <button class="btn btn-success" onclick="sync()" id="syncBtn">✅ Send to EFRIS</button>
+                </div>
+            </div>
+            
+            <div class="workspace">
+                <div id="alerts"></div>
+                
+                <div id="goods-view" class="view active">
+                    <div class="card">
+                        <div id="goodsLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Loading products from QuickBooks...</p>
+                        </div>
+                        <div id="goodsContent"></div>
+                    </div>
+                </div>
+                
+                <div id="invoices-view" class="view">
+                    <div class="card">
+                        <div id="invoicesLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Loading invoices from QuickBooks...</p>
+                        </div>
+                        <div id="invoicesContent"></div>
+                    </div>
+                </div>
+                
+                <div id="stock-purchase-view" class="view">
+                    <div class="card">
+                        <div id="stockLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Loading purchase orders from QuickBooks...</p>
+                        </div>
+                        <div id="stockContent"></div>
+                    </div>
+                </div>
+                
+                <div id="credit-notes-view" class="view">
+                    <div class="card">
+                        <div id="creditLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Loading credit memos from QuickBooks...</p>
+                        </div>
+                        <div id="creditContent"></div>
+                    </div>
+                </div>
+                
+                <div id="efris-goods-view" class="view">
+                    <div class="card">
+                        <div id="efrisGoodsLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Loading goods from EFRIS...</p>
+                        </div>
+                        <div id="efrisGoodsContent"></div>
+                    </div>
+                </div>
+                
+                <div id="efris-invoices-view" class="view">
+                    <div class="card">
+                        <div id="efrisInvoicesLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Loading invoices from EFRIS...</p>
+                        </div>
+                        <div id="efrisInvoicesContent"></div>
+                    </div>
+                </div>
+                
+                <div id="efris-credit-notes-view" class="view">
+                    <div class="card">
+                        <div id="efrisCreditLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Loading credit notes from EFRIS...</p>
+                        </div>
+                        <div id="efrisCreditContent"></div>
+                    </div>
+                </div>
+                
+                <div id="sync-history-view" class="view">
+                    <div class="card">
+                        <h3>Sync History</h3>
+                        <p style="color: #666; margin-top: 1rem;">Track all your QuickBooks to EFRIS synchronizations here.</p>
+                        <div id="historyContent" style="margin-top: 2rem;">
+                            <div class="empty-state">
+                                <p>No sync history yet. Start syncing data to see history.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Invoice Modal -->
+    <div id="editInvoiceModal" class="modal">
+        <div class="modal-content" style="max-width:1200px;">
+            <h2>Edit Invoice</h2>
+            <form id="editInvoiceForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Invoice Number *</label>
+                        <input type="text" class="form-input" id="invoiceNumber" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Customer *</label>
+                        <input type="text" class="form-input" id="invoiceCustomer" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Date *</label>
+                        <input type="date" class="form-input" id="invoiceDate" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Buyer Type *</label>
+                        <select class="form-input" id="buyerType" required>
+                            <option value="1">Individual/General Customer (No TIN Required)</option>
+                            <option value="0">Business with TIN</option>
+                            <option value="2">Foreign Customer</option>
+                            <option value="3">Tax Exempt</option>
+                        </select>
+                        <small style="color:#666;">Select buyer category for EFRIS compliance</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Customer TIN</label>
+                        <input type="text" class="form-input" id="buyerTin" placeholder="Required for business customers">
+                    </div>
+                </div>
+                <div id="invoiceLineItems"></div>
+                <div class="form-row" style="margin-top:20px;border-top:2px solid #ddd;padding-top:20px;">
+                    <div class="form-group" style="margin-left:auto;width:300px;">
+                        <label>Subtotal</label>
+                        <input type="text" class="form-input" id="invoiceSubtotal" readonly>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="margin-left:auto;width:300px;">
+                        <label>Total Amount</label>
+                        <input type="text" class="form-input" id="invoiceTotal" readonly style="font-weight:bold;font-size:1.1rem;">
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:20px;">
+                    <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                    <button type="button" class="btn" style="background:#4caf50;color:white;" onclick="submitCurrentInvoiceToEfris()">📤 Save & Send to EFRIS</button>
+                    <button type="button" class="btn btn-warning" onclick="closeInvoiceModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Invoice Details/Print Modal -->
+    <div id="invoiceDetailsModal" class="modal">
+        <div class="modal-content" style="max-width:800px;">
+            <div id="invoicePrintContent"></div>
+            <div style="margin-top:20px;text-align:center;">
+                <button class="btn btn-success" onclick="printInvoiceContent()">🖨️ Print</button>
+                <button class="btn btn-warning" onclick="closeInvoiceDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Product Details</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="editForm">
+                <div class="form-group">
+                    <label>Product Name *</label>
+                    <input type="text" class="form-input" id="name" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Product Code</label>
+                        <input type="text" class="form-input" id="productCode" placeholder="Leave empty to use product name">
+                        <small style="color:#666;">Unique identifier for this product in EFRIS</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Category Code (SKU) *</label>
+                        <input type="text" class="form-input" id="sku" required>
+                        <small style="color:#666;">Sent to EFRIS as commodity category (e.g., 30111601 for cement)</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Item Type *</label>
+                        <select class="form-input" id="itemType" onchange="toggleItemTypeFields()">
+                            <option value="Inventory">Product (Goods)</option>
+                            <option value="Service">Service</option>
+                        </select>
+                        <small style="color:#666;">Products have stock, services don't</small>
+                    </div>
+                </div>
+                <div class="form-row" id="unitRow">
+                    <div class="form-group">
+                        <label>Unit of Measure *</label>
+                        <select class="form-input" id="unit" required>
+                            <option value="">-- Select Unit --</option>
+                            <option value="101">101 - Bag</option>
+                            <option value="102">102 - Barrel</option>
+                            <option value="103">103 - Bottle</option>
+                            <option value="104">104 - Box</option>
+                            <option value="105">105 - Can</option>
+                            <option value="106">106 - Carton</option>
+                            <option value="107">107 - Case</option>
+                            <option value="108">108 - Centimeter</option>
+                            <option value="109">109 - Dozen</option>
+                            <option value="110">110 - Each</option>
+                            <option value="111">111 - Gallon</option>
+                            <option value="112">112 - Gram</option>
+                            <option value="113">113 - Kilogram</option>
+                            <option value="114">114 - Kilometer</option>
+                            <option value="115">115 - Liter</option>
+                            <option value="116">116 - Meter</option>
+                            <option value="117">117 - Milliliter</option>
+                            <option value="118">118 - Pack</option>
+                            <option value="119">119 - Packet</option>
+                            <option value="120">120 - Pair</option>
+                            <option value="121">121 - Piece</option>
+                            <option value="122">122 - Roll</option>
+                            <option value="123">123 - Set</option>
+                            <option value="124">124 - Sheet</option>
+                            <option value="125">125 - Square Meter</option>
+                            <option value="126">126 - Tin</option>
+                            <option value="127">127 - Tonne</option>
+                            <option value="128">128 - Unit</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Unit Price (UGX) *</label>
+                        <input type="number" step="0.01" class="form-input" id="price" required>
+                    </div>
+                    <div class="form-group" id="stockGroup">
+                        <label>Opening Stock</label>
+                        <input type="number" class="form-input" id="stock" placeholder="0">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tax Rate (%)</label>
+                        <select class="form-input" id="taxRate">
+                            <option value="0.18">18% (Standard VAT)</option>
+                            <option value="0.00">0% (Zero-rated)</option>
+                            <option value="-1">Exempt</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="hasExcise" style="width:auto;margin:0;">
+                            <span>Has Excise Tax</span>
+                        </label>
+                        <small style="color:#666;">Check if this item is subject to excise duty</small>
+                    </div>
+                    <div class="form-group" id="exciseCodeGroup" style="display:none;">
+                        <label>Excise Duty Code</label>
+                        <select class="form-input" id="exciseDutyCode">
+                            <option value="">-- Select Excise Category --</option>
+                            <option value="LED050000">LED050000 - Cement (UGX500/50kg)</option>
+                            <option value="LED040100">LED040100 - Beer (Imported Malt) 60%+UGX2050/L</option>
+                            <option value="LED040200">LED040200 - Beer (Local Malt) 60%+UGX2050/L</option>
+                            <option value="LED040300">LED040300 - Opaque Beer 10%+UGX150/L</option>
+                            <option value="LED040400">LED040400 - Beer (Local Barley) 30%+UGX950/L</option>
+                            <option value="LED040500">LED040500 - Beer (75% Local) 30%+UGX900/L</option>
+                            <option value="LED040600">LED040600 - Other Alcoholic Beverage (Local) 10%+UGX150/L</option>
+                            <option value="LED090000">LED090000 - Cooking Oil UGX200/L</option>
+                            <option value="LED110000">LED110000 - Mineral Water 10%+UGX50/L</option>
+                            <option value="LED190100">LED190100 - Fruit/Vegetable Juice 10%+UGX250/L</option>
+                            <option value="LED190200">LED190200 - Non-Alcoholic Beverages 12%+UGX250/L</option>
+                            <option value="LED190300">LED190300 - Juice Powder 15%</option>
+                            <option value="LED190400">LED190400 - Other Non-Alcoholic 10%+UGX150/L</option>
+                            <option value="LED200100">LED200100 - Spirits (Local, <80%) 60%+UGX1700/L</option>
+                            <option value="LED200200">LED200200 - Spirits (Imported) 100%+UGX2500/L</option>
+                            <option value="LED200300">LED200300 - Spirits (Local, ≥80%) 60%+UGX1500/L</option>
+                            <option value="LED210100">LED210100 - Sugar UGX100/kg</option>
+                            <option value="LED230100">LED230100 - Wine (Local) 20%+UGX2000/L</option>
+                            <option value="LED230200">LED230200 - Other Wine 100%+UGX10000/L</option>
+                            <option value="LED260100">LED260100 - Plastic Products 2.5%+USD70/TNE</option>
+                        </select>
+                        <small style="color:#666;">Select the applicable excise duty category</small>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                <button type="button" class="btn btn-warning" onclick="closeModal()">Cancel</button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        const API = 'http://localhost:8001/api';
+        const T = 'test_token';
+        const TIN = '1014409555';
+        let prods = [], invs = [], pos = [], credits = [];
+        let efrisGoods = [], efrisInvs = [], efrisCredit = [];
+        let selP = new Set(), selI = new Set(), selPO = new Set(), selC = new Set();
+        let editIdx = -1;
+        let editingPO = -1;
+        let currentView = 'goods';
+
+        // ========== DATA PERSISTENCE ==========
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('efris_products', JSON.stringify(prods));
+                localStorage.setItem('efris_invoices', JSON.stringify(invs));
+                localStorage.setItem('efris_pos', JSON.stringify(pos));
+                localStorage.setItem('efris_credits', JSON.stringify(credits));
+                localStorage.setItem('efris_lastSync', new Date().toISOString());
+                console.log('✓ Data saved to localStorage');
+            } catch(e) {
+                console.error('Failed to save to localStorage:', e);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const savedProds = localStorage.getItem('efris_products');
+                const savedInvs = localStorage.getItem('efris_invoices');
+                const savedPos = localStorage.getItem('efris_pos');
+                const savedCredits = localStorage.getItem('efris_credits');
+                const lastSync = localStorage.getItem('efris_lastSync');
+                
+                let hasData = false;
+                
+                if (savedProds) {
+                    prods = JSON.parse(savedProds);
+                    renderGoods();
+                    hasData = true;
+                    
+                    // Update status summary if data exists
+                    const registered = prods.filter(p => p.EfrisStatus === 'Registered').length;
+                    const pending = prods.filter(p => p.EfrisStatus === 'Pending Registration').length;
+                    document.getElementById('totalCount').textContent = prods.length;
+                    document.getElementById('registeredCount').textContent = registered;
+                    document.getElementById('pendingCount').textContent = pending;
+                    document.getElementById('statusSummary').style.display = 'flex';
+                    document.getElementById('refreshBtn').style.display = 'inline-block';
+                }
+                
+                if (savedInvs) {
+                    invs = JSON.parse(savedInvs);
+                    renderInvoices();
+                    hasData = true;
+                    console.log(`✓ Restored ${invs.length} invoices from localStorage`);
+                }
+                
+                if (savedPos) {
+                    pos = JSON.parse(savedPos);
+                    renderStock();
+                    hasData = true;
+                    console.log(`✓ Restored ${pos.length} purchase orders from localStorage`);
+                }
+                
+                if (savedCredits) {
+                    credits = JSON.parse(savedCredits);
+                    renderCredit();
+                    hasData = true;
+                    console.log(`✓ Restored ${credits.length} credit notes from localStorage`);
+                }
+                
+                if (lastSync && hasData) {
+                    const syncDate = new Date(lastSync);
+                    const now = new Date();
+                    const hoursSince = Math.floor((now - syncDate) / 1000 / 60 / 60);
+                    showAlert('info', '📋 Restored data from ' + (hoursSince < 1 ? 'less than an hour' : hoursSince + ' hours') + ' ago. Click "Load" buttons to refresh.');
+                }
+            } catch(e) {
+                console.error('Failed to load from localStorage:', e);
+            }
+        }
+
+        function clearLocalStorage() {
+            if (confirm('Clear all saved data? You will need to reload from QuickBooks.')) {
+                localStorage.removeItem('efris_products');
+                localStorage.removeItem('efris_invoices');
+                localStorage.removeItem('efris_pos');
+                localStorage.removeItem('efris_credits');
+                localStorage.removeItem('efris_lastSync');
+                prods = []; invs = []; pos = []; credits = [];
+                renderGoods();
+                showAlert('success', 'Data cleared');
+            }
+        }
+
+        // Auto-restore on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            loadFromLocalStorage();
+        });
+
+        // ========== ITEM TYPE TOGGLE ==========
+        function toggleItemTypeFields() {
+            const itemType = document.getElementById('itemType').value;
+            const isService = itemType === 'Service';
+            
+            // Hide/show stock field
+            const stockGroup = document.getElementById('stockGroup');
+            if (stockGroup) {
+                stockGroup.style.display = isService ? 'none' : 'block';
+            }
+            
+            // For services, set unit to 102 and disable
+            const unitField = document.getElementById('unit');
+            if (isService) {
+                unitField.value = '102';  // EFRIS standard for services
+                unitField.disabled = true;
+            } else {
+                unitField.disabled = false;
+            }
+        }
+
+        // ========== STATUS REFRESH ==========
+        async function refreshStatus() {
+            // Route to appropriate refresh function based on current view
+            if (currentView === 'goods') {
+                return refreshProductsStatus();
+            } else if (currentView === 'invoices') {
+                return refreshInvoicesStatus();
+            } else if (currentView === 'stock-purchase') {
+                return refreshPurchaseOrdersStatus();
+            }
+        }
+
+        async function refreshProductsStatus() {
+            if (!prods.length) {
+                showAlert('warning', 'No products loaded. Load from QuickBooks first.');
+                return;
+            }
+            
+            const refreshBtn = document.getElementById('refreshBtn');
+            const originalText = refreshBtn.textContent;
+            refreshBtn.textContent = '⏳ Refreshing...';
+            refreshBtn.disabled = true;
+            
+            try {
+                // Fetch EFRIS products to check registration status
+                let efrisProducts = [];
+                let page = 1;
+                
+                console.log('[Refresh] Starting status refresh...');
+                
+                while (true) {
+                    const r = await fetch(`${API}/${TIN}/goods-and-services?token=${T}&page_no=${page}&page_size=10`);
+                    const result = await r.json();
+                    
+                    console.log(`[Refresh] Page ${page} response:`, result);
+                    console.log(`[Refresh] Response keys:`, Object.keys(result));
+                    console.log(`[Refresh] Has records?`, 'records' in result);
+                    console.log(`[Refresh] Has returnStateInfo?`, 'returnStateInfo' in result);
+                    console.log(`[Refresh] Has goodsTypeData?`, 'goodsTypeData' in result);
+                    
+                    // Handle different response formats
+                    let goods = [];
+                    
+                    // Check if it's the decrypted_content format with 'records'
+                    if (result.records && Array.isArray(result.records)) {
+                        console.log(`[Refresh] Found records array with ${result.records.length} items`);
+                        goods = result.records;
+                    }
+                    // Check if it's the standard EFRIS format
+                    else if (result.returnStateInfo?.returnCode === '00' && result.data?.goodsInfoList) {
+                        console.log(`[Refresh] Found goodsInfoList with ${result.data.goodsInfoList.length} items`);
+                        goods = result.data.goodsInfoList;
+                    }
+                    // Check if data is in goodsTypeData
+                    else if (result.goodsTypeData && Array.isArray(result.goodsTypeData)) {
+                        console.log(`[Refresh] Found goodsTypeData with ${result.goodsTypeData.length} items`);
+                        goods = result.goodsTypeData;
+                    }
+                    else {
+                        console.log(`[Refresh] No recognized data format found`);
+                    }
+                    
+                    console.log(`[Refresh] Goods array length: ${goods.length}`);
+                    
+                    if (!goods.length) break;
+                    
+                    efrisProducts.push(...goods);
+                    console.log(`[Refresh] Found ${goods.length} products on page ${page}`);
+                    page++;
+                    if (goods.length < 10) break; // Last page
+                }
+                
+                console.log(`[Refresh] Total EFRIS products: ${efrisProducts.length}`);
+                
+                // Create lookup map by goodsCode (Product Code, not category code)
+                const efrisLookup = {};
+                console.log('[Refresh] Processing EFRIS products for lookup:');
+                efrisProducts.forEach(p => {
+                    console.log(`  - goodsCode: "${p.goodsCode}", goodsName: "${p.goodsName}", id: "${p.id}"`);
+                    if (p.goodsCode) {
+                        efrisLookup[p.goodsCode.toLowerCase()] = p;
+                    }
+                });
+                
+                console.log('[Refresh] EFRIS lookup keys:', Object.keys(efrisLookup));
+                
+                // Update status for each product
+                let statusChanged = 0;
+                console.log('[Refresh] Matching QuickBooks products:');
+                prods.forEach(item => {
+                    // Use Description (product code) to match, fallback to Name
+                    const productCode = item.Description || item.Name || '';
+                    const oldStatus = item.EfrisStatus;
+                    
+                    console.log(`  - QB Product: "${item.Name}", Product Code: "${productCode}"`);
+                    
+                    // Match by product code (Description field)
+                    const efrisMatch = efrisLookup[productCode.toLowerCase()];
+                    console.log(`    Looking for code: "${productCode.toLowerCase()}" - ${efrisMatch ? 'FOUND' : 'not found'}`);
+                    
+                    if (efrisMatch) {
+                        item.EfrisStatus = 'Registered';
+                        item.EfrisId = efrisMatch.id;
+                        console.log(`    ✓ MATCHED! EFRIS ID: ${efrisMatch.id}`);
+                        if (oldStatus !== 'Registered') statusChanged++;
+                    } else {
+                        item.EfrisStatus = 'Pending Registration';
+                        console.log(`    ✗ NO MATCH`);
+                        if (oldStatus === 'Registered') statusChanged++;
+                    }
+                });
+                
+                console.log(`[Refresh] Status changed for ${statusChanged} products`);
+                
+                // Update counts
+                const registered = prods.filter(p => p.EfrisStatus === 'Registered').length;
+                const pending = prods.filter(p => p.EfrisStatus === 'Pending Registration').length;
+                document.getElementById('totalCount').textContent = prods.length;
+                document.getElementById('registeredCount').textContent = registered;
+                document.getElementById('pendingCount').textContent = pending;
+                document.getElementById('statusSummary').style.display = 'flex';
+                
+                // Re-render and save
+                renderGoods();
+                saveToLocalStorage();
+                
+                showAlert('success', `Status refreshed! ${statusChanged} product(s) changed status. (${registered} registered, ${pending} pending)`);
+            } catch(e) {
+                console.error('Refresh error:', e);
+                showAlert('error', 'Failed to refresh status: ' + e.message);
+            } finally {
+                refreshBtn.textContent = originalText;
+                refreshBtn.disabled = false;
+            }
+        }
+
+        async function refreshInvoicesStatus() {
+            if (!invs.length) {
+                showAlert('warning', 'No invoices loaded. Load from QuickBooks first.');
+                return;
+            }
+            
+            const refreshBtn = document.getElementById('refreshBtn');
+            const originalText = refreshBtn.textContent;
+            refreshBtn.textContent = '⏳ Refreshing...';
+            refreshBtn.disabled = true;
+            
+            try {
+                console.log('[Refresh Invoices] Starting status refresh...');
+                
+                // Query EFRIS invoices
+                const payload = {
+                    pageNo: "1",
+                    pageSize: "100",
+                    referenceNo: "1041",
+                    queryType: "1",
+                    dataSource: "103",
+                    queryCondition: {
+                        startDate: "01/01/2026",
+                        endDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '/')
+                    }
+                };
+                
+                const r = await fetch(`${API}/${TIN}/query-invoices?token=${T}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const result = await r.json();
+                
+                console.log('[Refresh Invoices] EFRIS response:', result);
+                
+                // Handle different response formats
+                let efrisInvoices = [];
+                if (result.records && Array.isArray(result.records)) {
+                    efrisInvoices = result.records;
+                } else if (result.invoiceList && Array.isArray(result.invoiceList)) {
+                    efrisInvoices = result.invoiceList;
+                }
+                
+                console.log(`[Refresh Invoices] Found ${efrisInvoices.length} EFRIS invoices`);
+                
+                // Create lookup by invoice number (FDN)
+                const efrisByFDN = {};
+                efrisInvoices.forEach(inv => {
+                    if (inv.invoiceNo) {
+                        efrisByFDN[inv.invoiceNo] = inv;
+                        console.log(`  EFRIS Invoice: FDN=${inv.invoiceNo}, Buyer=${inv.buyerLegalName}, Amount=${inv.grossAmount}`);
+                    }
+                });
+                
+                // Update status for each QB invoice
+                let updatedCount = 0;
+                invs.forEach(inv => {
+                    const docNumber = inv.DocNumber;
+                    const oldFDN = inv.FDN;
+                    
+                    // If invoice already has FDN, verify it exists in EFRIS
+                    if (inv.FDN) {
+                        const efrisInv = efrisByFDN[inv.FDN];
+                        if (efrisInv) {
+                            console.log(`  ✓ QB Invoice ${docNumber} confirmed in EFRIS with FDN ${inv.FDN}`);
+                            // Update with EFRIS data
+                            inv.VerificationCode = efrisInv.antifakeCode || inv.VerificationCode;
+                            inv.QRCode = efrisInv.qrCode || inv.QRCode;
+                        } else {
+                            console.log(`  ⚠ QB Invoice ${docNumber} has FDN ${inv.FDN} but not found in EFRIS - may have been cancelled`);
+                        }
+                    } else {
+                        // Try to find matching EFRIS invoice by customer name and amount
+                        const qbCustomer = (inv.CustomerRef?.name || '').toLowerCase();
+                        const qbAmount = parseFloat(inv.TotalAmt || 0);
+                        
+                        for (const [fdn, efrisInv] of Object.entries(efrisByFDN)) {
+                            const efrisCustomer = (efrisInv.buyerLegalName || '').toLowerCase();
+                            const efrisAmount = parseFloat(efrisInv.grossAmount || 0);
+                            
+                            // Match by customer name and amount
+                            if (qbCustomer && efrisCustomer.includes(qbCustomer) && Math.abs(qbAmount - efrisAmount) < 1) {
+                                console.log(`  ✓ MATCHED! QB Invoice ${docNumber} (${qbCustomer}, ${qbAmount}) -> EFRIS FDN ${fdn}`);
+                                inv.FDN = fdn;
+                                inv.VerificationCode = efrisInv.antifakeCode;
+                                inv.QRCode = efrisInv.qrCode;
+                                updatedCount++;
+                                break;
+                            }
+                        }
+                        
+                        if (!inv.FDN) {
+                            console.log(`  ⏳ QB Invoice ${docNumber} (${qbCustomer}, ${qbAmount}) not found in EFRIS`);
+                        }
+                    }
+                });
+                
+                if (updatedCount > 0) {
+                    saveToLocalStorage(); // Save updated invoice data
+                }
+                
+                renderInvoices();
+                showAlert('success', `Refreshed ${invs.length} invoices. Found ${efrisInvoices.length} in EFRIS. Updated ${updatedCount} invoices.`);
+            } catch(e) {
+                console.error('[Refresh Invoices] Error:', e);
+                showAlert('error', 'Failed to refresh invoice status: ' + e.message);
+            } finally {
+                refreshBtn.textContent = originalText;
+                refreshBtn.disabled = false;
+            }
+        }
+
+        async function refreshPurchaseOrdersStatus() {
+            if (!pos.length) {
+                showAlert('warning', 'No purchase orders loaded. Load from QuickBooks first.');
+                return;
+            }
+            
+            const refreshBtn = document.getElementById('refreshBtn');
+            const originalText = refreshBtn.textContent;
+            refreshBtn.textContent = '⏳ Refreshing...';
+            refreshBtn.disabled = true;
+            
+            try {
+                console.log('[Refresh POs] Verifying purchase orders in QuickBooks...');
+                
+                // Reload purchase orders from QuickBooks to get latest status
+                const r = await fetch(API + '/quickbooks/purchase-orders?token=' + T + '&start_date=2026-01-01');
+                const d = await r.json();
+                const latestPOs = d.purchase_orders || [];
+                
+                // Create lookup by PO number
+                const poLookup = {};
+                latestPOs.forEach(po => {
+                    poLookup[po.DocNumber] = po;
+                });
+                
+                // Update status for each PO
+                let updated = 0;
+                pos.forEach(po => {
+                    const latest = poLookup[po.DocNumber];
+                    if (latest) {
+                        // Update with latest data
+                        Object.assign(po, latest);
+                        updated++;
+                    }
+                });
+                
+                renderStock();
+                showAlert('success', `Refreshed ${updated} purchase orders from QuickBooks.`);
+            } catch(e) {
+                console.error('[Refresh POs] Error:', e);
+                showAlert('error', 'Failed to refresh purchase order status: ' + e.message);
+            } finally {
+                refreshBtn.textContent = originalText;
+                refreshBtn.disabled = false;
+            }
+        }
+
+        // ========== VIEW MANAGEMENT ==========
+
+        function showView(view) {
+            currentView = view;
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+            
+            // Show/hide refresh button based on view
+            const refreshBtn = document.getElementById('refreshBtn');
+            const showRefreshFor = ['goods', 'invoices', 'stock-purchase'];
+            refreshBtn.style.display = showRefreshFor.includes(view) ? 'inline-block' : 'none';
+            
+            if (view === 'goods') {
+                document.getElementById('goods-view').classList.add('active');
+                document.getElementById('pageTitle').textContent = 'Goods & Services';
+                document.getElementById('loadBtn').textContent = '📥 Load from QuickBooks';
+                document.querySelector('[onclick="showView(\'goods\')"]').classList.add('active');
+                renderGoods(); // Always render to show current data
+            } else if (view === 'invoices') {
+                document.getElementById('invoices-view').classList.add('active');
+                document.getElementById('pageTitle').textContent = 'Invoices';
+                document.getElementById('loadBtn').textContent = '📥 Load Invoices';
+                document.querySelector('[onclick="showView(\'invoices\')"]').classList.add('active');
+                renderInvoices(); // Always render to show current data
+            } else if (view === 'stock-purchase') {
+                document.getElementById('stock-purchase-view').classList.add('active');
+                document.getElementById('pageTitle').textContent = 'Stock Purchase';
+                document.getElementById('loadBtn').textContent = '📥 Load Purchase Orders';
+                document.querySelector('[onclick="showView(\'stock-purchase\')"]').classList.add('active');
+                renderStock(); // Always render to show current data
+            } else if (view === 'credit-notes') {
+                document.getElementById('credit-notes-view').classList.add('active');
+                document.getElementById('pageTitle').textContent = 'Credit Notes';
+                document.getElementById('loadBtn').textContent = '📥 Load Credit Memos';
+                document.querySelector('[onclick="showView(\'credit-notes\')"]').classList.add('active');
+                renderCredit(); // Always render to show current data
+            } else if (view === 'efris-goods') {
+                document.getElementById('efris-goods-view').classList.add('active');
+                document.getElementById('pageTitle').textContent = 'EFRIS Goods & Services';
+                document.getElementById('loadBtn').textContent = '🔄 Refresh from EFRIS';
+                document.querySelector('[onclick="showView(\'efris-goods\')"]').classList.add('active');
+                if (!efrisGoods.length) renderEfrisGoods();
+            } else if (view === 'efris-invoices') {
+                document.getElementById('efris-invoices-view').classList.add('active');
+                document.getElementById('pageTitle').textContent = 'EFRIS Invoices';
+                document.getElementById('loadBtn').textContent = '🔄 Refresh from EFRIS';
+                document.querySelector('[onclick="showView(\'efris-invoices\')"]').classList.add('active');
+                if (!efrisInvs.length) renderEfrisInvoices();
+            } else if (view === 'efris-credit-notes') {
+                document.getElementById('efris-credit-notes-view').classList.add('active');
+                document.getElementById('pageTitle').textContent = 'EFRIS Credit Notes';
+                document.getElementById('loadBtn').textContent = '🔄 Refresh from EFRIS';
+                document.querySelector('[onclick="showView(\'efris-credit-notes\')"]').classList.add('active');
+                if (!efrisCredit.length) renderEfrisCredit();
+            } else if (view === 'sync-history') {
+                document.getElementById('sync-history-view').classList.add('active');
+                document.getElementById('pageTitle').textContent = 'Sync History';
+                document.querySelector('[onclick="showView(\'sync-history\')"]').classList.add('active');
+            }
+        }
+
+        async function checkStatus() {
+            try {
+                const r = await fetch(API + '/quickbooks/status');
+                const d = await r.json();
+                const dot = document.getElementById('qbDot');
+                const txt = document.getElementById('qbStatus');
+                const btn = document.getElementById('connectBtn');
+                if (d.connected) {
+                    dot.classList.remove('off');
+                    txt.textContent = d.companyName || 'QuickBooks';
+                    btn.textContent = '✅ Connected';
+                    btn.disabled = true;
+                } else {
+                    dot.classList.add('off');
+                    txt.textContent = 'Not Connected';
+                    btn.textContent = '🔗 Connect QuickBooks';
+                    btn.disabled = false;
+                }
+            } catch(e) {
+                console.error('Status check failed:', e);
+            }
+        }
+
+        async function connect() {
+            try {
+                const r = await fetch(API + '/quickbooks/auth?token=' + T);
+                const d = await r.json();
+                window.location.href = d.authUrl;
+            } catch(e) { 
+                alert('Failed to connect'); 
+            }
+        }
+
+        async function loadData() {
+            if (currentView === 'goods') loadProducts();
+            else if (currentView === 'invoices') loadInvoices();
+            else if (currentView === 'stock-purchase') loadPurchaseOrders();
+            else if (currentView === 'credit-notes') loadCreditMemos();
+            else if (currentView === 'efris-goods') loadEfrisGoods();
+            else if (currentView === 'efris-invoices') loadEfrisInvoices();
+            else if (currentView === 'efris-credit-notes') loadEfrisCredit();
+        }
+
+        async function loadProducts() {
+            document.getElementById('goodsLoading').style.display = 'block';
+            try {
+                const r = await fetch(API + '/quickbooks/items?token=' + T);
+                const d = await r.json();
+                prods = d.items || [];
+                
+                // Update status summary
+                document.getElementById('totalCount').textContent = d.count || 0;
+                document.getElementById('registeredCount').textContent = d.registered || 0;
+                document.getElementById('pendingCount').textContent = d.pending || 0;
+                document.getElementById('statusSummary').style.display = 'flex';
+                
+                // Show refresh button
+                document.getElementById('refreshBtn').style.display = 'inline-block';
+                
+                renderGoods();
+                saveToLocalStorage();  // Auto-save after loading
+                showAlert('success', 'Loaded ' + prods.length + ' products (' + (d.registered || 0) + ' registered, ' + (d.pending || 0) + ' pending)');
+            } catch(e) { 
+                showAlert('error', 'Failed to load products'); 
+            } finally { 
+                document.getElementById('goodsLoading').style.display = 'none'; 
+            }
+        }
+
+        function renderGoods() {
+            const c = document.getElementById('goodsContent');
+            if (!prods.length) {
+                c.innerHTML = '<div class="empty-state"><p>No products loaded. Click "Load from QuickBooks" to begin.</p></div>';
+                return;
+            }
+            let h = '<table><thead><tr><th style="width:40px;"><input type="checkbox" class="checkbox" onchange="toggleAllP(this)"></th><th>Product Name</th><th>Product Code</th><th>Category Code</th><th>Unit</th><th>Price</th><th>EFRIS Status</th><th>Actions</th></tr></thead><tbody>';
+            prods.forEach(function(p, i) {
+                const ch = selP.has(i) ? 'checked' : '';
+                const pr = parseFloat(p.UnitPrice || 0).toLocaleString('en-UG', {minimumFractionDigits: 2});
+                const cat = p.Sku || '<span style="color:#f44336;">Not Set</span>';
+                const prodCode = p.Description || '<span style="color:#999;">Use Name</span>';
+                const u = p.UnitOfMeasure || p.SaleUnitOfMeasure || 'Each';
+                
+                // EFRIS Status badge
+                let statusBadge = '';
+                if (p.EfrisStatus === 'Registered') {
+                    statusBadge = '<span style="background:#4caf50;color:white;padding:4px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">✓ Registered</span>';
+                } else {
+                    statusBadge = '<span style="background:#ff9800;color:white;padding:4px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">⏳ Pending</span>';
+                }
+                
+                h += '<tr><td><input type="checkbox" class="checkbox" ' + ch + ' onchange="toggleP(' + i + ',this)"></td><td><strong>' + p.Name + '</strong></td><td>' + prodCode + '</td><td>' + cat + '</td><td>' + u + '</td><td>UGX ' + pr + '</td><td>' + statusBadge + '</td><td><button class="btn btn-warning" onclick="editProduct(' + i + ')">✏️ Edit</button></td></tr>';
+            });
+            h += '</tbody></table>';
+            c.innerHTML = h;
+        }
+
+        async function loadInvoices() {
+            document.getElementById('invoicesLoading').style.display = 'block';
+            try {
+                const r = await fetch(API + '/quickbooks/invoices?token=' + T + '&start_date=2026-01-01');
+                const d = await r.json();
+                invs = d.invoices || [];
+                renderInvoices();
+                saveToLocalStorage();  // Auto-save
+                showAlert('success', 'Loaded ' + invs.length + ' invoices');
+            } catch(e) { 
+                showAlert('error', 'Failed to load invoices'); 
+            } finally { 
+                document.getElementById('invoicesLoading').style.display = 'none'; 
+            }
+        }
+
+        function renderInvoices() {
+            const c = document.getElementById('invoicesContent');
+            if (!invs.length) {
+                c.innerHTML = '<div class="empty-state"><p>No invoices loaded. Click "Load Invoices" to begin.</p></div>';
+                return;
+            }
+            let h = '<table><thead><tr><th style="width:40px;"><input type="checkbox" class="checkbox" onchange="toggleAllI(this)"></th><th>Invoice #</th><th>Customer</th><th>Date</th><th>Total</th><th>Status</th><th>Action</th></tr></thead><tbody>';
+            invs.forEach(function(inv, i) {
+                const ch = selI.has(i) ? 'checked' : '';
+                const tot = parseFloat(inv.TotalAmt || 0).toLocaleString('en-UG', {minimumFractionDigits: 2});
+                const cust = inv.CustomerRef ? inv.CustomerRef.name : 'N/A';
+                
+                // Status badge
+                let statusBadge = '';
+                if (inv.FDN) {
+                    statusBadge = '<span style="background:#4caf50;color:white;padding:4px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">✓ Fiscalized</span>';
+                } else {
+                    statusBadge = '<span style="background:#ff9800;color:white;padding:4px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">⏳ Pending</span>';
+                }
+                
+                // Action buttons
+                let actions = '<button class="btn btn-warning" onclick="editInvoice(' + i + ')">✏️ Edit</button>';
+                if (inv.FDN) {
+                    actions += ' <button class="btn btn-success" onclick="printInvoice(' + i + ')">🖨️ Print</button>';
+                    actions += ' <button class="btn btn-info" onclick="viewInvoiceDetails(' + i + ')">👁️ View</button>';
+                }
+                
+                h += '<tr><td><input type="checkbox" class="checkbox" ' + ch + ' onchange="toggleI(' + i + ',this)"></td><td><strong>' + inv.DocNumber + '</strong></td><td>' + cust + '</td><td>' + inv.TxnDate + '</td><td>UGX ' + tot + '</td><td>' + statusBadge + '</td><td>' + actions + '</td></tr>';
+            });
+            h += '</tbody></table>';
+            c.innerHTML = h;
+        }
+
+        async function loadPurchaseOrders() {
+            document.getElementById('stockLoading').style.display = 'block';
+            try {
+                const r = await fetch(API + '/quickbooks/purchase-orders?token=' + T + '&start_date=2026-01-01');
+                const d = await r.json();
+                pos = d.purchase_orders || [];
+                renderStock();
+                showAlert('success', 'Loaded ' + pos.length + ' purchase orders');
+            } catch(e) { 
+                showAlert('error', 'Failed to load purchase orders'); 
+            } finally { 
+                document.getElementById('stockLoading').style.display = 'none'; 
+            }
+        }
+
+        function renderStock() {
+            const c = document.getElementById('stockContent');
+            if (!pos.length) {
+                c.innerHTML = '<div class="empty-state"><p>No purchase orders loaded. Click "Load Purchase Orders" to begin.</p></div>';
+                return;
+            }
+            let h = '<table><thead><tr><th style="width:40px;"><input type="checkbox" class="checkbox" onchange="toggleAllPO(this)"></th><th>PO #</th><th>Vendor</th><th>Date</th><th>Total</th><th>Items</th><th>Actions</th></tr></thead><tbody>';
+            pos.forEach(function(po, i) {
+                const ch = selPO.has(i) ? 'checked' : '';
+                const tot = parseFloat(po.TotalAmt || 0).toLocaleString('en-UG', {minimumFractionDigits: 2});
+                const vend = po.VendorRef ? po.VendorRef.name : 'N/A';
+                const itemCount = (po.Line || []).filter(l => l.DetailType === 'ItemBasedExpenseLineDetail').length;
+                
+                // Build action buttons
+                let actions = '<button class="btn btn-info" onclick="viewPurchaseOrder(' + i + ')">👁️ View</button>';
+                actions += ' <button class="btn btn-warning" onclick="editPurchaseOrder(' + i + ')">✏️ Edit</button>';
+                
+                h += '<tr><td><input type="checkbox" class="checkbox" ' + ch + ' onchange="togglePO(' + i + ',this)"></td><td><strong>' + po.DocNumber + '</strong></td><td>' + vend + '</td><td>' + po.TxnDate + '</td><td>UGX ' + tot + '</td><td>' + itemCount + '</td><td>' + actions + '</td></tr>';
+            });
+            h += '</tbody></table>';
+            c.innerHTML = h;
+        }
+
+        function viewPurchaseOrder(i) {
+            const po = pos[i];
+            const vend = po.VendorRef ? po.VendorRef.name : 'N/A';
+            
+            let itemsHtml = '';
+            const lines = (po.Line || []).filter(l => l.DetailType === 'ItemBasedExpenseLineDetail');
+            
+            lines.forEach((line, idx) => {
+                const detail = line.ItemBasedExpenseLineDetail || {};
+                const itemRef = detail.ItemRef || {};
+                const qty = detail.Qty || 0;
+                const unitPrice = detail.UnitPrice || 0;
+                const amount = line.Amount || 0;
+                
+                itemsHtml += `
+                    <tr>
+                        <td style="padding:0.75rem;">${itemRef.name || 'N/A'}</td>
+                        <td style="padding:0.75rem;text-align:center;">${itemRef.value || ''}</td>
+                        <td style="padding:0.75rem;text-align:right;">${qty}</td>
+                        <td style="padding:0.75rem;text-align:right;">UGX ${parseFloat(unitPrice).toLocaleString('en-UG', {minimumFractionDigits: 2})}</td>
+                        <td style="padding:0.75rem;text-align:right;"><strong>UGX ${parseFloat(amount).toLocaleString('en-UG', {minimumFractionDigits: 2})}</strong></td>
+                    </tr>
+                `;
+            });
+            
+            const modalHtml = `
+                <h3 style="margin-bottom:1.5rem;">Purchase Order #${po.DocNumber}</h3>
+                <div style="background:#f5f5f5;padding:1rem;border-radius:4px;margin-bottom:1.5rem;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div><strong>Vendor:</strong> ${vend}</div>
+                        <div><strong>Date:</strong> ${po.TxnDate}</div>
+                        <div><strong>Total:</strong> UGX ${parseFloat(po.TotalAmt || 0).toLocaleString('en-UG', {minimumFractionDigits: 2})}</div>
+                        <div><strong>Items:</strong> ${lines.length}</div>
+                    </div>
+                    ${po.Memo ? `<div style="margin-top:1rem;"><strong>Memo:</strong> ${po.Memo}</div>` : ''}
+                </div>
+                <h4 style="margin:1rem 0;">Line Items</h4>
+                <div style="max-height:400px;overflow-y:auto;">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:#f5f5f5;border-bottom:2px solid #ddd;">
+                                <th style="padding:0.75rem;text-align:left;">Product</th>
+                                <th style="padding:0.75rem;text-align:center;">Code</th>
+                                <th style="padding:0.75rem;text-align:right;">Qty</th>
+                                <th style="padding:0.75rem;text-align:right;">Unit Price</th>
+                                <th style="padding:0.75rem;text-align:right;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody style="border-bottom:2px solid #ddd;">
+                            ${itemsHtml}
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top:1.5rem;display:flex;gap:1rem;justify-content:flex-end;">
+                    <button class="btn" onclick="closeModal()">Close</button>
+                </div>
+            `;
+            
+            document.getElementById('modalBody').innerHTML = modalHtml;
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function editPurchaseOrder(i) {
+            editingPO = i;
+            const po = pos[i];
+            const vend = po.VendorRef ? po.VendorRef.name : 'N/A';
+            
+            let itemsHtml = '';
+            const lines = (po.Line || []).filter(l => l.DetailType === 'ItemBasedExpenseLineDetail');
+            
+            lines.forEach((line, idx) => {
+                const detail = line.ItemBasedExpenseLineDetail || {};
+                const itemRef = detail.ItemRef || {};
+                const qty = detail.Qty || 0;
+                const unitPrice = detail.UnitPrice || 0;
+                
+                itemsHtml += `
+                    <div style="border-bottom:1px solid #ddd;padding:1rem 0;">
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:1rem;margin-bottom:0.5rem;">
+                            <div>
+                                <label style="display:block;font-size:0.8rem;color:#666;margin-bottom:0.25rem;">Product Code</label>
+                                <input type="text" class="form-input" id="po_item_code_${idx}" value="${itemRef.value || ''}" readonly style="background:#f5f5f5;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:0.8rem;color:#666;margin-bottom:0.25rem;">Quantity</label>
+                                <input type="number" class="form-input" id="po_item_qty_${idx}" value="${qty}" min="0">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:0.8rem;color:#666;margin-bottom:0.25rem;">Unit Price (UGX)</label>
+                                <input type="number" class="form-input" id="po_item_price_${idx}" value="${unitPrice}" min="0">
+                            </div>
+                        </div>
+                        <div style="font-size:0.85rem;color:#666;">Product: ${itemRef.name || 'N/A'}</div>
+                    </div>
+                `;
+            });
+            
+            const modalHtml = `
+                <h3 style="margin-bottom:1.5rem;">Edit Purchase Order #${po.DocNumber}</h3>
+                <div style="background:#f5f5f5;padding:1rem;border-radius:4px;margin-bottom:1.5rem;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div><strong>Vendor:</strong> ${vend}</div>
+                        <div><strong>Date:</strong> ${po.TxnDate}</div>
+                        <div><strong>Total:</strong> UGX ${parseFloat(po.TotalAmt || 0).toLocaleString('en-UG', {minimumFractionDigits: 2})}</div>
+                        <div><strong>Items:</strong> ${lines.length}</div>
+                    </div>
+                </div>
+                <h4 style="margin:1rem 0;">Line Items</h4>
+                <div id="poItems" style="max-height:300px;overflow-y:auto;">
+                    ${itemsHtml}
+                </div>
+                <div style="margin-top:1.5rem;display:flex;gap:1rem;justify-content:flex-end;">
+                    <button class="btn" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-success" onclick="savePurchaseOrder()">💾 Save Changes</button>
+                </div>
+            `;
+            
+            document.getElementById('modalBody').innerHTML = modalHtml;
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function savePurchaseOrder() {
+            const po = pos[editingPO];
+            const lines = (po.Line || []).filter(l => l.DetailType === 'ItemBasedExpenseLineDetail');
+            
+            // Update line items with edited values
+            lines.forEach((line, idx) => {
+                const qtyInput = document.getElementById(`po_item_qty_${idx}`);
+                const priceInput = document.getElementById(`po_item_price_${idx}`);
+                
+                if (qtyInput && priceInput) {
+                    line.ItemBasedExpenseLineDetail.Qty = parseFloat(qtyInput.value) || 0;
+                    line.ItemBasedExpenseLineDetail.UnitPrice = parseFloat(priceInput.value) || 0;
+                    line.Amount = line.ItemBasedExpenseLineDetail.Qty * line.ItemBasedExpenseLineDetail.UnitPrice;
+                }
+            });
+            
+            // Recalculate total
+            let newTotal = 0;
+            lines.forEach(line => {
+                newTotal += line.Amount || 0;
+            });
+            po.TotalAmt = newTotal;
+            
+            renderStock();
+            saveToLocalStorage();
+            closeModal();
+            showAlert('success', 'Purchase order updated');
+        }
+
+        async function loadCreditMemos() {
+            document.getElementById('creditLoading').style.display = 'block';
+            try {
+                const r = await fetch(API + '/quickbooks/credit-memos?token=' + T + '&start_date=2026-01-01');
+                const d = await r.json();
+                credits = d.credit_memos || [];
+                renderCredit();
+                showAlert('success', 'Loaded ' + credits.length + ' credit memos');
+            } catch(e) { 
+                showAlert('error', 'Failed to load credit memos'); 
+            } finally { 
+                document.getElementById('creditLoading').style.display = 'none'; 
+            }
+        }
+
+        function renderCredit() {
+            const c = document.getElementById('creditContent');
+            if (!credits.length) {
+                c.innerHTML = '<div class="empty-state"><p>No credit memos loaded. Click "Load Credit Memos" to begin.</p></div>';
+                return;
+            }
+            let h = '<table><thead><tr><th style="width:40px;"><input type="checkbox" class="checkbox" onchange="toggleAllC(this)"></th><th>Credit Memo #</th><th>Customer</th><th>Date</th><th>Total</th></tr></thead><tbody>';
+            credits.forEach(function(cm, i) {
+                const ch = selC.has(i) ? 'checked' : '';
+                const tot = parseFloat(cm.TotalAmt || 0).toLocaleString('en-UG', {minimumFractionDigits: 2});
+                const cust = cm.CustomerRef ? cm.CustomerRef.name : 'N/A';
+                h += '<tr><td><input type="checkbox" class="checkbox" ' + ch + ' onchange="toggleC(' + i + ',this)"></td><td><strong>' + cm.DocNumber + '</strong></td><td>' + cust + '</td><td>' + cm.TxnDate + '</td><td>UGX ' + tot + '</td></tr>';
+            });
+            h += '</tbody></table>';
+            c.innerHTML = h;
+        }
+
+        async function loadEfrisGoods() {
+            document.getElementById('efrisGoodsLoading').style.display = 'block';
+            try {
+                // Load first page to get total count
+                const r1 = await fetch(API + '/' + TIN + '/goods-and-services?token=' + T + '&page_no=1&page_size=10');
+                const d1 = await r1.json();
+                console.log('EFRIS Goods Page 1:', d1);
+                
+                efrisGoods = d1.records || [];
+                
+                // Check if there are more pages
+                if (d1.page && d1.page.total > 10) {
+                    // Load second page
+                    const r2 = await fetch(API + '/' + TIN + '/goods-and-services?token=' + T + '&page_no=2&page_size=10');
+                    const d2 = await r2.json();
+                    console.log('EFRIS Goods Page 2:', d2);
+                    if (d2.records) {
+                        efrisGoods = efrisGoods.concat(d2.records);
+                    }
+                }
+                
+                console.log('Total goods loaded:', efrisGoods.length);
+                renderEfrisGoods();
+                showAlert('success', 'Loaded ' + efrisGoods.length + ' goods from EFRIS');
+            } catch(e) { 
+                console.error('Failed to load EFRIS goods:', e);
+                showAlert('error', 'Failed to load EFRIS goods: ' + e.message); 
+            } finally { 
+                document.getElementById('efrisGoodsLoading').style.display = 'none'; 
+            }
+        }
+
+        function renderEfrisGoods() {
+            const c = document.getElementById('efrisGoodsContent');
+            if (!efrisGoods.length) {
+                c.innerHTML = '<div class="empty-state"><p>No goods found in EFRIS. Click "Refresh from EFRIS" to load.</p></div>';
+                return;
+            }
+            let h = '<table><thead><tr><th>Product Name</th><th>Category</th><th>Unit</th><th>Package Unit</th><th>Price (UGX)</th><th>Stock</th></tr></thead><tbody>';
+            efrisGoods.forEach(function(g) {
+                const pr = parseFloat(g.unitPrice || 0).toLocaleString('en-UG', {minimumFractionDigits: 2});
+                const category = g.commodityCategoryName || g.commodityCategoryCode || 'N/A';
+                h += '<tr><td><strong>' + (g.goodsName || 'N/A') + '</strong></td><td>' + category + '</td><td>' + (g.measureUnit || 'N/A') + '</td><td>' + (g.pieceMeasureUnit || 'N/A') + '</td><td>UGX ' + pr + '</td><td>' + (g.stock || 0) + '</td></tr>';
+            });
+            h += '</tbody></table>';
+            c.innerHTML = h;
+        }
+
+        async function loadEfrisInvoices() {
+            document.getElementById('efrisInvoicesLoading').style.display = 'block';
+            try {
+                // Build proper query parameters for T106
+                const queryParams = {
+                    pageNo: "1",
+                    pageSize: "50",
+                    referenceNo: "1041",
+                    queryType: "1",  // Query type
+                    dataSource: "103",  // Data source
+                    queryCondition: {
+                        startDate: "01/01/2026",  // DD/MM/YYYY format
+                        endDate: new Date().toLocaleDateString('en-GB')  // Today's date
+                    }
+                };
+                
+                console.log('Loading EFRIS invoices with params:', queryParams);
+                
+                const r = await fetch(API + '/' + TIN + '/query-invoices?token=' + T, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(queryParams)
+                });
+                const d = await r.json();
+                console.log('EFRIS Invoices Response:', d);
+                
+                // Handle different response formats
+                if (d.invoiceList && Array.isArray(d.invoiceList)) {
+                    efrisInvs = d.invoiceList;
+                } else if (d.records && Array.isArray(d.records)) {
+                    efrisInvs = d.records;
+                } else if (d.data && d.data.decrypted_content && d.data.decrypted_content.invoiceList) {
+                    efrisInvs = d.data.decrypted_content.invoiceList;
+                } else {
+                    efrisInvs = [];
+                }
+                
+                renderEfrisInvoices();
+                showAlert('success', 'Loaded ' + efrisInvs.length + ' invoices from EFRIS');
+            } catch(e) { 
+                console.error('Failed to load EFRIS invoices:', e);
+                showAlert('error', 'Failed to load EFRIS invoices: ' + e.message); 
+            } finally { 
+                document.getElementById('efrisInvoicesLoading').style.display = 'none'; 
+            }
+        }
+
+        function renderEfrisInvoices() {
+            const c = document.getElementById('efrisInvoicesContent');
+            if (!efrisInvs.length) {
+                c.innerHTML = '<div class="empty-state"><p>No invoices found in EFRIS. Click "Refresh from EFRIS" to load.</p></div>';
+                return;
+            }
+            let h = '<table><thead><tr><th>Invoice #</th><th>FDN</th><th>Customer</th><th>Date</th><th>Total (UGX)</th><th>Status</th></tr></thead><tbody>';
+            efrisInvs.forEach(function(inv) {
+                const tot = parseFloat(inv.grossAmount || 0).toLocaleString('en-UG', {minimumFractionDigits: 2});
+                // Status based on isInvalid field: 0=Valid, 1=Invalid/Cancelled
+                const isValid = inv.isInvalid === '0' || inv.isInvalid === 0;
+                const status = isValid ? '✅ Approved' : '❌ Invalid/Cancelled';
+                const invoiceDate = inv.issuedDateStr || inv.issuedDate || inv.invoiceDate || 'N/A';
+                h += '<tr><td><strong>' + (inv.invoiceNo || 'N/A') + '</strong></td><td>' + (inv.invoiceNo || 'N/A') + '</td><td>' + (inv.buyerLegalName || 'N/A') + '</td><td>' + invoiceDate + '</td><td>UGX ' + tot + '</td><td>' + status + '</td></tr>';
+            });
+            h += '</tbody></table>';
+            c.innerHTML = h;
+        }
+
+        async function loadEfrisCredit() {
+            document.getElementById('efrisCreditLoading').style.display = 'block';
+            try {
+                // Build proper query parameters for T112
+                const queryParams = {
+                    pageNo: "1",
+                    pageSize: "50",
+                    referenceNo: "1041",
+                    queryType: "1",
+                    dataSource: "103",
+                    queryCondition: {
+                        startDate: "01/01/2026",  // DD/MM/YYYY format
+                        endDate: new Date().toLocaleDateString('en-GB')  // Today's date
+                    }
+                };
+                
+                console.log('Loading EFRIS credit notes with params:', queryParams);
+                
+                const r = await fetch(API + '/' + TIN + '/query-credit-notes?token=' + T, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(queryParams)
+                });
+                const d = await r.json();
+                console.log('EFRIS Credit Notes Response:', d);
+                
+                // Handle different response formats
+                if (d.creditNoteList && Array.isArray(d.creditNoteList)) {
+                    efrisCredit = d.creditNoteList;
+                } else if (d.records && Array.isArray(d.records)) {
+                    efrisCredit = d.records;
+                } else if (d.data && d.data.decrypted_content && d.data.decrypted_content.creditNoteList) {
+                    efrisCredit = d.data.decrypted_content.creditNoteList;
+                } else {
+                    efrisCredit = [];
+                }
+                
+                renderEfrisCredit();
+                showAlert('success', 'Loaded ' + efrisCredit.length + ' credit notes from EFRIS');
+            } catch(e) { 
+                console.error('Failed to load EFRIS credit notes:', e);
+                showAlert('error', 'Failed to load EFRIS credit notes: ' + e.message); 
+            } finally { 
+                document.getElementById('efrisCreditLoading').style.display = 'none'; 
+            }
+        }
+
+        function renderEfrisCredit() {
+            const c = document.getElementById('efrisCreditContent');
+            if (!efrisCredit.length) {
+                c.innerHTML = '<div class="empty-state"><p>No credit notes found in EFRIS. Click "Refresh from EFRIS" to load.</p></div>';
+                return;
+            }
+            let h = '<table><thead><tr><th>Credit Note #</th><th>Original Invoice</th><th>Customer</th><th>Date</th><th>Total (UGX)</th><th>Status</th></tr></thead><tbody>';
+            efrisCredit.forEach(function(cn) {
+                const tot = parseFloat(cn.grossAmount || 0).toLocaleString('en-UG', {minimumFractionDigits: 2});
+                const status = cn.creditNoteStatusCode === '101' ? '✅ Approved' : cn.creditNoteStatusCode === '102' ? '❌ Rejected' : '⏳ Pending';
+                h += '<tr><td><strong>' + (cn.creditNoteNo || 'N/A') + '</strong></td><td>' + (cn.originalInvoiceNo || 'N/A') + '</td><td>' + (cn.buyerLegalName || 'N/A') + '</td><td>' + (cn.creditNoteDate || 'N/A') + '</td><td>UGX ' + tot + '</td><td>' + status + '</td></tr>';
+            });
+            h += '</tbody></table>';
+            c.innerHTML = h;
+        }
+
+        function toggleAllP(cb) { 
+            selP.clear(); 
+            if (cb.checked) {
+                prods.forEach(function(_, i) { selP.add(i); });
+            }
+            renderGoods(); 
+        }
+        function toggleP(i,cb) { cb.checked ? selP.add(i) : selP.delete(i); }
+        function toggleAllI(cb) { 
+            selI.clear(); 
+            if (cb.checked) {
+                invs.forEach(function(_, i) { selI.add(i); });
+            }
+            renderInvoices(); 
+        }
+        function toggleI(i,cb) { cb.checked ? selI.add(i) : selI.delete(i); }
+        function toggleAllPO(cb) { 
+            selPO.clear(); 
+            if (cb.checked) {
+                pos.forEach(function(_, i) { selPO.add(i); });
+            }
+            renderStock(); 
+        }
+        function togglePO(i,cb) { cb.checked ? selPO.add(i) : selPO.delete(i); }
+        function toggleAllC(cb) { 
+            selC.clear(); 
+            if (cb.checked) {
+                credits.forEach(function(_, i) { selC.add(i); });
+            }
+            renderCredit(); 
+        }
+        function toggleC(i,cb) { cb.checked ? selC.add(i) : selC.delete(i); }
+
+        function editProduct(i) {
+            editIdx = i;
+            const p = prods[i];
+            const itemType = p.Type || p.ItemType || 'Inventory';
+            const isService = itemType === 'Service';
+            
+            document.getElementById('name').value = p.Name || '';
+            // Use Description field from QuickBooks as product code
+            document.getElementById('productCode').value = p.Description || '';
+            document.getElementById('sku').value = p.Sku || '';
+            document.getElementById('itemType').value = itemType;
+            toggleItemTypeFields();  // Apply field visibility based on type
+            // Override unit for services to ensure it's always 102
+            document.getElementById('unit').value = isService ? '102' : (p.UnitOfMeasure || p.SaleUnitOfMeasure || '121');
+            document.getElementById('price').value = p.PurchaseCost || p.UnitPrice || 0;
+            document.getElementById('stock').value = p.QtyOnHand || 0;
+            document.getElementById('taxRate').value = p.TaxRate || '0.18';
+            document.getElementById('hasExcise').checked = p.HasExcise || false;
+            document.getElementById('exciseDutyCode').value = p.ExciseDutyCode || '';
+            document.getElementById('exciseCodeGroup').style.display = (p.HasExcise) ? 'block' : 'none';
+            document.getElementById('editModal').classList.add('active');
+            
+            // Toggle excise code dropdown visibility
+            document.getElementById('hasExcise').onchange = function() {
+                document.getElementById('exciseCodeGroup').style.display = this.checked ? 'block' : 'none';
+            };
+            
+            // Auto-update unit when excise code changes
+            document.getElementById('exciseDutyCode').onchange = function() {
+                const exciseCode = this.value;
+                const exciseUnitMap = {
+                    'LED050000': '107',  // Cement: 50kgs
+                    'LED110000': '102',  // Mineral water: Barrel (Litre)
+                    'LED190100': '102',  // Fruit juice: Barrel (Litre)
+                    'LED190200': '102',  // Non-alcoholic beverages: Barrel (Litre)
+                    'LED190300': '102',  // Powder for juice: Barrel (Litre)
+                    'LED190400': '102',  // Other non-alcoholic beverages: Barrel (Litre)
+                    'LED040100': '102',  // Beer (imported malt): Barrel (Litre)
+                    'LED040200': '102',  // Beer (local malt): Barrel (Litre)
+                    'LED040300': '102',  // Opaque beer: Barrel (Litre)
+                    'LED040400': '102',  // Beer (barley grown/malted in Uganda): Barrel (Litre)
+                    'LED040500': '102',  // Beer (75% local raw material): Barrel (Litre)
+                    'LED040600': '102',  // Other alcoholic beverage locally produced: Barrel (Litre)
+                    'LED040800': '103',  // Powder for beer: Bottle (Kg)
+                    'LED090000': '102',  // Cooking oil: Barrel (Litre)
+                    'LED130100': '102',  // Gas oil (automotive): Barrel (Litre)
+                    'LED130400': '102',  // Illuminating kerosene: Barrel (Litre)
+                    'LED130500': '102',  // Jet fuel: Barrel (Litre)
+                    'LED130700': '102',  // Motor spirit (gasoline): Barrel (Litre)
+                    'LED130800': '102',  // Other gas oils: Barrel (Litre)
+                    'LED200100': '102',  // Spirits (locally produced, <80%): Barrel (Litre)
+                    'LED200200': '102',  // Spirits (imported): Barrel (Litre)
+                    'LED200300': '102',  // Un-denatured spirits (80%+, local): Barrel (Litre)
+                    'LED200400': '102',  // Un-denatured spirits (imported, <80%): Barrel (Litre)
+                    'LED210100': '103',  // Sugar: Bottle (Kg)
+                    'LED230100': '102',  // Wine (local): Barrel (Litre)
+                    'LED230200': '102',  // Wine (other): Barrel (Litre)
+                    'LED270100': '102',  // Fermented beverage (imported): Barrel (Litre)
+                    'LED270200': '102',  // Fermented beverage (local): Barrel (Litre)
+                    'LED080200': '106',  // Cigarettes (hinge lid, imported): Carton (1000 sticks)
+                    'LED080300': '106',  // Cigarettes (hinge lid, local): Carton (1000 sticks)
+                    'LED080700': '106',  // Cigarettes (soft cap, imported): Carton (1000 sticks)
+                    'LED080800': '106',  // Cigarettes (soft cap, local): Carton (1000 sticks)
+                    'LED180000': '103',  // Plastics: Bottle (Kg)
+                    'LED260100': 'TNE',  // Plastic products: Tonne
+                };
+                
+                if (exciseCode && exciseUnitMap[exciseCode]) {
+                    const unitSelect = document.getElementById('unit');
+                    unitSelect.value = exciseUnitMap[exciseCode];
+                    console.log('Auto-updated unit to:', exciseUnitMap[exciseCode], 'for excise code:', exciseCode);
+                }
+            };
+        }
+
+        // Manually mark product as registered (for when EFRIS sync issues occur)
+        function markAsRegistered(i) {
+            const p = prods[i];
+            if (confirm(`Mark "${p.Name}" as Registered?\n\nThis will enable UPDATE mode for next sync.`)) {
+                p.EfrisStatus = 'Registered';
+                // Use a placeholder ID if we don't have the real one
+                if (!p.EfrisId) {
+                    p.EfrisId = 'manual_' + Date.now();
+                }
+                renderGoods();
+                saveToLocalStorage();
+                updateStatusCounts();
+                showAlert('success', `"${p.Name}" marked as Registered`);
+            }
+        }
+
+        // Mark product as pending registration
+        function markAsPending(i) {
+            const p = prods[i];
+            if (confirm(`Reset "${p.Name}" to Pending?\n\nThis will use ADD mode for next sync.`)) {
+                p.EfrisStatus = 'Pending Registration';
+                delete p.EfrisId;
+                renderGoods();
+                saveToLocalStorage();
+                updateStatusCounts();
+                showAlert('info', `"${p.Name}" marked as Pending`);
+            }
+        }
+
+        // Update status summary counts
+        function updateStatusCounts() {
+            const registered = prods.filter(p => p.EfrisStatus === 'Registered').length;
+            const pending = prods.filter(p => p.EfrisStatus === 'Pending Registration').length;
+            document.getElementById('totalCount').textContent = prods.length;
+            document.getElementById('registeredCount').textContent = registered;
+            document.getElementById('pendingCount').textContent = pending;
+            document.getElementById('statusSummary').style.display = 'flex';
+        }
+
+        document.getElementById('editForm').onsubmit = function(e) {
+            e.preventDefault();
+            if (editIdx >= 0) {
+                prods[editIdx].Name = document.getElementById('name').value;
+                // Save productCode to Description field (this is what QuickBooks uses)
+                prods[editIdx].Description = document.getElementById('productCode').value;
+                prods[editIdx].Sku = document.getElementById('sku').value;
+                prods[editIdx].Type = document.getElementById('itemType').value;
+                prods[editIdx].ItemType = document.getElementById('itemType').value;
+                prods[editIdx].UnitOfMeasure = document.getElementById('unit').value;
+                prods[editIdx].UnitPrice = parseFloat(document.getElementById('price').value);
+                prods[editIdx].QtyOnHand = parseFloat(document.getElementById('stock').value) || 0;
+                prods[editIdx].TaxRate = document.getElementById('taxRate').value;
+                prods[editIdx].HasExcise = document.getElementById('hasExcise').checked;
+                prods[editIdx].ExciseDutyCode = document.getElementById('hasExcise').checked ? document.getElementById('exciseDutyCode').value : '';
+                console.log('Saved product:', prods[editIdx]);
+                console.log('HasExcise:', prods[editIdx].HasExcise, 'ExciseDutyCode:', prods[editIdx].ExciseDutyCode);
+                console.log('Type:', prods[editIdx].Type, 'ItemType:', prods[editIdx].ItemType);
+                console.log('Description (Product Code):', prods[editIdx].Description);
+                renderGoods();
+                saveToLocalStorage();  // Auto-save after editing
+                closeModal();
+                showAlert('success', 'Product updated');
+            }
+        };
+
+        let editingInv = -1;
+        
+        function editInvoice(i) {
+            editingInv = i;
+            const inv = invs[i];
+            const cust = inv.CustomerRef ? inv.CustomerRef.name : 'N/A';
+            
+            // Debug: Log the invoice structure
+            console.log('=== EDITING INVOICE ===');
+            console.log('Full invoice object:', inv);
+            console.log('Lines:', inv.Line);
+            
+            document.getElementById('invoiceNumber').value = inv.DocNumber || '';
+            document.getElementById('invoiceCustomer').value = cust;
+            document.getElementById('invoiceDate').value = inv.TxnDate || '';
+            document.getElementById('buyerType').value = inv.BuyerType || '1';  // Default to Individual
+            document.getElementById('buyerTin').value = inv.BuyerTin || '';
+            
+            // Render detailed line items with tax, discount, and excise information
+            let lineItemsHtml = '<div style="margin:20px 0;"><h4 style="margin-bottom:15px;">Line Items Detail</h4>';
+            lineItemsHtml += '<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">';
+            lineItemsHtml += '<thead><tr style="background:#f5f5f5;border-bottom:2px solid #ddd;">';
+            lineItemsHtml += '<th style="padding:10px;text-align:left;">Item</th>';
+            lineItemsHtml += '<th style="padding:10px;text-align:center;">Qty</th>';
+            lineItemsHtml += '<th style="padding:10px;text-align:right;">Unit Price</th>';
+            lineItemsHtml += '<th style="padding:10px;text-align:center;">Discount</th>';
+            lineItemsHtml += '<th style="padding:10px;text-align:center;">Tax Rate</th>';
+            lineItemsHtml += '<th style="padding:10px;text-align:center;">Excise</th>';
+            lineItemsHtml += '<th style="padding:10px;text-align:right;">Total</th>';
+            lineItemsHtml += '</tr></thead><tbody>';
+            
+            const lines = (inv.Line || []).filter(l => l.DetailType === 'SalesItemLineDetail');
+            
+            // First pass: Check for separate discount lines (QuickBooks invoice-level discount)
+            const discountLines = (inv.Line || []).filter(l => l.DetailType === 'DiscountLineDetail');
+            console.log('Discount lines found:', discountLines);
+            
+            // Calculate invoice-level discount from discount lines
+            let invoiceLevelDiscountAmount = 0;
+            let invoiceLevelDiscountPercent = 0;
+            
+            if (discountLines.length > 0) {
+                discountLines.forEach(function(discLine) {
+                    const discDetail = discLine.DiscountLineDetail || {};
+                    const discAmount = Math.abs(parseFloat(discLine.Amount || 0));
+                    invoiceLevelDiscountAmount += discAmount;
+                    
+                    if (discDetail.PercentBased && discDetail.DiscountPercent) {
+                        invoiceLevelDiscountPercent = parseFloat(discDetail.DiscountPercent || 0);
+                    }
+                    
+                    console.log('Invoice-level discount found:', {
+                        amount: discAmount,
+                        percent: discDetail.DiscountPercent,
+                        percentBased: discDetail.PercentBased
+                    });
+                });
+            }
+            
+            // Calculate subtotal of all line items (before discount)
+            let subtotalBeforeDiscount = 0;
+            lines.forEach(function(line) {
+                subtotalBeforeDiscount += parseFloat(line.Amount || 0);
+            });
+            
+            // If we have invoice-level discount but no percent, calculate it
+            if (invoiceLevelDiscountAmount > 0 && invoiceLevelDiscountPercent === 0 && subtotalBeforeDiscount > 0) {
+                invoiceLevelDiscountPercent = (invoiceLevelDiscountAmount / subtotalBeforeDiscount) * 100;
+            }
+            
+            console.log('Invoice-level discount:', {
+                amount: invoiceLevelDiscountAmount,
+                percent: invoiceLevelDiscountPercent,
+                subtotalBeforeDiscount: subtotalBeforeDiscount
+            });
+            
+            let totalDiscount = 0;
+            let totalExcise = 0;
+            let totalVAT = 0;
+            
+            lines.forEach(function(line, idx) {
+                const item = line.SalesItemLineDetail || {};
+                const itemName = (item.ItemRef && item.ItemRef.name) || line.Description || 'Unknown Item';
+                const qty = item.Qty || 0;
+                const rate = item.UnitPrice || 0;
+                const amount = line.Amount || 0;
+                
+                console.log('=== LINE ' + idx + ': ' + itemName + ' ===');
+                console.log('Full line object:', line);
+                console.log('SalesItemLineDetail:', item);
+                
+                // Extract discount information - QuickBooks has multiple formats
+                let discountPercent = 0;
+                let discountAmount = 0;
+                
+                // Method 1: Check for line-level discount fields
+                if (item.DiscountRate !== undefined && item.DiscountRate !== null && item.DiscountRate !== '') {
+                    discountPercent = parseFloat(item.DiscountRate) || 0;
+                    console.log('  → Found DiscountRate:', discountPercent + '%');
+                }
+                
+                if (item.DiscountAmt !== undefined && item.DiscountAmt !== null && item.DiscountAmt !== '') {
+                    discountAmount = parseFloat(item.DiscountAmt) || 0;
+                    console.log('  → Found DiscountAmt:', discountAmount);
+                }
+                
+                if (item.Discount !== undefined && item.Discount !== null && item.Discount !== '') {
+                    const discountValue = parseFloat(item.Discount) || 0;
+                    if (discountValue > 0) {
+                        if (discountValue <= 100) {
+                            discountPercent = discountValue;
+                            console.log('  → Found Discount as %:', discountPercent + '%');
+                        } else {
+                            discountAmount = discountValue;
+                            console.log('  → Found Discount as amount:', discountAmount);
+                        }
+                    }
+                }
+                
+                // Calculate discount amount if percentage provided
+                if (discountPercent > 0 && discountAmount === 0) {
+                    discountAmount = (qty * rate * discountPercent) / 100;
+                    console.log('  → Calculated discount amount:', discountAmount);
+                }
+                
+                // Method 2: If no line-level discount but invoice has discount, distribute proportionally
+                if (discountAmount === 0 && discountPercent === 0 && invoiceLevelDiscountAmount > 0) {
+                    // Distribute invoice-level discount proportionally to this line
+                    const lineSubtotal = amount; // Line amount already given
+                    discountPercent = invoiceLevelDiscountPercent;
+                    discountAmount = (lineSubtotal * invoiceLevelDiscountPercent) / 100;
+                    console.log('  → Distributed invoice-level discount: ' + discountPercent.toFixed(1) + '% (UGX ' + discountAmount.toFixed(0) + ')');
+                }
+                
+                // Method 3: Check for implicit discount (amount < qty * price)
+                if (discountAmount === 0 && discountPercent === 0 && invoiceLevelDiscountAmount === 0) {
+                    const expectedAmount = qty * rate;
+                    if (expectedAmount > amount && expectedAmount > 0.01) {
+                        discountAmount = expectedAmount - amount;
+                        discountPercent = (discountAmount / expectedAmount) * 100;
+                        console.log('  → Found IMPLICIT discount: ' + discountPercent.toFixed(1) + '% (UGX ' + discountAmount.toFixed(0) + ')');
+                    }
+                }
+                
+                console.log('  → FINAL Discount%:', discountPercent, 'Amount:', discountAmount);
+                totalDiscount += discountAmount;
+                
+                // Extract tax information
+                let taxRate = 0;
+                let taxType = 'Standard VAT';
+                let taxBadge = '';
+                
+                if (item.TaxCodeRef) {
+                    const taxName = (item.TaxCodeRef.name || '').toLowerCase();
+                    if (taxName.includes('zero') || taxName.includes('0%')) {
+                        taxRate = 0;
+                        taxType = 'Zero-rated';
+                        taxBadge = '<span style="background:#2196f3;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">0%</span>';
+                    } else if (taxName.includes('exempt')) {
+                        taxRate = -1;
+                        taxType = 'Exempt';
+                        taxBadge = '<span style="background:#ff9800;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">EXEMPT</span>';
+                    } else if (taxName.includes('deemed')) {
+                        taxRate = 18;
+                        taxType = 'Deemed VAT';
+                        taxBadge = '<span style="background:#9c27b0;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">18% (Deemed)</span>';
+                    } else {
+                        taxRate = 18;  // Default standard VAT
+                        taxBadge = '<span style="background:#4caf50;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">18%</span>';
+                    }
+                } else if (item.TaxRate !== undefined) {
+                    taxRate = parseFloat(item.TaxRate) * 100;
+                    taxBadge = '<span style="background:#4caf50;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">' + taxRate + '%</span>';
+                } else {
+                    taxRate = 18;  // Default
+                    taxBadge = '<span style="background:#4caf50;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">18%</span>';
+                }
+                
+                // Calculate VAT
+                if (taxRate > 0) {
+                    const taxableAmount = (qty * rate) - discountAmount;
+                    totalVAT += (taxableAmount * taxRate) / 100;
+                }
+                
+                // Extract excise information from product metadata
+                let exciseInfo = '';
+                let exciseAmount = 0;
+                const prod = prods.find(p => p.Name === itemName || (p.FullyQualifiedName === itemName));
+                if (prod && prod.HasExcise && prod.ExciseDutyCode) {
+                    const exciseCode = prod.ExciseDutyCode;
+                    // Get excise rate from excise_duty_reference.json (simplified for UI display)
+                    // Fixed-rate excises
+                    const fixedRates = {
+                        'LED050000': 500,    // Cement: 500 per 50kg
+                        'LED090000': 200,    // Cooking oil: 200 per litre
+                        'LED110000': 50,     // Mineral water: 50 per litre
+                        'LED190100': 250,    // Fruit juice: 250 per litre
+                        'LED190200': 250,    // Non-alcoholic: 250 per litre
+                        'LED190400': 150,    // Other non-alcoholic: 150 per litre
+                        'LED040100': 2050,   // Beer (imported): 2050 per litre
+                        'LED040200': 2050,   // Beer (local malt): 2050 per litre
+                        'LED040300': 150,    // Opaque beer: 150 per litre
+                        'LED040400': 950,    // Beer (local barley): 950 per litre
+                        'LED040500': 900,    // Beer (75% local): 900 per litre
+                        'LED040600': 150,    // Other alcoholic: 150 per litre
+                        'LED200100': 1700,   // Spirits (local): 1700 per litre
+                        'LED200200': 2500    // Spirits (imported): 2500 per litre
+                    };
+                    
+                    if (fixedRates[exciseCode]) {
+                        exciseAmount = qty * fixedRates[exciseCode];
+                        exciseInfo = '<span style="background:#e91e63;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">' + exciseCode + '</span><br/><small style="color:#666;">UGX ' + exciseAmount.toLocaleString('en-UG', {minimumFractionDigits: 0}) + '</small>';
+                    } else {
+                        // Percentage-based excise (e.g., LED190300: 15%)
+                        const percentRates = {
+                            'LED190300': 15  // Juice powder: 15%
+                        };
+                        if (percentRates[exciseCode]) {
+                            exciseAmount = ((qty * rate) * percentRates[exciseCode]) / 100;
+                            exciseInfo = '<span style="background:#e91e63;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">' + exciseCode + '</span><br/><small style="color:#666;">' + percentRates[exciseCode] + '% = UGX ' + exciseAmount.toLocaleString('en-UG', {minimumFractionDigits: 0}) + '</small>';
+                        }
+                    }
+                    totalExcise += exciseAmount;
+                } else {
+                    exciseInfo = '<span style="color:#999;">-</span>';
+                }
+                
+                // Discount display
+                let discountDisplay = '';
+                console.log('Line ' + idx + ' - Item: ' + itemName + ', DiscountPercent: ' + discountPercent + ', DiscountAmount: ' + discountAmount);
+                
+                if (discountPercent > 0) {
+                    discountDisplay = '<span style="background:#ff5722;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">' + discountPercent.toFixed(1) + '%</span><br/><small style="color:#666;">-UGX ' + discountAmount.toLocaleString('en-UG', {minimumFractionDigits: 0}) + '</small>';
+                } else if (discountAmount > 0) {
+                    discountDisplay = '<span style="background:#ff5722;color:white;padding:2px 6px;border-radius:3px;font-size:0.75rem;">FIXED</span><br/><small style="color:#666;">-UGX ' + discountAmount.toLocaleString('en-UG', {minimumFractionDigits: 0}) + '</small>';
+                } else {
+                    discountDisplay = '<span style="color:#999;">-</span>';
+                }
+                
+                lineItemsHtml += '<tr style="border-bottom:1px solid #eee;">';
+                lineItemsHtml += '<td style="padding:10px;"><strong>' + itemName + '</strong></td>';
+                lineItemsHtml += '<td style="padding:10px;text-align:center;">' + qty + '</td>';
+                lineItemsHtml += '<td style="padding:10px;text-align:right;">UGX ' + rate.toLocaleString('en-UG', {minimumFractionDigits: 0}) + '</td>';
+                lineItemsHtml += '<td style="padding:10px;text-align:center;">' + discountDisplay + '</td>';
+                lineItemsHtml += '<td style="padding:10px;text-align:center;">' + taxBadge + '</td>';
+                lineItemsHtml += '<td style="padding:10px;text-align:center;">' + exciseInfo + '</td>';
+                lineItemsHtml += '<td style="padding:10px;text-align:right;font-weight:bold;">UGX ' + amount.toLocaleString('en-UG', {minimumFractionDigits: 0}) + '</td>';
+                lineItemsHtml += '</tr>';
+            });
+            
+            lineItemsHtml += '</tbody></table>';
+            
+            // Add summary section
+            lineItemsHtml += '<div style="margin-top:20px;padding:15px;background:#f9f9f9;border-radius:5px;">';
+            lineItemsHtml += '<h4 style="margin:0 0 10px 0;color:#333;">Invoice Summary</h4>';
+            lineItemsHtml += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:0.9rem;">';
+            
+            const subtotal = parseFloat(inv.TotalAmt || 0);
+            lineItemsHtml += '<div><strong>Subtotal:</strong></div><div style="text-align:right;">UGX ' + subtotal.toLocaleString('en-UG', {minimumFractionDigits: 2}) + '</div>';
+            
+            if (totalDiscount > 0) {
+                lineItemsHtml += '<div style="color:#ff5722;"><strong>Total Discount:</strong></div><div style="text-align:right;color:#ff5722;">-UGX ' + totalDiscount.toLocaleString('en-UG', {minimumFractionDigits: 2}) + '</div>';
+            }
+            
+            if (totalExcise > 0) {
+                lineItemsHtml += '<div style="color:#e91e63;"><strong>Total Excise Duty:</strong></div><div style="text-align:right;color:#e91e63;">UGX ' + totalExcise.toLocaleString('en-UG', {minimumFractionDigits: 2}) + '</div>';
+            }
+            
+            if (totalVAT > 0) {
+                lineItemsHtml += '<div style="color:#4caf50;"><strong>Total VAT:</strong></div><div style="text-align:right;color:#4caf50;">UGX ' + totalVAT.toLocaleString('en-UG', {minimumFractionDigits: 2}) + '</div>';
+            }
+            
+            lineItemsHtml += '<div style="border-top:2px solid #333;padding-top:10px;margin-top:5px;font-size:1.1rem;"><strong>Grand Total:</strong></div>';
+            lineItemsHtml += '<div style="border-top:2px solid #333;padding-top:10px;margin-top:5px;font-size:1.1rem;text-align:right;font-weight:bold;">UGX ' + subtotal.toLocaleString('en-UG', {minimumFractionDigits: 2}) + '</div>';
+            
+            lineItemsHtml += '</div></div>';
+            lineItemsHtml += '</div>';
+            
+            document.getElementById('invoiceLineItems').innerHTML = lineItemsHtml;
+            
+            document.getElementById('invoiceSubtotal').value = 'UGX ' + subtotal.toLocaleString('en-UG', {minimumFractionDigits: 2});
+            document.getElementById('invoiceTotal').value = 'UGX ' + subtotal.toLocaleString('en-UG', {minimumFractionDigits: 2});
+            
+            document.getElementById('editInvoiceModal').classList.add('active');
+        }
+        
+        function closeInvoiceModal() {
+            document.getElementById('editInvoiceModal').classList.remove('active');
+        }
+        
+        async function submitCurrentInvoiceToEfris() {
+            if (editingInv < 0) {
+                showAlert('error', 'No invoice selected');
+                return;
+            }
+            
+            const inv = invs[editingInv];
+            const invoiceId = inv.Id;
+            const invoiceNumber = inv.DocNumber;
+            
+            // First save any changes
+            inv.TxnDate = document.getElementById('invoiceDate').value;
+            inv.BuyerType = document.getElementById('buyerType').value;
+            inv.BuyerTin = document.getElementById('buyerTin').value;
+            saveToLocalStorage();
+            
+            // Confirm submission
+            if (!confirm(`Send Invoice #${invoiceNumber} to EFRIS?\n\nThis will fiscalize the invoice and obtain an FDN from URA.`)) {
+                return;
+            }
+            
+            try {
+                showAlert('info', `Submitting Invoice #${invoiceNumber} to EFRIS...`);
+                
+                const response = await fetch(`${API}/quickbooks/sync-invoice/${invoiceId}?token=${T}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                console.log('EFRIS submission response:', result);
+                
+                if (response.ok && result.success) {
+                    // Extract FDN - it could be in 'fdn' or 'invoiceNo' field
+                    const fdn = result.fdn || result.invoiceNo;
+                    const verificationCode = result.verificationCode || result.verification_code;
+                    
+                    console.log('Extracted FDN:', fdn);
+                    console.log('Extracted Verification Code:', verificationCode);
+                    
+                    if (!fdn) {
+                        console.error('No FDN in response!', result);
+                        showAlert('error', 'Invoice submitted but no FDN received. Check console for details.');
+                        return;
+                    }
+                    
+                    // Update invoice with EFRIS details
+                    inv.FDN = fdn;
+                    inv.VerificationCode = verificationCode;
+                    inv.QRCode = result.qrCode;
+                    inv.EfrisSubmitted = true;
+                    inv.SubmissionDate = new Date().toISOString();
+                    
+                    saveToLocalStorage();
+                    renderInvoices();
+                    closeInvoiceModal();
+                    
+                    showAlert('success', `✅ Invoice #${invoiceNumber} submitted successfully!\n\nFDN: ${fdn}\nVerification Code: ${verificationCode || 'N/A'}`);
+                } else {
+                    const errorMsg = result.error || result.message || 'Unknown error';
+                    
+                    // Check for unit validation error
+                    if (errorMsg.includes('invalid unit') || errorMsg.includes('must be re-registered')) {
+                        showAlert('error', `❌ Product Registration Error:\n\n${errorMsg}\n\n💡 Solution: Go to "PRODUCTS" tab, edit the product, set a valid Unit Code (e.g. 121=Piece), then click "Save & Send to EFRIS" before trying this invoice again.`);
+                    } else {
+                        showAlert('error', `Failed to submit invoice:\n${errorMsg}`);
+                    }
+                }
+            } catch (error) {
+                console.error('EFRIS submission error:', error);
+                showAlert('error', `Error submitting to EFRIS: ${error.message}`);
+            }
+        }
+        
+        document.getElementById('editInvoiceForm').onsubmit = function(e) {
+            e.preventDefault();
+            if (editingInv >= 0) {
+                invs[editingInv].TxnDate = document.getElementById('invoiceDate').value;
+                invs[editingInv].BuyerType = document.getElementById('buyerType').value;
+                invs[editingInv].BuyerTin = document.getElementById('buyerTin').value;
+                renderInvoices();
+                saveToLocalStorage();
+                closeInvoiceModal();
+                showAlert('success', 'Invoice updated');
+            }
+        };
+        
+        function viewInvoiceDetails(i) {
+            const inv = invs[i];
+            const cust = inv.CustomerRef ? inv.CustomerRef.name : 'N/A';
+            const custTin = inv.CustomerTIN || 'N/A';
+            
+            let html = `
+                <div style="padding:30px;background:white;">
+                    <div style="text-align:center;border-bottom:2px solid #333;padding-bottom:20px;margin-bottom:20px;">
+                        <h2 style="margin:0;color:#333;">TAX INVOICE</h2>
+                        <p style="margin:5px 0;color:#666;">Fiscalized Invoice</p>
+                    </div>
+                    
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-bottom:30px;">
+                        <div>
+                            <h4 style="margin:0 0 10px 0;color:#333;">From:</h4>
+                            <p style="margin:0;"><strong>${inv.CompanyName || 'Your Company'}</strong></p>
+                            <p style="margin:0;">TIN: ${inv.SellerTIN || '1014409555'}</p>
+                        </div>
+                        <div>
+                            <h4 style="margin:0 0 10px 0;color:#333;">To:</h4>
+                            <p style="margin:0;"><strong>${cust}</strong></p>
+                            <p style="margin:0;">TIN: ${custTin}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="background:#f5f5f5;padding:15px;margin-bottom:20px;border-radius:5px;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+                            <div><strong>Invoice No:</strong> ${inv.DocNumber}</div>
+                            <div><strong>Date:</strong> ${inv.TxnDate}</div>
+                            <div><strong>FDN:</strong> <span style="color:#4caf50;font-weight:bold;">${inv.FDN || 'N/A'}</span></div>
+                            <div><strong>Verification Code:</strong> ${inv.VerificationCode || 'N/A'}</div>
+                        </div>
+                    </div>
+                    
+                    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                        <thead>
+                            <tr style="background:#333;color:white;">
+                                <th style="padding:10px;text-align:left;">Item</th>
+                                <th style="padding:10px;text-align:right;">Qty</th>
+                                <th style="padding:10px;text-align:right;">Rate</th>
+                                <th style="padding:10px;text-align:right;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+            
+            const lines = (inv.Line || []).filter(l => l.DetailType === 'SalesItemLineDetail');
+            let subtotal = 0;
+            lines.forEach(function(line) {
+                const item = line.SalesItemLineDetail || {};
+                const qty = item.Qty || 0;
+                const rate = item.UnitPrice || 0;
+                const amount = line.Amount || 0;
+                subtotal += amount;
+                html += `<tr style="border-bottom:1px solid #ddd;">
+                    <td style="padding:10px;">${line.Description || ''}</td>
+                    <td style="padding:10px;text-align:right;">${qty}</td>
+                    <td style="padding:10px;text-align:right;">UGX ${rate.toLocaleString('en-UG', {minimumFractionDigits: 2})}</td>
+                    <td style="padding:10px;text-align:right;">UGX ${amount.toLocaleString('en-UG', {minimumFractionDigits: 2})}</td>
+                </tr>`;
+            });
+            
+            // Calculate discount, VAT, and total
+            const discountLines = (inv.Line || []).filter(l => l.DetailType === 'DiscountLineDetail');
+            let discountAmount = 0;
+            discountLines.forEach(dl => {
+                discountAmount += Math.abs(dl.Amount || 0);
+            });
+            
+            const subtotalAfterDiscount = subtotal - discountAmount;
+            const totalAmt = parseFloat(inv.TotalAmt || 0);
+            const vatAmount = totalAmt - subtotalAfterDiscount;
+            
+            html += `</tbody></table>
+                    
+                    <div style="text-align:right;">
+                        <div style="display:inline-block;text-align:left;min-width:350px;border-top:2px solid #ddd;">
+                            <div style="padding:10px 0;display:flex;justify-content:space-between;">
+                                <span><strong>Subtotal:</strong></span>
+                                <span>UGX ${subtotal.toLocaleString('en-UG', {minimumFractionDigits: 2})}</span>
+                            </div>`;
+            
+            if (discountAmount > 0) {
+                html += `<div style="padding:10px 0;display:flex;justify-content:space-between;color:#d32f2f;">
+                                <span><strong>Discount:</strong></span>
+                                <span>- UGX ${discountAmount.toLocaleString('en-UG', {minimumFractionDigits: 2})}</span>
+                            </div>
+                            <div style="padding:10px 0;display:flex;justify-content:space-between;border-top:1px solid #eee;">
+                                <span><strong>Subtotal after Discount:</strong></span>
+                                <span>UGX ${subtotalAfterDiscount.toLocaleString('en-UG', {minimumFractionDigits: 2})}</span>
+                            </div>`;
+            }
+            
+            if (vatAmount > 0) {
+                html += `<div style="padding:10px 0;display:flex;justify-content:space-between;">
+                                <span><strong>VAT (18%):</strong></span>
+                                <span>UGX ${vatAmount.toLocaleString('en-UG', {minimumFractionDigits: 2})}</span>
+                            </div>`;
+            }
+            
+            html += `<div style="padding:15px 0;display:flex;justify-content:space-between;border-top:2px solid #333;">
+                                <span style="font-size:1.1rem;"><strong>Total Amount:</strong></span>
+                                <span style="font-size:1.2rem;font-weight:bold;color:#4caf50;">UGX ${totalAmt.toLocaleString('en-UG', {minimumFractionDigits: 2})}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top:40px;padding-top:20px;border-top:1px solid #ddd;text-align:center;color:#666;">
+                        <p style="margin:0;">This is a fiscalized invoice. Verify at URA EFRIS Portal</p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('invoicePrintContent').innerHTML = html;
+            document.getElementById('invoiceDetailsModal').classList.add('active');
+        }
+        
+        function closeInvoiceDetailsModal() {
+            document.getElementById('invoiceDetailsModal').classList.remove('active');
+        }
+        
+        function printInvoice(i) {
+            viewInvoiceDetails(i);
+            setTimeout(printInvoiceContent, 500);
+        }
+        
+        function printInvoiceContent() {
+            const content = document.getElementById('invoicePrintContent').innerHTML;
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Invoice - ${invs[editingInv]?.DocNumber || ''}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+                        @media print { body { margin: 0; } }
+                    </style>
+                </head>
+                <body onload="window.print(); window.close();">
+                    ${content}
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        async function sync() {
+            if (currentView.startsWith('efris-')) {
+                showAlert('info', 'This is read-only EFRIS data');
+                return;
+            }
+            
+            let total = selP.size + selI.size + selPO.size + selC.size;
+            if (!total) { 
+                showAlert('error', 'Please select items'); 
+                return; 
+            }
+            if (!confirm('Send ' + total + ' items to EFRIS?')) return;
+
+            if (selP.size > 0) {
+                showAlert('info', 'Sending products...');
+                try {
+                    // Get selected products
+                    const selectedProducts = Array.from(selP).map(function(i) { return prods[i]; });
+                    console.log('Sending products:', selectedProducts);
+                    console.log('First product HasExcise:', selectedProducts[0].HasExcise);
+                    
+                    const r = await fetch(API + '/quickbooks/sync-products?token=' + T, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({products: selectedProducts})
+                    });
+                    const d = await r.json();
+                    console.log('Sync products response:', d);
+                    const count = d.synced_count || 0;
+                    showAlert('success', '✅ ' + count + ' products synced to EFRIS');
+                    selP.clear();
+                    renderGoods();
+                } catch(e) { 
+                    console.error('Sync error:', e);
+                    showAlert('error', 'Failed to sync products: ' + e.message); 
+                }
+            }
+
+            if (selI.size > 0) {
+                showAlert('info', 'Fiscalizing invoices...');
+                for (const i of selI) {
+                    const inv = invs[i];
+                    try {
+                        const r = await fetch(API + '/quickbooks/sync-invoice/' + inv.Id + '?token=' + T, {method: 'POST'});
+                        const d = await r.json();
+                        console.log('Fiscalize invoice response:', d);
+                        
+                        // Check if fiscalization was successful
+                        if (d.success && (d.fdn || d.invoiceNo)) {
+                            // Update invoice with fiscalization details
+                            inv.FDN = d.fdn || d.invoiceNo;
+                            inv.InvoiceNo = d.invoiceNo;
+                            inv.VerificationCode = d.verificationCode;
+                            inv.QRCode = d.qrCode;
+                            inv.FiscalizedAt = new Date().toISOString();
+                            inv.Status = 'Fiscalized';
+                            
+                            showAlert('success', `✅ Invoice ${inv.DocNumber} fiscalized - FDN: ${inv.FDN}`);
+                        } else if (d.success) {
+                            // Success but no FDN in response (check EFRIS response)
+                            inv.Status = 'Fiscalized';
+                            inv.FiscalizedAt = new Date().toISOString();
+                            showAlert('success', `✅ Invoice ${inv.DocNumber} fiscalized`);
+                        } else {
+                            // EFRIS error
+                            const errorMsg = d.message || 'Unknown error';
+                            showAlert('error', `❌ Invoice ${inv.DocNumber}: ${errorMsg}`);
+                            console.error('EFRIS error:', d.efrisResponse);
+                        }
+                    } catch(e) { 
+                        console.error('Invoice fiscalization error:', e);
+                        showAlert('error', `❌ Failed: ${inv.DocNumber} - ${e.message}`); 
+                    }
+                }
+                selI.clear();
+                saveToLocalStorage();  // Save the FDN and fiscalization details
+                renderInvoices();
+            }
+
+            if (selPO.size > 0) {
+                showAlert('info', 'Sending stock increases to EFRIS...');
+                try {
+                    const selectedPOs = Array.from(selPO).map(function(i) { return pos[i]; });
+                    console.log('Sending purchase orders:', selectedPOs);
+                    
+                    const r = await fetch(API + '/quickbooks/sync-purchase-orders?token=' + T, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({purchase_orders: selectedPOs})
+                    });
+                    const d = await r.json();
+                    console.log('Sync purchase orders response:', d);
+                    
+                    if (d.failed_count > 0) {
+                        showAlert('warning', `⚠️ ${d.synced_count} succeeded, ${d.failed_count} failed`);
+                        console.log('Failed POs:', d.failed);
+                    } else {
+                        showAlert('success', '✅ ' + d.synced_count + ' stock increases sent to EFRIS');
+                    }
+                    
+                    selPO.clear();
+                    renderStock();
+                } catch(e) { 
+                    console.error('Sync error:', e);
+                    showAlert('error', 'Failed to sync stock increases: ' + e.message); 
+                }
+            }
+        }
+
+        function closeModal() { 
+            document.getElementById('editModal').classList.remove('active'); 
+        }
+
+        function showAlert(t, m) {
+            const c = document.getElementById('alerts');
+            const a = document.createElement('div');
+            a.className = 'alert alert-' + t;
+            a.textContent = m;
+            c.appendChild(a);
+            setTimeout(function() { a.remove(); }, 5000);
+        }
+
+        const u = new URLSearchParams(window.location.search);
+        if (u.get('connected') === 'true') {
+            showAlert('success', '✅ QuickBooks connected!');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (u.get('error')) {
+            showAlert('error', '❌ Error: ' + decodeURIComponent(u.get('error')));
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        
+        checkStatus();
+        setInterval(checkStatus, 30000);
+    </script>
+</body>
+</html>

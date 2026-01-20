@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Login Test</h1>
+    
+    <form id="loginForm">
+        <div>
+            <label>Email:</label><br>
+            <input type="email" id="email" value="admin@wandera.com" style="width: 300px;">
+        </div>
+        <div style="margin-top: 10px;">
+            <label>Password:</label><br>
+            <input type="password" id="password" value="Admin2026!" style="width: 300px;">
+        </div>
+        <button type="submit" style="margin-top: 10px;">Login</button>
+    </form>
+
+    <div id="logs"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:8001';
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            document.getElementById('logs').appendChild(div);
+            console.log(message);
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            log('Starting login attempt...');
+            log(`Email: ${email}`);
+            
+            try {
+                const formData = new URLSearchParams();
+                formData.append('username', email);
+                formData.append('password', password);
+                
+                log(`Sending POST to ${API_BASE}/api/auth/login`);
+                
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: formData
+                });
+                
+                log(`Response status: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    log(`Error: ${JSON.stringify(error)}`, 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                log(`Success! Token: ${data.access_token.substring(0, 20)}...`, 'success');
+                log(`Token type: ${data.token_type}`, 'success');
+                
+                localStorage.setItem('authToken', data.access_token);
+                log('Token saved to localStorage', 'success');
+                
+                // Test the token
+                log('Testing token with /api/auth/me...');
+                const meResponse = await fetch(`${API_BASE}/api/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${data.access_token}`
+                    }
+                });
+                
+                if (meResponse.ok) {
+                    const userData = await meResponse.json();
+                    log(`User data: ${JSON.stringify(userData)}`, 'success');
+                } else {
+                    log(`Failed to get user data: ${meResponse.status}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`Exception: ${error.message}`, 'error');
+                log(`Stack: ${error.stack}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>

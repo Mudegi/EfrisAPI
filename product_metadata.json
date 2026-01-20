@@ -1,0 +1,42 @@
+{
+  "24": {
+    "HasExcise": false,
+    "ExciseDutyCode": "",
+    "ExciseUnit": "",
+    "ExciseRate": "",
+    "ExciseRule": "2",
+    "ProductCode": "Magul12",
+    "Sku": "50406508",
+    "UnitOfMeasure": "101"
+  },
+  "22": {
+    "HasExcise": false,
+    "ExciseDutyCode": "",
+    "ExciseUnit": "",
+    "ExciseRate": "",
+    "ExciseRule": "2",
+    "ProductCode": "Software Dev",
+    "Sku": "43231601",
+    "UnitOfMeasure": "102"
+  },
+  "25": {
+    "HasExcise": false,
+    "ExciseDutyCode": "",
+    "ExciseUnit": "",
+    "ExciseRate": "",
+    "ExciseRule": "2",
+    "ProductCode": "BedBugSpr",
+    "Sku": "72102103",
+    "UnitOfMeasure": "102"
+  },
+  "26": {
+    "HasExcise": false,
+    "ExciseDutyCode": "",
+    "ExciseUnit": "",
+    "ExciseRate": "",
+    "ExciseRule": "2",
+    "ProductCode": "TestService1",
+    "Sku": "72102103",
+    "UnitOfMeasure": "102"
+  }
+}

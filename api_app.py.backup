@@ -1,0 +1,1319 @@
+from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from efris_client import EfrisManager
+from quickbooks_client import QuickBooksClient
+from quickbooks_efris_mapper import QuickBooksEfrisMapper
+from typing import List, Optional
+import json
+import os
+
+app = FastAPI(title="EFRIS API", description="API for EFRIS integration with QuickBooks")
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (you can restrict this in production)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
+# Serve static files (dashboard)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+print("App created")
+
+# Initialize the EFRIS manager
+manager = EfrisManager(tin='1014409555', test_mode=True)
+print("Manager created")
+
+# Initialize QuickBooks client
+qb_client = QuickBooksClient(
+    client_id=os.getenv('QB_CLIENT_ID', 'your_client_id'),
+    client_secret=os.getenv('QB_CLIENT_SECRET', 'your_client_secret'),
+    redirect_uri=os.getenv('QB_REDIRECT_URI', 'http://localhost:8001/api/quickbooks/callback'),
+    environment=os.getenv('QB_ENVIRONMENT', 'sandbox')
+)
+
+# Try to load existing tokens
+qb_client.load_tokens()
+
+# Product metadata cache (stores excise info for products)
+PRODUCT_METADATA_FILE = 'product_metadata.json'
+product_metadata = {}
+
+# Excise duty reference data
+EXCISE_DUTY_REFERENCE_FILE = 'excise_duty_reference.json'
+excise_duty_reference = {}
+
+def load_excise_duty_reference():
+    """Load excise duty reference data from T125 query results"""
+    global excise_duty_reference
+    try:
+        with open(EXCISE_DUTY_REFERENCE_FILE, 'r') as f:
+            data = json.load(f)
+            excise_list = data.get('data', {}).get('exciseDutyList', [])
+            
+            # Build lookup map: exciseDutyCode -> rate info
+            for duty in excise_list:
+                code = duty.get('exciseDutyCode')
+                if not code or duty.get('isLeafNode') != '1':
+                    continue  # Skip non-leaf nodes (categories)
+                
+                details_list = duty.get('exciseDutyDetailsList', [])
+                if not details_list:
+                    continue
+                
+                # Find the type 102 (specific rate) detail if available
+                # Type 101 = percentage, Type 102 = specific rate (UGX per unit)
+                type_102_detail = next((d for d in details_list if d.get('type') == '102'), None)
+                type_101_detail = next((d for d in details_list if d.get('type') == '101'), None)
+                
+                # Determine exciseRule based on primary type
+                # If has type 102 (fixed rate), exciseRule = "2"
+                # If only has type 101 (percentage), exciseRule = "1"  
+                if type_102_detail:
+                    excise_duty_reference[code] = {
+                        'rate': type_102_detail.get('rate', '0'),
+                        'unit': type_102_detail.get('unit', ''),
+                        'currency': type_102_detail.get('currency', '101'),
+                        'exciseRule': '2',  # Fixed-rate excise
+                        'goodService': duty.get('goodService', ''),
+                        'rateText': duty.get('rateText', '')
+                    }
+                    print(f"[EXCISE REF] {code}: {type_102_detail.get('rate')} per unit {type_102_detail.get('unit')} (rule=2) - {duty.get('goodService')}")
+                elif type_101_detail:
+                    excise_duty_reference[code] = {
+                        'rate': type_101_detail.get('rate', '0'),
+                        'unit': '',
+                        'currency': '101',
+                        'exciseRule': '1',  # Percentage-based excise
+                        'goodService': duty.get('goodService', ''),
+                        'rateText': duty.get('rateText', '')
+                    }
+                    print(f"[EXCISE REF] {code}: {type_101_detail.get('rate')}% (rule=1) - {duty.get('goodService')}")
+    except FileNotFoundError:
+        print(f"[EXCISE REF] Reference file not found. Run T125 query to populate.")
+    except Exception as e:
+        print(f"[EXCISE REF] Error loading reference: {e}")
+
+def get_excise_rate(excise_code: str) -> str:
+    """Get the excise rate for a given excise duty code"""
+    if excise_code in excise_duty_reference:
+        return excise_duty_reference[excise_code].get('rate', '0')
+    return '0'
+
+def get_excise_rule(excise_code: str) -> str:
+    """Get the excise rule for a given excise duty code
+    Returns: '1' for percentage-based, '2' for fixed-rate
+    """
+    if excise_code in excise_duty_reference:
+        return excise_duty_reference[excise_code].get('exciseRule', '2')
+    return '2'  # Default to fixed-rate if not found
+
+def load_product_metadata():
+    """Load product metadata from file"""
+    global product_metadata
+    if os.path.exists(PRODUCT_METADATA_FILE):
+        try:
+            with open(PRODUCT_METADATA_FILE, 'r') as f:
+                product_metadata = json.load(f)
+        except Exception as e:
+            print(f"[Metadata] Error loading product metadata: {e}")
+            product_metadata = {}
+    else:
+        product_metadata = {}
+
+def save_product_metadata(metadata=None):
+    """Save product metadata to file"""
+    try:
+        # Use provided metadata or global variable
+        data_to_save = metadata if metadata is not None else product_metadata
+        with open(PRODUCT_METADATA_FILE, 'w') as f:
+            json.dump(data_to_save, f, indent=2)
+    except Exception as e:
+        print(f"[Metadata] Error saving product metadata: {e}")
+
+load_product_metadata()
+load_excise_duty_reference()
+
+print("QuickBooks client initialized")
+
+# Root route - redirect to dashboard
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    """Redirect to the dashboard"""
+    return RedirectResponse(url="/static/dashboard.html")
+
+@app.post("/api/test/t104-key-exchange")
+async def test_t104_key_exchange(token: str = Query(default="test_token")):
+    """
+    Test endpoint for T104 - Obtaining Symmetric Key and Signature
+    
+    This is the critical handshake step that retrieves the AES encryption key
+    from the EFRIS server. All subsequent requests depend on this.
+    
+    Request: Empty payload with no signature
+    Response: Contains passwordDes (RSA-encrypted AES key) and sign (server signature)
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        print("\n" + "="*80)
+        print("[T104 TEST] Starting Key Exchange Test")
+        print("="*80)
+        
+        # Create a fresh manager for this test
+        test_manager = EfrisManager(tin='1014409555', test_mode=True)
+        print("[T104] Manager initialized")
+        
+        # Build the T104 request
+        t104_payload = test_manager._build_handshake_payload("T104", "")
+        print("[T104] Payload built:")
+        print(json.dumps(t104_payload, indent=2)[:500])
+        
+        # Send the request
+        print("[T104] Sending T104 request to server...")
+        response = test_manager.session.post(
+            test_manager.base_url,
+            json=t104_payload,
+            headers=test_manager._get_headers()
+        )
+        
+        print(f"[T104] Response Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            print("[T104] Response received:")
+            print(json.dumps(response_data, indent=2)[:1000])
+            
+            # Check if successful
+            return_code = response_data.get('returnStateInfo', {}).get('returnCode')
+            return_message = response_data.get('returnStateInfo', {}).get('returnMessage')
+            
+            if return_code == "00":
+                print("[T104] ✓ SUCCESS - Key Exchange Successful!")
+                
+                # Extract the key details
+                password_des = response_data.get('data', {}).get('passwordDes', '')
+                sign = response_data.get('data', {}).get('sign', '')
+                
+                print(f"[T104] passwordDes length: {len(password_des)}")
+                print(f"[T104] sign length: {len(sign)}")
+                
+                try:
+                    # Try to decrypt the AES key
+                    print("[T104] Attempting to decrypt AES key from passwordDes...")
+                    import base64
+                    password_des_encrypted = base64.b64decode(password_des)
+                    aes_key = test_manager.private_key.decrypt(
+                        password_des_encrypted,
+                        test_manager.private_key.__class__.__bases__[0].__dict__['padding'].PKCS1v15()
+                    )
+                    print(f"[T104] ✓ AES Key decrypted successfully: {len(aes_key)} bytes")
+                    
+                    return {
+                        "status": "SUCCESS",
+                        "message": "T104 Key Exchange Successful",
+                        "returnCode": return_code,
+                        "returnMessage": return_message,
+                        "passwordDes_length": len(password_des),
+                        "sign_length": len(sign),
+                        "aes_key_length": len(aes_key),
+                        "full_response": response_data
+                    }
+                except Exception as decrypt_error:
+                    print(f"[T104] Note: {decrypt_error}")
+                    return {
+                        "status": "SUCCESS",
+                        "message": "T104 Response received (decryption details in full_response)",
+                        "returnCode": return_code,
+                        "returnMessage": return_message,
+                        "passwordDes_length": len(password_des),
+                        "sign_length": len(sign),
+                        "full_response": response_data
+                    }
+            else:
+                print(f"[T104] ✗ ERROR - Return Code: {return_code}, Message: {return_message}")
+                return {
+                    "status": "FAILED",
+                    "returnCode": return_code,
+                    "returnMessage": return_message,
+                    "full_response": response_data
+                }
+        else:
+            print(f"[T104] HTTP Error: {response.status_code}")
+            return {
+                "status": "HTTP_ERROR",
+                "status_code": response.status_code,
+                "error": response.text
+            }
+            
+    except Exception as e:
+        import traceback
+        print(f"[T104] Exception: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/{tin}/registration-details")
+async def get_registration_details(tin: str, token: str = Query(...)):
+    # Simple token check (replace with proper auth)
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        details = manager.get_registration_details()
+        return {
+            "returnStateInfo": {
+                "returnCode": "00",
+                "returnMessage": "SUCCESS"
+            },
+            "data": details
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/{tin}/code-list")
+async def get_code_list(tin: str, code_type: str = Query(...), token: str = Query(...)):
+    """
+    T106 - Query code lists from EFRIS
+    
+    code_type options:
+    - "106": Excise tax category codes
+    - "103": Unit of measure codes
+    - "104": Currency codes
+    - "107": Commodity category codes
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.get_code_list(code_type)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/{tin}/goods-and-services")
+async def get_goods_and_services(
+    tin: str, 
+    token: str = Query(...),
+    page_no: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    goods_code: str = Query(None),
+    goods_name: str = Query(None)
+):
+    """
+    T127 - Goods/Services Inquiry
+    
+    Query parameters:
+    - page_no: Page number (default: 1)
+    - page_size: Records per page (default: 10, max: 100)
+    - goods_code: Optional filter by goods code
+    - goods_name: Optional filter by goods name
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.get_goods_and_services(
+            page_no=page_no,
+            page_size=page_size,
+            goods_code=goods_code,
+            goods_name=goods_name
+        )
+        
+        print(f"[API] get_goods_and_services result type: {type(result)}")
+        print(f"[API] result keys: {result.keys() if isinstance(result, dict) else 'Not a dict'}")
+        
+        # Extract decrypted content if available
+        if isinstance(result, dict) and 'data' in result:
+            print(f"[API] data keys: {result['data'].keys()}")
+            if 'decrypted_content' in result['data']:
+                # Return the decrypted content directly
+                decrypted = result['data']['decrypted_content']
+                print(f"[API] Decrypted content type: {type(decrypted)}")
+                print(f"[API] Decrypted content keys: {decrypted.keys() if isinstance(decrypted, dict) else 'not a dict'}")
+                if isinstance(decrypted, dict):
+                    if 'goodsTypeData' in decrypted:
+                        print(f"[API] goodsTypeData found with {len(decrypted['goodsTypeData'])} items")
+                    elif 'records' in decrypted:
+                        print(f"[API] records found with {len(decrypted['records'])} items")
+                        if decrypted['records']:
+                            print(f"[API] First record keys: {list(decrypted['records'][0].keys())}")
+                            # Log measure units
+                            measure_units = set()
+                            for rec in decrypted['records'][:5]:  # First 5 records
+                                if 'measureUnit' in rec:
+                                    measure_units.add(rec['measureUnit'])
+                            print(f"[API] Sample measure units from EFRIS: {measure_units}")
+                    else:
+                        print(f"[API] Available keys in decrypted content: {list(decrypted.keys())}")
+                print(f"[API] Returning decrypted content")
+                return decrypted
+            else:
+                print(f"[API] No decrypted_content found, checking if encryption happened")
+                if 'content' in result['data']:
+                    print(f"[API] Encrypted content length: {len(result['data']['content'])}")
+            
+        # Return full result if decryption not available
+        print(f"[API] Returning full result")
+        return result
+    except Exception as e:
+        print(f"[API] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/{tin}/goods-upload")
+async def upload_goods(tin: str, products: List[dict] = Body(...), token: str = Query(...)):
+    """
+    T130 - Goods Upload (Register/Update Products)
+    
+    Request body should be a list of products with the following structure:
+    [
+        {
+            "operationType": "101",  # 101=Add, 102=Update
+            "goodsName": "Product Name",
+            "goodsCode": "PRODUCT001",
+            "measureUnit": "101",  # Unit code from EFRIS
+            "unitPrice": "10000",
+            "currency": "101",  # 101=UGX
+            "commodityCategoryId": "1234567890",
+            "haveExciseTax": "102",  # 101=Yes, 102=No
+            "description": "Product description",
+            "stockPrewarning": "10",
+            "pieceMeasureUnit": "101",
+            "havePieceUnit": "102",
+            "pieceUnitPrice": "10000",
+            "packageScaledValue": "1",
+            "pieceScaledValue": "1",
+            "exciseDutyCode": ""
+        }
+    ]
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.upload_goods(products)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/{tin}/stock-increase")
+async def stock_increase(tin: str, stock_data: dict = Body(...), token: str = Query(...)):
+    """
+    T131 - Stock Increase (for already registered products)
+    
+    Request body structure:
+    {
+        "goodsStockIn": {
+            "operationType": "101",
+            "supplierTin": "1234567890",
+            "supplierName": "Supplier Name",
+            "remarks": "Stock purchase",
+            "stockInDate": "2026-01-01",
+            "stockInType": "102",
+            "productionBatchNo": "",
+            "productionDate": ""
+        },
+        "goodsStockInItem": [
+            {
+                "goodsCode": "PRODUCT001",
+                "quantity": 100,
+                "unitPrice": 5000
+            }
+        ]
+    }
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.stock_increase(stock_data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/{tin}/upload-invoice")
+async def upload_invoice(tin: str, invoice_data: dict = Body(...), token: str = Query(...)):
+    """
+    T109 - Upload and Fiscalize Invoice
+    
+    Sends invoice to EFRIS for fiscalization and receives FDN (Fiscal Document Number)
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.upload_invoice(invoice_data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/{tin}/credit-note")
+async def upload_credit_note(tin: str, credit_note_data: dict = Body(...), token: str = Query(...)):
+    """
+    T111 - Upload Credit Note
+    
+    Creates a credit note for a previously issued invoice
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.upload_credit_note(credit_note_data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/{tin}/query-invoices")
+async def query_invoices(tin: str, query_params: dict = Body(...), token: str = Query(...)):
+    """
+    T106 - Query Invoices/Receipts
+    
+    Query invoices or receipts by date range and other criteria
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        print(f"[API] Query invoices with params: {query_params}")
+        result = manager.query_invoice(query_params)
+        print(f"[API] Query invoice result type: {type(result)}")
+        
+        if isinstance(result, dict):
+            print(f"[API] Result keys: {result.keys()}")
+            if 'data' in result:
+                print(f"[API] Data keys: {result['data'].keys()}")
+                if 'decrypted_content' in result['data']:
+                    print(f"[API] Decrypted content type: {type(result['data']['decrypted_content'])}")
+                    print(f"[API] Decrypted content: {result['data']['decrypted_content']}")
+                    return result['data']['decrypted_content']
+        
+        print(f"[API] Returning full result")
+        return result
+    except Exception as e:
+        print(f"[API] Query invoice error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/{tin}/invoice/{invoice_no}")
+async def get_invoice_details(tin: str, invoice_no: str, token: str = Query(...)):
+    """
+    T108 - Get Invoice Details by Invoice Number
+    
+    Retrieve complete invoice details including all line items
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.get_invoice_details(invoice_no)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/{tin}/query-credit-notes")
+async def query_credit_notes(tin: str, query_params: dict = Body(...), token: str = Query(...)):
+    """
+    T112 - Query Credit Notes
+    
+    Query credit notes by date range, invoice number, or other criteria
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.query_credit_notes(query_params)
+        
+        # Extract decrypted content if available
+        if isinstance(result, dict) and 'data' in result:
+            if 'decrypted_content' in result['data']:
+                return result['data']['decrypted_content']
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/{tin}/stock-decrease")
+async def stock_decrease(tin: str, stock_data: dict = Body(...), token: str = Query(...)):
+    """
+    T132 - Stock Decrease/Adjustment
+    
+    Adjust stock downwards due to loss, damage, or other reasons
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.stock_decrease(stock_data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/{tin}/generate-fiscal-invoice")
+async def generate_fiscal_invoice(tin: str, invoice_data: dict, token: str = Query(...)):
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        invoice = manager.generate_invoice(invoice_data)
+        return {
+            "returnStateInfo": {"returnCode": "00", "returnMessage": "SUCCESS"},
+            "data": invoice
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/{tin}/generate-fiscal-receipt")
+async def generate_fiscal_receipt(tin: str, receipt_data: dict, token: str = Query(...)):
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        # Assuming similar to invoice, but adjust as needed
+        receipt = manager.generate_invoice(receipt_data)  # Or add separate method
+        return {
+            "returnStateInfo": {"returnCode": "00", "returnMessage": "SUCCESS"},
+            "data": receipt
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/query-taxpayer/{tin}")
+async def query_taxpayer(tin: str, token: str = Query(...), ninBrn: str = Query(default="")):
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.query_taxpayer_by_tin(tin, ninBrn)
+        return {
+            "returnStateInfo": {"returnCode": "00", "returnMessage": "SUCCESS"},
+            "data": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/{tin}/excise-duty")
+async def query_excise_duty(
+    tin: str,
+    token: str = Query(...),
+    excise_duty_code: str = Query(None, description="Excise duty code filter (e.g., LED190100)"),
+    excise_duty_name: str = Query(None, description="Excise duty name filter")
+):
+    """
+    T125 - Query Excise Duty
+    
+    Query excise duty codes and rates from EFRIS.
+    
+    Query parameters:
+    - excise_duty_code: Optional filter by excise duty code
+    - excise_duty_name: Optional filter by excise duty name
+    
+    Returns:
+    List of excise duty codes with rates, units, and other details
+    """
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.query_excise_duty(
+            excise_duty_code=excise_duty_code,
+            excise_duty_name=excise_duty_name
+        )
+        
+        # Extract decrypted content if available
+        if isinstance(result, dict) and 'data' in result:
+            if 'decrypted_content' in result['data']:
+                # Return the decrypted content directly
+                decrypted = result['data']['decrypted_content']
+                return {
+                    "returnStateInfo": result.get('returnStateInfo', {}),
+                    "data": decrypted
+                }
+        
+        # Return full result if decryption not available
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/get-server-time")
+async def get_server_time_api(token: str = Query(...)):
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        result = manager.get_server_time()
+        return {
+            "returnStateInfo": {"returnCode": "00", "returnMessage": "SUCCESS"},
+            "data": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== QUICKBOOKS INTEGRATION ====================
+
+@app.get("/api/quickbooks/auth")
+async def quickbooks_auth():
+    """Initiate QuickBooks OAuth flow"""
+    auth_url = qb_client.get_authorization_url()
+    return {"authUrl": auth_url, "message": "Visit this URL to authorize QuickBooks access"}
+
+@app.get("/api/quickbooks/callback")
+async def quickbooks_callback(
+    code: Optional[str] = None, 
+    realmId: Optional[str] = None, 
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    error_description: Optional[str] = None
+):
+    """Handle QuickBooks OAuth callback"""
+    # Check for OAuth errors
+    if error:
+        error_msg = error_description or error
+        return RedirectResponse(url=f"/?error={error_msg}")
+    
+    # Check for missing required parameters
+    if not code or not realmId:
+        return RedirectResponse(url="/?error=Missing authorization code or realm ID")
+    
+    try:
+        # Exchange code for tokens
+        tokens = qb_client.exchange_code_for_tokens(code)
+        
+        # Set realm ID (Company ID)
+        qb_client.realm_id = realmId
+        
+        # Save tokens for persistence
+        qb_client.save_tokens()
+        
+        # Redirect back to dashboard with success message
+        return RedirectResponse(url="/?connected=true")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OAuth failed: {str(e)}")
+
+@app.get("/api/quickbooks/status")
+async def quickbooks_status():
+    """Check QuickBooks connection status"""
+    try:
+        if not qb_client.access_token:
+            return {"connected": False, "message": "Not connected to QuickBooks"}
+        
+        # Try to fetch company info to verify connection
+        company_info = qb_client.get_company_info()
+        
+        return {
+            "connected": True,
+            "companyName": company_info.get('CompanyName'),
+            "realmId": qb_client.realm_id,
+            "tokenExpiry": qb_client.token_expiry.isoformat() if qb_client.token_expiry else None
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+@app.get("/api/quickbooks/items")
+async def get_quickbooks_items(token: str = Query(...)):
+    """Fetch all items (products/services) from QuickBooks with EFRIS registration status"""
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        # Fetch QuickBooks items
+        try:
+            items = qb_client.get_all_items()
+            print(f"[QB] Fetched {len(items)} items from QuickBooks")
+        except Exception as qb_error:
+            error_msg = f"QuickBooks API error: {str(qb_error)}"
+            print(f"[QB ERROR] {error_msg}")
+            raise HTTPException(status_code=500, detail=error_msg)
+        
+        # Enrich each item with full details to get Description field
+        for item in items:
+            try:
+                item_id = item.get('Id')
+                item_name = item.get('Name', 'Unknown')
+                if item_id:
+                    full_item = qb_client.get_item_by_id(item_id)
+                    # Merge full item details (especially Description)
+                    if full_item:
+                        item.update(full_item)
+                        desc = item.get('Description', '')
+                        print(f"[QB] Item '{item_name}': Description = '{desc}'")
+            except Exception as e:
+                print(f"[QB] Warning: Could not fetch full details for item {item_name}: {e}")
+        
+        # Fetch EFRIS products to check registration status
+        efris_products = []
+        try:
+            # Fetch all pages of EFRIS products
+            page = 1
+            while True:
+                result = manager.get_goods(page_no=page, page_size=10)
+                if result.get('returnStateInfo', {}).get('returnCode') == '00':
+                    goods_list = result.get('data', {}).get('goodsInfoList', [])
+                    if not goods_list:
+                        break
+                    efris_products.extend(goods_list)
+                    page += 1
+                    if len(goods_list) < 10:  # Last page
+                        break
+                else:
+                    break
+        except Exception as e:
+            print(f"[EFRIS] Error fetching products: {e}")
+        
+        # Create lookup map by goodsCode (product code, not category code)
+        efris_lookup = {p.get('goodsCode'): p for p in efris_products}
+        
+        print(f"[EFRIS] Loaded {len(efris_products)} products from EFRIS")
+        print(f"[EFRIS] Sample goodsCodes: {list(efris_lookup.keys())[:5]}")
+        
+        # Add registration status to each QuickBooks item
+        for item in items:
+            # Use Description (product code) to match, fallback to Name
+            product_code = item.get('Description') or item.get('Name', '')
+            
+            if product_code in efris_lookup:
+                item['EfrisStatus'] = 'Registered'
+                item['EfrisId'] = efris_lookup[product_code].get('id')
+                print(f"[MATCH] '{item.get('Name')}' with code '{product_code}' is Registered")
+            else:
+                item['EfrisStatus'] = 'Pending Registration'
+                print(f"[NO MATCH] '{item.get('Name')}' with code '{product_code}' is Pending")
+        
+        return {
+            "count": len(items),
+            "registered": len([i for i in items if i.get('EfrisStatus') == 'Registered']),
+            "pending": len([i for i in items if i.get('EfrisStatus') == 'Pending Registration']),
+            "items": items
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/quickbooks/sync-products")
+async def sync_products_to_efris(
+    payload: dict = Body(...),
+    token: str = Query(...),
+    default_category_id: str = Query("50202306", description="Default EFRIS commodity category ID")
+):
+    """Sync selected products from QuickBooks to EFRIS"""
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        # Get products from request body
+        qb_items = payload.get('products', [])
+        
+        if not qb_items:
+            raise HTTPException(status_code=400, detail="No products provided")
+        
+        # Convert to EFRIS format
+        efris_products = []
+        for item in qb_items:
+            # Determine operation type based on registration status
+            # 101 = Add (new product), 102 = Update (existing product)
+            operation_type = "102" if item.get('EfrisStatus') == 'Registered' else "101"
+            # Determine excise code and corresponding unit if applicable
+            excise_code = item.get('ExciseDutyCode', 'LED050000') if item.get('HasExcise') else None
+            
+            # Map excise codes to their required units (from EFRIS T125 query)
+            # When excise applies, pieceMeasureUnit must match excise duty's unit exactly
+            excise_unit_map = {
+                'LED050000': '107',  # Cement: UGX500 per 50kgs (unit 107 = 50kgs)
+                'LED110000': '102',  # Mineral water: 10% + UGX50 per Litre
+                'LED190100': '102',  # Fruit juice: UGX250 per Litre + 10%
+                'LED190200': '102',  # Non-alcoholic beverages: 12% + UGX250 per Litre
+                'LED190300': '102',  # Powder for juice: 15%
+                'LED190400': '102',  # Other non-alcoholic beverages: 10% + UGX150 per Litre
+                'LED040100': '102',  # Beer (imported malt): 60% + UGX2050 per Litre
+                'LED040200': '102',  # Beer (local malt): 60% + UGX2050 per Litre
+                'LED040300': '102',  # Opaque beer: 10% + UGX150 per Litre
+                'LED040400': '102',  # Beer (barley grown/malted in Uganda): 30% + UGX950 per Litre
+                'LED040500': '102',  # Beer (75% local raw material): 30% + UGX900 per Litre
+                'LED040600': '102',  # Other alcoholic beverage locally produced: 10% + UGX150 per Litre
+                'LED040800': '103',  # Powder for beer: UGX2500 per Kg
+                'LED090000': '102',  # Cooking oil: UGX200 per Litre
+                'LED130100': '102',  # Gas oil (automotive): UGX1230 per Litre
+                'LED130400': '102',  # Illuminating kerosene: UGX200 per Litre
+                'LED130500': '102',  # Jet fuel: UGX630 per Litre
+                'LED130700': '102',  # Motor spirit (gasoline): UGX1550 per Litre
+                'LED130800': '102',  # Other gas oils: UGX630 per Litre
+                'LED200100': '102',  # Spirits (locally produced, <80%): UGX1700 per Litre + 60%
+                'LED200200': '102',  # Spirits (imported): 100% + UGX2500 per Litre
+                'LED200300': '102',  # Un-denatured spirits (80%+, local): 60% + UGX1500 per Litre
+                'LED200400': '102',  # Un-denatured spirits (imported, <80%): 80% + UGX1700 per Litre
+                'LED210100': '103',  # Sugar: UGX100 per Kg
+                'LED230100': '102',  # Wine (local): 20% + UGX2000 per Litre
+                'LED230200': '102',  # Wine (other): 100% + UGX10000 per Litre
+                'LED270100': '102',  # Fermented beverage (imported): 60% + UGX950 per Litre
+                'LED270200': '102',  # Fermented beverage (local): 30% + UGX550 per Litre
+                'LED080200': '106',  # Cigarettes (hinge lid, imported): UGX100000 per 1000 sticks
+                'LED080300': '106',  # Cigarettes (hinge lid, local): UGX80000 per 1000 sticks
+                'LED080700': '106',  # Cigarettes (soft cap, imported): UGX75000 per 1000 sticks
+                'LED080800': '106',  # Cigarettes (soft cap, local): UGX55000 per 1000 sticks
+                'LED180000': '103',  # Plastics: 120% + UGX10000 per Kg
+                'LED260100': 'TNE',  # Plastic products: 2.5% + USD70 per Tonne
+            }
+            
+            # Determine the piece measure unit
+            if item.get('HasExcise') and excise_code in excise_unit_map:
+                piece_unit = excise_unit_map[excise_code]
+            else:
+                piece_unit = item.get('UnitOfMeasure', '101')
+            
+            # Use PurchaseCost (cost) instead of UnitPrice (selling price)
+            # QuickBooks: PurchaseCost = what you pay, UnitPrice = what you charge
+            cost_price = item.get('PurchaseCost') or item.get('UnitPrice', 0)
+            
+            # Detect if item is a service
+            # QuickBooks: Type field can be "Service", "Inventory", "NonInventory"
+            is_service = item.get('Type') == 'Service' or item.get('ItemType') == 'Service'
+            
+            # For services, use unit code '102' (EFRIS standard for services)
+            # For products with excise tax, use the excise-specific unit
+            # Otherwise use the unit from dashboard (default 121=Piece)
+            if is_service:
+                measure_unit = '102'
+            elif item.get('HasExcise') and excise_code in excise_unit_map:
+                measure_unit = excise_unit_map[excise_code]  # Use excise unit for both measure and piece
+            else:
+                measure_unit = item.get('UnitOfMeasure', '101')
+            
+            # Use Description field as goodsCode (should be simple product code like 'Building Material')
+            # Dashboard stores product code in Description field
+            goods_code = item.get('Description', '') or item.get('Name', '')
+            
+            # Use the edited fields from the dashboard
+            efris_product = {
+                "operationType": operation_type,  # 101=Add, 102=Update
+                "goodsName": item.get('Name', ''),
+                "goodsCode": goods_code,  # Unique identifier for this specific product
+                "measureUnit": measure_unit,
+                "unitPrice": str(cost_price),
+                "currency": "101",  # 101 = UGX
+                "commodityCategoryId": item.get('Sku', default_category_id),  # Category code (can be shared)
+                "haveExciseTax": "101" if item.get('HasExcise') else "102",  # 101=Yes, 102=No
+                "goodsTypeCode": "102" if is_service else "101",  # 101=Goods, 102=Service
+                "description": goods_code  # Use same as goodsCode for consistency
+            }
+            
+            # EFRIS validation: havePieceUnit="101" requires ALL piece fields
+            # Services and Products use identical structure, only stock quantities differ
+            efris_product["havePieceUnit"] = "101"  # Always "101" for both
+            efris_product["pieceMeasureUnit"] = measure_unit
+            efris_product["pieceUnitPrice"] = str(cost_price)
+            efris_product["packageScaledValue"] = "1"  # Required even for services
+            efris_product["pieceScaledValue"] = "1"  # Required even for services
+            
+            if is_service:
+                efris_product["stockPrewarning"] = "0"
+                efris_product["stockPrequantity"] = "0"
+                print(f"[T130] SERVICE: All piece fields included, stock=0")
+            else:
+                efris_product["stockPrewarning"] = "10"
+                efris_product["stockPrequantity"] = str(item.get('QtyOnHand', 0))
+                print(f"[T130] PRODUCT: All piece fields included, stock={item.get('QtyOnHand', 0)}")
+            
+            # Add exciseDutyCode if product has excise tax
+            if item.get('HasExcise'):
+                efris_product["exciseDutyCode"] = excise_code
+            
+            # Store product metadata for invoice processing (always update to latest values)
+            item_id = item.get('Id')
+            if item_id:
+                # Get excise rate and rule from reference data if applicable
+                excise_rate = get_excise_rate(excise_code) if item.get('HasExcise') and excise_code else ''
+                excise_rule = get_excise_rule(excise_code) if item.get('HasExcise') and excise_code else '2'
+                
+                metadata = {
+                    'HasExcise': item.get('HasExcise', False),
+                    'ExciseDutyCode': item.get('ExciseDutyCode', ''),
+                    'ExciseUnit': measure_unit if item.get('HasExcise') else '',
+                    'ExciseRate': excise_rate,  # Auto-populated from T125 reference
+                    'ExciseRule': excise_rule,  # Auto-populated: '1'=percentage, '2'=fixed-rate
+                    'ProductCode': goods_code,
+                    'Sku': item.get('Sku', default_category_id),
+                    'UnitOfMeasure': measure_unit  # Store unit for invoice matching
+                }
+                product_metadata[item_id] = metadata
+                print(f"[METADATA] Updated metadata for item {item_id} ({item.get('Name')}): {metadata}")
+            
+            # Add EFRIS ID for updates
+            if operation_type == "102" and item.get('EfrisId'):
+                efris_product["id"] = item.get('EfrisId')
+            
+            efris_products.append(efris_product)
+        
+        # Save updated metadata to disk
+        save_product_metadata(product_metadata)
+        print(f"[METADATA] Saved {len(product_metadata)} product metadata entries to disk")
+        
+        # Upload to EFRIS
+        result = manager.upload_goods(efris_products)
+        
+        return {
+            "synced_count": len(efris_products),
+            "message": f"Synced {len(efris_products)} products to EFRIS",
+            "products": efris_products,
+            "efrisResponse": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/quickbooks/invoices")
+async def get_quickbooks_invoices(
+    token: str = Query(...),
+    start_date: Optional[str] = Query(None, description="Format: YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="Format: YYYY-MM-DD")
+):
+    """Fetch invoices from QuickBooks"""
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        invoices = qb_client.get_invoices(start_date=start_date, end_date=end_date)
+        return {
+            "count": len(invoices),
+            "invoices": invoices
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/quickbooks/sync-invoice/{invoice_id}")
+async def sync_invoice_to_efris(invoice_id: str, token: str = Query(...)):
+    """Sync specific invoice from QuickBooks to EFRIS using T109 (pages 88-113)"""
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        # Fetch invoice from QuickBooks
+        qb_invoice = qb_client.get_invoice_by_id(invoice_id)
+        
+        # Fetch customer details
+        customer_ref = qb_invoice.get('CustomerRef', {})
+        qb_customer = qb_client.get_customer_by_id(customer_ref.get('value'))
+        
+        # Fetch company info
+        company_info = qb_client.get_company_info()
+        
+        # Add EFRIS TIN and Device Number to company info (QuickBooks might not have it)
+        company_info['EfrisTin'] = manager.tin
+        company_info['EfrisDeviceNo'] = manager.device_no
+        
+        # Enrich invoice line items with full product details (Description = goodsCode)
+        enriched_invoice = qb_invoice.copy()
+        for line in enriched_invoice.get('Line', []):
+            if line.get('DetailType') == 'SalesItemLineDetail':
+                detail = line.get('SalesItemLineDetail', {})
+                item_ref = detail.get('ItemRef', {})
+                item_id = item_ref.get('value')
+                if item_id:
+                    try:
+                        # Fetch full item details to get Description (product code)
+                        full_item = qb_client.get_item_by_id(item_id)
+                        
+                        # Auto-generate metadata if missing (self-healing system)
+                        if item_id not in product_metadata:
+                            print(f"[AUTO-METADATA] Generating metadata for item {item_id} ({full_item.get('Name')})")
+                            
+                            # Read excise info directly from QuickBooks item (set via dashboard)
+                            has_excise = full_item.get('HasExcise', False)
+                            excise_code = full_item.get('ExciseDutyCode', '')
+                            
+                            # Determine measure unit
+                            is_service = full_item.get('Type') == 'Service' or full_item.get('ItemType') == 'Service'
+                            if is_service:
+                                measure_unit = '102'
+                            elif has_excise and excise_code:
+                                # Use unit from QuickBooks or get from excise reference
+                                excise_unit = full_item.get('UnitOfMeasure', '')
+                                if not excise_unit and excise_code in EXCISE_DUTY_REFERENCE:
+                                    excise_unit = EXCISE_DUTY_REFERENCE[excise_code].get('unit', '121')
+                                measure_unit = excise_unit or '121'
+                            else:
+                                measure_unit = full_item.get('UnitOfMeasure', '101')
+                            
+                            # Auto-populate excise rate and rule from T125 reference
+                            excise_rate = get_excise_rate(excise_code) if has_excise and excise_code else ''
+                            excise_rule = get_excise_rule(excise_code) if has_excise and excise_code else '2'
+                            
+                            # Use Description field as ProductCode (should be simple product code like 'Building Material')
+                            # Dashboard stores product code in Description field
+                            goods_code = full_item.get('Description', '') or full_item.get('Name', '')
+                            
+                            # Get commodity category (default if not found)
+                            sku = full_item.get('Sku', '30111601')
+                            
+                            # Create and save metadata
+                            # CRITICAL: Store UnitOfMeasure so invoices use EXACT same unit as T123 registration
+                            metadata = {
+                                'HasExcise': has_excise,
+                                'ExciseDutyCode': excise_code,
+                                'ExciseUnit': measure_unit if has_excise else '',
+                                'ExciseRate': excise_rate,
+                                'ExciseRule': excise_rule,
+                                'ProductCode': goods_code,
+                                'Sku': sku,
+                                'UnitOfMeasure': measure_unit  # Must match T123 registration
+                            }
+                            
+                            product_metadata[item_id] = metadata
+                            save_product_metadata(product_metadata)
+                            
+                            print(f"[AUTO-METADATA] Created metadata for item {item_id}:")
+                            print(f"  - HasExcise: {has_excise} (from QuickBooks)")
+                            print(f"  - ExciseDutyCode: {excise_code} (from QuickBooks)")
+                            print(f"  - ExciseUnit: {measure_unit}")
+                            print(f"  - ExciseRate: {excise_rate} (from T125)")
+                            print(f"  - ExciseRule: {excise_rule} (from T125)")
+                            print(f"  - ProductCode: {goods_code}")
+                            print(f"  - Sku: {sku}")
+                        
+                        # Merge with stored metadata (excise info)
+                        if item_id in product_metadata:
+                            print(f"[Invoice Sync] Using metadata for item {item_id}: {product_metadata[item_id]}")
+                            metadata = product_metadata[item_id]
+                            full_item.update(metadata)
+                            # Use ProductCode from metadata as Description (this is what mapper uses as itemCode)
+                            if 'ProductCode' in metadata and metadata['ProductCode']:
+                                full_item['Description'] = metadata['ProductCode']
+                                print(f"[Invoice Sync] Using ProductCode '{metadata['ProductCode']}' as Description for EFRIS itemCode")
+                        else:
+                            # No metadata - fallback to using Name as Description (product code)
+                            # This is better than using Description which may have wrong format
+                            print(f"[Invoice Sync] WARNING: No metadata for item {item_id}, using Name as product code")
+                            full_item['Description'] = full_item.get('Name', '')
+                        
+                        detail['ItemDetails'] = full_item
+                    except Exception as e:
+                        print(f"[Invoice Sync] Warning: Could not fetch item {item_id}: {e}")
+        
+        # Convert to EFRIS format (T109 specification compliant)
+        efris_invoice = QuickBooksEfrisMapper.map_invoice_to_efris(
+            enriched_invoice, qb_customer, company_info
+        )
+        
+        # DEBUG: Print the goodsDetails to see unit values
+        print(f"[Invoice Sync] DEBUG - Number of items in goodsDetails: {len(efris_invoice.get('goodsDetails', []))}")
+        for idx, item in enumerate(efris_invoice.get('goodsDetails', [])):
+            print(f"[Invoice Sync] DEBUG - Item {idx}: itemCode='{item.get('itemCode')}', unitOfMeasure='{item.get('unitOfMeasure')}' (type: {type(item.get('unitOfMeasure')).__name__})")
+        
+        # Upload to EFRIS using T109
+        result = manager.upload_invoice(efris_invoice)
+        
+        # Debug: Print the full EFRIS response
+        print(f"[Invoice Sync] EFRIS Response: {json.dumps(result, indent=2)}")
+        
+        # Extract FDN and verification details from response
+        fdn = None
+        verification_code = None
+        qr_code = None
+        invoice_no = None
+        
+        # Check if request was successful
+        return_code = result.get('returnStateInfo', {}).get('returnCode')
+        return_message = result.get('returnStateInfo', {}).get('returnMessage', '')
+        
+        print(f"[Invoice Sync] Return Code: {return_code}")
+        print(f"[Invoice Sync] Return Message: {return_message}")
+        
+        if return_code == '00':
+            # Success - extract fiscalization details
+            data = result.get('data', {})
+            
+            # Try decrypted content first (new API format)
+            if 'decrypted_content' in data:
+                decrypted = data['decrypted_content']
+                if isinstance(decrypted, dict):
+                    # Check basicInformation section first (this is where FDN actually is)
+                    basic_info = decrypted.get('basicInformation', {})
+                    if basic_info:
+                        invoice_no = basic_info.get('invoiceNo')  # This IS the FDN
+                        fdn = invoice_no  # invoiceNo is the FDN
+                        verification_code = basic_info.get('antifakeCode')
+                    
+                    # Check summary for QR code
+                    summary = decrypted.get('summary', {})
+                    if summary:
+                        qr_code = summary.get('qrCode')
+                    
+                    # Fallback to root level
+                    if not fdn:
+                        fdn = decrypted.get('fdn') or decrypted.get('fiscalDocumentNumber') or decrypted.get('invoiceNo')
+                    if not verification_code:
+                        verification_code = decrypted.get('verificationCode') or decrypted.get('antifakeCode')
+                    if not qr_code:
+                        qr_code = decrypted.get('qrCode')
+            
+            # Fallback to direct content if no decrypted content
+            if not fdn and isinstance(data.get('content'), dict):
+                content = data['content']
+                fdn = content.get('fdn') or content.get('fiscalDocumentNumber') or content.get('invoiceNo')
+                verification_code = content.get('verificationCode') or content.get('antifakeCode')
+                qr_code = content.get('qrCode')
+                invoice_no = content.get('invoiceNo')
+            
+            print(f"[Invoice Sync] Extracted FDN: {fdn}")
+            print(f"[Invoice Sync] Extracted Verification Code: {verification_code}")
+            print(f"[Invoice Sync] Extracted QR Code: {qr_code}")
+        
+        return {
+            "success": return_code == '00',
+            "message": return_message if return_code == '00' else f"EFRIS Error {return_code}: {return_message}",
+            "qbInvoiceId": invoice_id,
+            "qbDocNumber": qb_invoice.get('DocNumber'),
+            "fdn": fdn,
+            "invoiceNo": invoice_no,
+            "verificationCode": verification_code,
+            "qrCode": qr_code,
+            "returnCode": return_code,
+            "efrisResponse": result
+        }
+    except ValueError as ve:
+        # User-friendly validation error
+        print(f"[Invoice Sync Validation Error] {str(ve)}")
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        print(f"[Invoice Sync Error] {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/quickbooks/credit-memos")
+async def get_quickbooks_credit_memos(
+    token: str = Query(...),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None)
+):
+    """Fetch credit memos from QuickBooks"""
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        credit_memos = qb_client.get_credit_memos(start_date=start_date, end_date=end_date)
+        return {
+            "count": len(credit_memos),
+            "creditMemos": credit_memos
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/quickbooks/purchase-orders")
+async def get_quickbooks_purchase_orders(
+    token: str = Query(...),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None)
+):
+    """Fetch purchase orders from QuickBooks (for stock tracking)"""
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        purchase_orders = qb_client.get_purchase_orders(start_date=start_date, end_date=end_date)
+        return {
+            "count": len(purchase_orders),
+            "purchase_orders": purchase_orders
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/quickbooks/sync-purchase-orders")
+async def sync_purchase_orders_to_efris(
+    payload: dict = Body(...),
+    token: str = Query(...)
+):
+    """Sync selected purchase orders from QuickBooks to EFRIS as stock increases (T131)"""
+    if token != "test_token":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        # Get purchase orders from request body
+        qb_pos = payload.get('purchase_orders', [])
+        
+        if not qb_pos:
+            raise HTTPException(status_code=400, detail="No purchase orders provided")
+        
+        synced_count = 0
+        failed = []
+        
+        for po_data in qb_pos:
+            try:
+                # Get vendor details if VendorRef exists
+                vendor = {}
+                if 'VendorRef' in po_data and 'value' in po_data['VendorRef']:
+                    try:
+                        vendor = qb_client.get_vendor_by_id(po_data['VendorRef']['value'])
+                    except:
+                        vendor = {'DisplayName': po_data['VendorRef'].get('name', 'Unknown')}
+                
+                # Enrich line items with full product details to get product code and SKU
+                for line in po_data.get('Line', []):
+                    if line.get('DetailType') == 'ItemBasedExpenseLineDetail':
+                        detail = line.get('ItemBasedExpenseLineDetail', {})
+                        item_ref = detail.get('ItemRef', {})
+                        
+                        if 'value' in item_ref:
+                            try:
+                                # Fetch full item details from QuickBooks
+                                item = qb_client.get_item_by_id(item_ref['value'])
+                                if item:
+                                    # Get ProductCode from Description field or use Name as fallback
+                                    product_code = item.get('Description') or item.get('Name', '')
+                                    item_ref['productCode'] = product_code
+                                    
+                                    # Also store SKU for reference
+                                    if 'Sku' in item:
+                                        item_ref['sku'] = item['Sku']
+                                        print(f"[STOCK] Item {item_ref['name']}: ProductCode = {product_code}, SKU = {item['Sku']}")
+                                    else:
+                                        print(f"[STOCK] Item {item_ref['name']}: ProductCode = {product_code}, No SKU")
+                                else:
+                                    print(f"[STOCK] Warning: Could not fetch item {item_ref['name']}")
+                            except Exception as e:
+                                print(f"[STOCK] Warning: Could not fetch item details: {e}")
+                
+                # Map to EFRIS stock increase format
+                efris_stock_increase = QuickBooksEfrisMapper.map_purchase_order_to_stock_increase(
+                    po_data, vendor
+                )
+                
+                # Send to EFRIS
+                print(f"[STOCK] Sending stock increase for PO: {po_data.get('DocNumber')}")
+                print(f"[STOCK] Stock increase data: {json.dumps(efris_stock_increase, indent=2)[:500]}")
+                
+                result = manager.stock_increase(efris_stock_increase)
+                
+                print(f"[STOCK] EFRIS Response: {json.dumps(result, indent=2)[:1000]}")
+                
+                if result.get('returnStateInfo', {}).get('returnCode') == '00':
+                    synced_count += 1
+                    print(f"[STOCK] ✓ SUCCESS for PO {po_data.get('DocNumber')}")
+                else:
+                    error_msg = result.get('returnStateInfo', {}).get('returnMessage', 'Unknown error')
+                    print(f"[STOCK] ✗ FAILED for PO {po_data.get('DocNumber')}: {error_msg}")
+                    failed.append({
+                        "po_number": po_data.get('DocNumber', 'Unknown'),
+                        "error": error_msg,
+                        "error_code": result.get('returnStateInfo', {}).get('returnCode', '')
+                    })
+                    
+            except Exception as e:
+                print(f"[STOCK] ✗ EXCEPTION for PO {po_data.get('DocNumber')}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                failed.append({
+                    "po_number": po_data.get('DocNumber', 'Unknown'),
+                    "error": str(e)
+                })
+        
+        return {
+            "synced_count": synced_count,
+            "failed_count": len(failed),
+            "failed": failed,
+            "message": f"Synced {synced_count} purchase orders to EFRIS"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
