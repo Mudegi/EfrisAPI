@@ -869,7 +869,47 @@ async def import_efris_invoices(
                 saved_count += 1
             
             db.commit()
-            return {"message": f"Imported {saved_count} invoices from EFRIS", "records": records}
+            
+            # Update any QB invoices that match EFRIS invoices
+            updated_count = 0
+            for record in records:
+                fdn = record.get('invoiceNo')
+                reference_no = record.get('referenceNo')  # This should be the QB DocNumber
+                
+                if fdn:
+                    # Try to find QB invoice by reference number first (most reliable)
+                    qb_invoice = None
+                    if reference_no:
+                        qb_invoice = db.query(EFRISInvoice).filter(
+                            EFRISInvoice.company_id == company_id,
+                            EFRISInvoice.qb_invoice_number == reference_no,
+                            EFRISInvoice.fdn.is_(None)
+                        ).first()
+                    
+                    # If not found, try by error message containing the FDN
+                    if not qb_invoice:
+                        qb_invoice = db.query(EFRISInvoice).filter(
+                            EFRISInvoice.company_id == company_id,
+                            EFRISInvoice.fdn.is_(None),
+                            EFRISInvoice.status == 'failed'
+                        ).filter(
+                            EFRISInvoice.error_message.ilike(f'%{fdn}%')
+                        ).first()
+                    
+                    if qb_invoice:
+                        qb_invoice.status = 'success'
+                        qb_invoice.fdn = fdn
+                        qb_invoice.invoice_no = fdn
+                        qb_invoice.error_message = None
+                        updated_count += 1
+            
+            if updated_count > 0:
+                db.commit()
+            
+            return {
+                "message": f"Imported {saved_count} invoices from EFRIS, updated {updated_count} QB invoice statuses",
+                "records": records
+            }
         
         return {"message": "No data received from EFRIS", "records": []}
     except Exception as e:
@@ -1592,8 +1632,35 @@ async def get_efris_invoice_details(
     if efris_inv.efris_response:
         decrypted = efris_inv.efris_response.get('data', {}).get('decrypted_content', {})
         if decrypted:
-            efris_invoice = decrypted
-            antifake_code = decrypted.get('basicInformation', {}).get('antifakeCode', '')
+            # Check if we have full invoice details or just existInvoiceList
+            if 'basicInformation' in decrypted:
+                # Full invoice details available
+                efris_invoice = decrypted
+                antifake_code = decrypted.get('basicInformation', {}).get('antifakeCode', '')
+            elif 'existInvoiceList' in decrypted and efris_inv.fdn:
+                # Only have FDN from duplicate response, use efris_data if available
+                if efris_inv.efris_data:
+                    # Build invoice details from stored EFRIS data
+                    efris_invoice = {
+                        'basicInformation': {
+                            'invoiceNo': efris_inv.fdn,
+                            'currency': efris_inv.currency or 'UGX',
+                            'antifakeCode': decrypted.get('existInvoiceList', [{}])[0].get('antiFakeCode', '') if decrypted.get('existInvoiceList') else ''
+                        },
+                        'buyerDetails': {
+                            'buyerLegalName': efris_inv.buyer_legal_name,
+                            'buyerBusinessName': efris_inv.buyer_business_name,
+                            'buyerTin': efris_inv.buyer_tin
+                        },
+                        'summary': {
+                            'grossAmount': str(efris_inv.gross_amount) if efris_inv.gross_amount else '0',
+                            'netAmount': str(efris_inv.net_amount) if efris_inv.net_amount else '0'
+                        },
+                        'taxDetails': {
+                            'taxAmount': str(efris_inv.tax_amount) if efris_inv.tax_amount else '0'
+                        }
+                    }
+                    antifake_code = efris_invoice['basicInformation']['antifakeCode']
     
     return {
         "qb_invoice_id": qb_invoice_id,
@@ -1739,6 +1806,51 @@ async def get_qb_invoice_details(
         # Get invoice from QuickBooks
         qb_invoice = qb_client.get_invoice_by_id(invoice_id)
         
+        # Fetch TaxCode definitions from QuickBooks to get actual names
+        print(f"[INVOICE] Fetching TaxCode definitions from QuickBooks...")
+        tax_code_names = {}  # Maps TaxCode ID to name
+        try:
+            # Query all TaxCodes
+            tax_codes = qb_client.get_tax_codes()
+            for tax_code in tax_codes:
+                tax_code_id = tax_code.get('Id')
+                tax_code_name = tax_code.get('Name', '')
+                if tax_code_id:
+                    tax_code_names[tax_code_id] = tax_code_name.upper()
+                    print(f"[INVOICE] TaxCode {tax_code_id}: '{tax_code_name}'")
+        except Exception as e:
+            print(f"[INVOICE] Could not fetch TaxCodes: {e}")
+        
+        # Build a map of TaxCodeRef value to actual tax rate from TxnTaxDetail (UK tax handling)
+        tax_rate_map = {}
+        if 'TxnTaxDetail' in qb_invoice and 'TaxLine' in qb_invoice['TxnTaxDetail']:
+            print(f"[INVOICE] Building tax rate map from TxnTaxDetail...")
+            for tax_line in qb_invoice['TxnTaxDetail']['TaxLine']:
+                if tax_line.get('DetailType') == 'TaxLineDetail':
+                    tax_detail = tax_line.get('TaxLineDetail', {})
+                    
+                    # Get both TaxRateRef and TaxCodeRef
+                    tax_rate_ref = tax_detail.get('TaxRateRef', {})
+                    tax_rate_ref_value = tax_rate_ref.get('value')
+                    tax_rate_ref_name = tax_rate_ref.get('name', '')
+                    
+                    tax_code_ref = tax_detail.get('TaxCodeRef', {})
+                    tax_code_ref_value = tax_code_ref.get('value')
+                    tax_code_ref_name = tax_code_ref.get('name', '')
+                    
+                    tax_percent = tax_detail.get('TaxPercent', 0)
+                    
+                    # Map both TaxRateRef.value AND TaxCodeRef.value to the tax percentage
+                    if tax_rate_ref_value:
+                        tax_rate_map[tax_rate_ref_value] = tax_percent / 100
+                        print(f"[INVOICE] Tax map: TaxRate {tax_rate_ref_value} ({tax_rate_ref_name}) = {tax_percent}%")
+                    
+                    if tax_code_ref_value:
+                        tax_rate_map[tax_code_ref_value] = tax_percent / 100
+                        print(f"[INVOICE] Tax map: TaxCode {tax_code_ref_value} ({tax_code_ref_name}) = {tax_percent}%")
+        
+        print(f"[INVOICE] Tax rate map built with {len(tax_rate_map)} entries")
+        
         # Load ALL excise codes once for this company (performance optimization)
         excise_reference = load_excise_duty_reference_from_db(company_id, db)
         
@@ -1758,13 +1870,64 @@ async def get_qb_invoice_details(
                         ).first()
                         
                         if product:
+                            # Get actual tax rate from QuickBooks
+                            tax_code_ref = detail.get('TaxCodeRef', {})
+                            tax_code_value = tax_code_ref.get('value')
+                            tax_code_name_from_ref = tax_code_ref.get('name', '').upper()
+                            
+                            # Look up the actual TaxCode name from QuickBooks API
+                            tax_code_name = tax_code_names.get(tax_code_value, tax_code_name_from_ref)
+                            
+                            print(f"[INVOICE] Item {product.qb_name}: TaxCodeRef value='{tax_code_value}', name='{tax_code_name}'")
+                            
+                            # Priority 1: Check TaxCode name for EXEMPT keyword (highest priority)
+                            if 'EXEMPT' in tax_code_name:
+                                # Tax Exempt → EFRIS Code 03
+                                tax_rate = 0.0
+                                print(f"[INVOICE] Item {product.qb_name}: Detected EXEMPT from TaxCodeName: {tax_code_name}")
+                            # Priority 2: Check for ZERO-RATED keywords (before generic 0%)
+                            elif 'ZERO' in tax_code_name or tax_code_name in ['0.0% Z', '0.0% ECG', '0.0% ECS']:
+                                # Zero-Rated 0% → EFRIS Code 02
+                                tax_rate = 0.0
+                                print(f"[INVOICE] Item {product.qb_name}: Detected ZERO-RATED from TaxCodeName: {tax_code_name}")
+                            # Priority 3: Try tax rate map from TxnTaxDetail (UK format)
+                            elif tax_code_value and tax_code_value in tax_rate_map:
+                                tax_rate = tax_rate_map[tax_code_value]
+                                print(f"[INVOICE] Item {product.qb_name}: Tax rate from map: {tax_rate*100}%")
+                            else:
+                                # Priority 3: Default to Standard 18% VAT → EFRIS Code 01
+                                tax_rate = 0.18
+                                print(f"[INVOICE] Item {product.qb_name}: Using Standard 18% VAT (TaxCodeName: {tax_code_name})")
+                            
+                            # Determine IsExempt and IsZeroRated
+                            # Priority 1: Use saved database values (user explicitly set these in control panel)
+                            # Priority 2: Fall back to detection from QuickBooks TaxCodeName
+                            is_exempt_from_db = product.is_exempt or False
+                            is_zero_rated_from_db = product.is_zero_rated or False
+                            is_exempt_from_qb = 'EXEMPT' in tax_code_name
+                            is_zero_rated_from_qb = 'ZERO' in tax_code_name or tax_code_name in ['0.0% Z', '0.0% ECG', '0.0% ECS']
+                            
+                            # Use database values if set, otherwise use QB detection
+                            # Database values take priority because user explicitly saved them
+                            if is_exempt_from_db or is_zero_rated_from_db:
+                                # User has explicitly set tax category in control panel
+                                is_exempt_detected = is_exempt_from_db
+                                is_zero_rated_detected = is_zero_rated_from_db
+                                print(f"[INVOICE] Item {product.qb_name}: Using DB tax flags - IsExempt={is_exempt_detected}, IsZeroRated={is_zero_rated_detected}")
+                            else:
+                                # Fall back to QB TaxCodeName detection
+                                is_exempt_detected = is_exempt_from_qb
+                                is_zero_rated_detected = is_zero_rated_from_qb
+                                print(f"[INVOICE] Item {product.qb_name}: Using QB tax flags - IsExempt={is_exempt_detected}, IsZeroRated={is_zero_rated_detected}")
+                            
                             # Add enriched metadata
                             detail['ItemDetails'] = {
                                 'Name': product.qb_name,
                                 'Description': product.qb_description,
                                 'Sku': product.qb_sku,
                                 'UnitOfMeasure': product.efris_unit_of_measure or '101',
-                                'TaxRate': 0.18,  # Default, can be enriched from QB tax code
+                                'TaxRate': tax_rate,  # Actual tax rate from QuickBooks (US or UK)
+                                'TaxCodeName': tax_code_name,  # Tax code name for frontend (EXEMPT, ZERO-RATED, etc.)
                                 'HasExcise': product.has_excise or False,
                                 'ExciseDutyCode': product.excise_duty_code or '',
                                 'ExciseUnit': product.efris_unit_of_measure or '101',
@@ -1772,7 +1935,9 @@ async def get_qb_invoice_details(
                                 'ExciseRule': '2',  # Will be populated below
                                 'IsDeemedVAT': False,  # Can be enriched if needed
                                 'VATProjectId': '',
-                                'VATProjectName': ''
+                                'VATProjectName': '',
+                                'IsZeroRated': is_zero_rated_detected,  # From detected TaxCodeName
+                                'IsExempt': is_exempt_detected  # From detected TaxCodeName
                             }
                             
                             # If has excise, lookup from cached excise reference (O(1) instead of 3 DB queries)
@@ -1814,7 +1979,11 @@ async def submit_invoice_to_efris(
         if not invoice_id or not invoice_data:
             raise HTTPException(status_code=400, detail="Missing invoice_id or invoice_data")
         
-        # Enrich invoice line items with product metadata (excise rate, unit, etc.)
+        # Extract line item tax categories from payload (sent from UI)
+        line_item_tax_categories = invoice_data.get('LineItemTaxCategories', {})
+        print(f"[SUBMIT] Line item tax categories: {line_item_tax_categories}")
+        
+        # Enrich invoice line items with product metadata (excise rate, unit, tax flags, etc.)
         line_items = invoice_data.get('Line', [])
         for line in line_items:
             if line.get('DetailType') == 'SalesItemLineDetail':
@@ -1829,24 +1998,61 @@ async def submit_invoice_to_efris(
                         Product.qb_item_id == qb_item_id
                     ).first()
                     
-                    if product and product.has_excise:
-                        # Get excise rate from database
-                        excise_rate = get_excise_rate(product.excise_duty_code, company_id, db) if product.excise_duty_code else '0'
-                        excise_rule = get_excise_rule(product.excise_duty_code, company_id, db) if product.excise_duty_code else '2'
-                        
-                        # Add to item details
+                    if product:
+                        # Initialize ItemDetails
                         if 'ItemDetails' not in detail:
                             detail['ItemDetails'] = {}
                         
-                        detail['ItemDetails']['HasExcise'] = True
-                        detail['ItemDetails']['ExciseDutyCode'] = product.excise_duty_code
-                        detail['ItemDetails']['ExciseUnit'] = product.excise_unit or get_excise_unit(product.excise_duty_code, company_id, db)
-                        detail['ItemDetails']['ExciseRate'] = excise_rate
-                        detail['ItemDetails']['ExciseRule'] = excise_rule
+                        # Add tax flags (CRITICAL for proper tax calculation)
+                        detail['ItemDetails']['IsExempt'] = product.is_exempt if product.is_exempt is not None else False
+                        detail['ItemDetails']['IsZeroRated'] = product.is_zero_rated if product.is_zero_rated is not None else False
+                        # Default tax rate: 0% if exempt/zero-rated, 18% otherwise
+                        default_tax_rate = 0.0 if (product.is_exempt or product.is_zero_rated) else 0.18
+                        detail['ItemDetails']['TaxRate'] = default_tax_rate
+                        
+                        print(f"[SUBMIT] Product {product.qb_name or product.qb_item_id}: IsExempt={detail['ItemDetails']['IsExempt']}, IsZeroRated={detail['ItemDetails']['IsZeroRated']}, TaxRate={detail['ItemDetails']['TaxRate']}")
+                        
+                        # Add excise info if applicable
+                        if product.has_excise:
+                            excise_rate = get_excise_rate(product.excise_duty_code, company_id, db) if product.excise_duty_code else '0'
+                            excise_rule = get_excise_rule(product.excise_duty_code, company_id, db) if product.excise_duty_code else '2'
+                            
+                            detail['ItemDetails']['HasExcise'] = True
+                            detail['ItemDetails']['ExciseDutyCode'] = product.excise_duty_code
+                            detail['ItemDetails']['ExciseUnit'] = product.excise_unit or get_excise_unit(product.excise_duty_code, company_id, db)
+                            detail['ItemDetails']['ExciseRate'] = excise_rate
+                            detail['ItemDetails']['ExciseRule'] = excise_rule
+                        else:
+                            detail['ItemDetails']['HasExcise'] = False
         
         # Get customer details
         customer_ref = invoice_data.get('CustomerRef', {})
-        qb_customer = qb_client.get_customer_by_id(customer_ref.get('value'))
+        customer_id = customer_ref.get('value')
+        
+        # Try to fetch customer from QuickBooks, fallback to invoice data
+        qb_customer = {}
+        if customer_id:
+            try:
+                print(f"[SUBMIT] Fetching customer {customer_id} from QuickBooks...")
+                qb_customer = qb_client.get_customer_by_id(customer_id)
+                print(f"[SUBMIT] Customer fetched successfully: {qb_customer.get('DisplayName', 'N/A')}")
+            except Exception as e:
+                print(f"[SUBMIT] Warning: Could not fetch customer from QuickBooks: {e}")
+                # Use customer name from invoice if available
+                qb_customer = {
+                    'DisplayName': customer_ref.get('name', 'Customer'),
+                    'CompanyName': customer_ref.get('name', ''),
+                    'PrimaryEmailAddr': {},
+                    'PrimaryPhone': {}
+                }
+        else:
+            print("[SUBMIT] Warning: No customer ID in invoice")
+            qb_customer = {
+                'DisplayName': 'Walk-in Customer',
+                'CompanyName': '',
+                'PrimaryEmailAddr': {},
+                'PrimaryPhone': {}
+            }
         
         # Get company info
         company_dict = {
@@ -1856,15 +2062,20 @@ async def submit_invoice_to_efris(
             'PrimaryPhone': {'FreeFormNumber': '0700000000'},
             'Email': {'Address': 'info@wandera.com'},
             'CompanyAddr': {'Line1': 'Kampala, Uganda'},
-            'Country': 'Uganda'
+            'Country': 'Uganda',
+            'qb_region': company.qb_region  # Add region for validation
         }
+        
+        # Get line item tax categories if provided (optional - will auto-detect from QB if not provided)
+        line_item_tax_categories = invoice_data.get('LineItemTaxCategories', None)
         
         # Convert to EFRIS format using mapper
         mapper = QuickBooksEfrisMapper()
         efris_invoice = mapper.map_invoice_to_efris(
             qb_invoice=invoice_data,
             qb_customer=qb_customer,
-            company_info=company_dict
+            company_info=company_dict,
+            line_item_tax_categories=line_item_tax_categories  # Pass tax categories (optional)
         )
         
         # Submit to EFRIS via T109
@@ -1877,16 +2088,31 @@ async def submit_invoice_to_efris(
         print(f"[SUBMIT] Result keys: {result.keys()}")
         print(f"[SUBMIT] Data keys: {result.get('data', {}).keys()}")
         
-        if return_code == '00':
+        # Handle success (00) or already fiscalized (2253)
+        if return_code == '00' or return_code == '2253':
             # Success - extract FDN from decrypted content
             data = result.get('data', {})
             decrypted_content = data.get('decrypted_content', {})
             
-            # FDN and Invoice ID are in basicInformation section
-            basic_info = decrypted_content.get('basicInformation', {})
-            fdn = basic_info.get('invoiceNo', '') or decrypted_content.get('fdn', '') or data.get('fdn', '')
-            efris_invoice_id = basic_info.get('invoiceId', '') or decrypted_content.get('invoiceId', '') or data.get('invoiceId', '')
-            antifake_code = basic_info.get('antifakeCode', '')
+            # Check if this is a duplicate (code 2253)
+            if return_code == '2253':
+                # Already fiscalized - extract FDN from existInvoiceList
+                exist_list = decrypted_content.get('existInvoiceList', [])
+                if exist_list and len(exist_list) > 0:
+                    fdn = exist_list[0].get('invoiceNo', '')
+                    antifake_code = exist_list[0].get('antiFakeCode', '')
+                    efris_invoice_id = ''  # Not provided in duplicate response
+                    print(f"[SUBMIT] Already fiscalized - FDN: {fdn}, Antifake: {antifake_code}")
+                else:
+                    fdn = ''
+                    antifake_code = ''
+                    efris_invoice_id = ''
+            else:
+                # New invoice - extract from basicInformation section
+                basic_info = decrypted_content.get('basicInformation', {})
+                fdn = basic_info.get('invoiceNo', '') or decrypted_content.get('fdn', '') or data.get('fdn', '')
+                efris_invoice_id = basic_info.get('invoiceId', '') or decrypted_content.get('invoiceId', '') or data.get('invoiceId', '')
+                antifake_code = basic_info.get('antifakeCode', '')
             
             print(f"[SUBMIT] FDN: {fdn}")
             print(f"[SUBMIT] Invoice ID: {efris_invoice_id}")
@@ -1898,19 +2124,58 @@ async def submit_invoice_to_efris(
                 EFRISInvoice.qb_invoice_id == invoice_id
             ).first()
             
+            # Convert invoice_date to date object if it's a string
+            invoice_date = invoice_data.get('TxnDate')
+            if isinstance(invoice_date, str):
+                invoice_date = datetime.strptime(invoice_date, '%Y-%m-%d').date()
+            
+            # Extract additional details from the decrypted_content if available
+            buyer_legal_name = None
+            buyer_business_name = None
+            buyer_tin_efris = None
+            currency = None
+            gross_amount = None
+            tax_amount = None
+            net_amount = None
+            
+            if return_code == '00':
+                # For new invoices, extract from basicInformation and other sections
+                buyer_details = decrypted_content.get('buyerDetails', {})
+                summary = decrypted_content.get('summary', {})
+                tax_details_raw = decrypted_content.get('taxDetails', {})
+                # Handle taxDetails as either dict or list
+                tax_details = tax_details_raw if isinstance(tax_details_raw, dict) else {}
+                basic_info = decrypted_content.get('basicInformation', {})
+                
+                buyer_legal_name = buyer_details.get('buyerLegalName')
+                buyer_business_name = buyer_details.get('buyerBusinessName')
+                buyer_tin_efris = buyer_details.get('buyerTin')
+                currency = basic_info.get('currency')
+                gross_amount = float(summary.get('grossAmount', 0)) if summary.get('grossAmount') else float(invoice_data.get('TotalAmt', 0))
+                tax_amount = float(tax_details.get('taxAmount', 0)) if tax_details.get('taxAmount') else None
+                net_amount = float(tax_details.get('netAmount', 0)) if tax_details.get('netAmount') else None
+            
             if not efris_inv:
                 efris_inv = EFRISInvoice(
                     company_id=company_id,
                     qb_invoice_id=invoice_id,
                     qb_invoice_number=invoice_data.get('DocNumber', ''),
-                    invoice_date=invoice_data.get('TxnDate'),
+                    invoice_date=invoice_date,
                     customer_name=qb_customer.get('DisplayName', ''),
                     customer_tin=invoice_data.get('BuyerTin', ''),
                     buyer_type=invoice_data.get('BuyerType', '1'),
                     total_amount=float(invoice_data.get('TotalAmt', 0)),
                     status='success',
                     fdn=fdn,
+                    invoice_no=fdn,
                     efris_invoice_id=efris_invoice_id,
+                    buyer_legal_name=buyer_legal_name or qb_customer.get('DisplayName', ''),
+                    buyer_business_name=buyer_business_name or qb_customer.get('CompanyName', ''),
+                    buyer_tin=buyer_tin_efris,
+                    currency=currency or 'UGX',
+                    gross_amount=gross_amount or float(invoice_data.get('TotalAmt', 0)),
+                    tax_amount=tax_amount,
+                    net_amount=net_amount,
                     efris_payload=efris_invoice,
                     efris_response=result
                 )
@@ -1922,6 +2187,23 @@ async def submit_invoice_to_efris(
                 efris_inv.efris_payload = efris_invoice
                 efris_inv.efris_response = result
                 efris_inv.error_message = None
+                efris_inv.invoice_no = fdn
+                
+                # Update details if available
+                if buyer_legal_name:
+                    efris_inv.buyer_legal_name = buyer_legal_name
+                if buyer_business_name:
+                    efris_inv.buyer_business_name = buyer_business_name
+                if buyer_tin_efris:
+                    efris_inv.buyer_tin = buyer_tin_efris
+                if currency:
+                    efris_inv.currency = currency
+                if gross_amount:
+                    efris_inv.gross_amount = gross_amount
+                if tax_amount is not None:
+                    efris_inv.tax_amount = tax_amount
+                if net_amount is not None:
+                    efris_inv.net_amount = net_amount
             
             db.commit()
             
@@ -1943,12 +2225,17 @@ async def submit_invoice_to_efris(
                 EFRISInvoice.qb_invoice_id == invoice_id
             ).first()
             
+            # Convert invoice_date to date object if it's a string
+            invoice_date = invoice_data.get('TxnDate')
+            if isinstance(invoice_date, str):
+                invoice_date = datetime.strptime(invoice_date, '%Y-%m-%d').date()
+            
             if not efris_inv:
                 efris_inv = EFRISInvoice(
                     company_id=company_id,
                     qb_invoice_id=invoice_id,
                     qb_invoice_number=invoice_data.get('DocNumber', ''),
-                    invoice_date=invoice_data.get('TxnDate'),
+                    invoice_date=invoice_date,
                     customer_name=qb_customer.get('DisplayName', ''),
                     customer_tin=invoice_data.get('BuyerTin', ''),
                     buyer_type=invoice_data.get('BuyerType', '1'),
@@ -2515,7 +2802,13 @@ async def get_saved_qb_items(
             "Type": p.qb_type,
             "EfrisStatus": "Registered" if is_registered else "Pending",
             "EfrisId": p.efris_id,
-            "EfrisProductCode": product_code  # Include for debugging
+            "EfrisProductCode": product_code,  # Include for debugging
+            "IsZeroRated": p.is_zero_rated or False,  # Tax category: Zero-rated (EFRIS code 02)
+            "IsExempt": p.is_exempt or False,  # Tax category: Exempt (EFRIS code 03)
+            "HasExcise": p.has_excise or False,
+            "ExciseDutyCode": p.excise_duty_code or '',
+            "EfrisUnitOfMeasure": p.efris_unit_of_measure or '101',
+            "EfrisCommodityCode": p.efris_commodity_code or ''
         })
     
     return {
@@ -2559,6 +2852,10 @@ async def update_item_efris_metadata(
             product.excise_duty_code = metadata['excise_duty_code']
         if 'efris_product_code' in metadata:
             product.efris_product_code = metadata['efris_product_code']
+        if 'is_zero_rated' in metadata:
+            product.is_zero_rated = metadata['is_zero_rated']
+        if 'is_exempt' in metadata:
+            product.is_exempt = metadata['is_exempt']
         
         product.updated_at = datetime.now()
         db.commit()
@@ -2571,7 +2868,9 @@ async def update_item_efris_metadata(
                 "efris_commodity_code": product.efris_commodity_code,
                 "efris_unit_of_measure": product.efris_unit_of_measure,
                 "has_excise": product.has_excise,
-                "excise_duty_code": product.excise_duty_code
+                "excise_duty_code": product.excise_duty_code,
+                "is_zero_rated": product.is_zero_rated,
+                "is_exempt": product.is_exempt
             }
         }
     except Exception as e:
@@ -2616,6 +2915,18 @@ async def register_qb_items_to_efris(
             measure_unit = p.efris_unit_of_measure or ("102" if is_service else "101")
             commodity_code = p.efris_commodity_code or p.qb_sku or default_category_id
             
+            # Determine tax category based on product settings (used as DEFAULT during registration)
+            # Note: During invoice fiscalization, user can override this per line item
+            # 01 = Standard rated (18% VAT)
+            # 02 = Zero-rated (0% VAT)
+            # 03 = Tax exempt (No VAT)
+            if p.is_zero_rated:
+                tax_category = "02"
+            elif p.is_exempt:
+                tax_category = "03"
+            else:
+                tax_category = "01"  # Default to standard rate
+            
             # For excise items, get the required unit from excise duty reference
             piece_measure_unit = measure_unit
             if p.has_excise and p.excise_duty_code:
@@ -2642,6 +2953,7 @@ async def register_qb_items_to_efris(
                 "currency": "101",  # UGX
                 "commodityCategoryId": commodity_code,
                 "haveExciseTax": "101" if p.has_excise else "102",
+                "taxCategoryCode": tax_category,  # 01=Standard, 02=Zero-rated, 03=Exempt
                 "goodsTypeCode": "101",  # Always 101 for goods/services (102 is for fuel)
                 "serviceMark": "101" if is_service else "102",  # 101=Service, 102=Goods
                 "description": goods_code,
@@ -3024,6 +3336,130 @@ async def import_qb_invoices_to_db(
         }
     except Exception as e:
         db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/companies/{company_id}/qb-invoices/sync-efris")
+async def sync_qb_invoices_with_efris(
+    company_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Sync QB invoices in database with EFRIS fiscalized invoices"""
+    if not verify_company_access(current_user, company_id, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        company = db.query(Company).filter(Company.id == company_id).first()
+        manager = get_efris_manager(company)
+        
+        synced_count = 0
+        print(f"[SYNC] Querying EFRIS for fiscalized invoices...")
+        
+        # Query EFRIS for recent invoices
+        efris_result = manager.query_invoices({'pageNo': '1', 'pageSize': '100'})
+        
+        if isinstance(efris_result, dict) and 'data' in efris_result:
+            efris_data = efris_result['data'].get('decrypted_content', {})
+            efris_records = efris_data.get('records', [])
+            print(f"[SYNC] Found {len(efris_records)} EFRIS invoices")
+            
+            # Match EFRIS invoices with QB invoices by reference number
+            for efris_rec in efris_records:
+                fdn = efris_rec.get('invoiceNo')
+                reference_no = efris_rec.get('referenceNo')  # This is the QB DocNumber
+                
+                if reference_no:
+                    print(f"[SYNC] Checking EFRIS invoice {fdn} with reference {reference_no}")
+                    # Find QB invoice by DocNumber
+                    qb_inv = db.query(Invoice).filter(
+                        Invoice.company_id == company_id,
+                        Invoice.qb_doc_number == reference_no
+                    ).first()
+                    
+                    if qb_inv:
+                        print(f"[SYNC] Found matching QB invoice {reference_no}")
+                        # Check if we have an EFRISInvoice record for this QB invoice
+                        efris_inv = db.query(EFRISInvoice).filter(
+                            EFRISInvoice.company_id == company_id,
+                            EFRISInvoice.qb_invoice_id == qb_inv.qb_invoice_id
+                        ).first()
+                        
+                        # Parse issued date
+                        issued_date = None
+                        try:
+                            if efris_rec.get('issuedDate'):
+                                issued_date = datetime.strptime(efris_rec.get('issuedDate'), '%d/%m/%Y %H:%M:%S')
+                        except:
+                            pass
+                        
+                        # Convert invoice date
+                        invoice_date = qb_inv.qb_txn_date.date() if qb_inv.qb_txn_date else None
+                        
+                        if not efris_inv:
+                            print(f"[SYNC] Creating new EFRIS invoice record for {reference_no}")
+                            # Create EFRIS invoice record with fiscalized status
+                            efris_inv = EFRISInvoice(
+                                company_id=company_id,
+                                qb_invoice_id=qb_inv.qb_invoice_id,
+                                qb_invoice_number=qb_inv.qb_doc_number,
+                                invoice_date=invoice_date,
+                                customer_name=qb_inv.qb_customer_name,
+                                total_amount=qb_inv.qb_total_amt,
+                                status='success',
+                                fdn=fdn,
+                                invoice_no=fdn,
+                                buyer_legal_name=efris_rec.get('buyerLegalName'),
+                                buyer_business_name=efris_rec.get('buyerBusinessName'),
+                                buyer_tin=efris_rec.get('buyerTin'),
+                                currency=efris_rec.get('currency'),
+                                gross_amount=float(efris_rec.get('grossAmount', 0)),
+                                tax_amount=float(efris_rec.get('taxAmount', 0)),
+                                net_amount=float(efris_rec.get('netAmount', 0)) if efris_rec.get('netAmount') else None,
+                                issued_date=issued_date,
+                                efris_data=efris_rec
+                            )
+                            db.add(efris_inv)
+                            synced_count += 1
+                        elif not efris_inv.fdn or efris_inv.status != 'success':
+                            print(f"[SYNC] Updating existing EFRIS invoice record for {reference_no}")
+                            # Update existing record that doesn't have FDN yet or is not marked as success
+                            efris_inv.status = 'success'
+                            efris_inv.fdn = fdn
+                            efris_inv.invoice_no = fdn
+                            efris_inv.error_message = None
+                            efris_inv.buyer_legal_name = efris_rec.get('buyerLegalName')
+                            efris_inv.buyer_business_name = efris_rec.get('buyerBusinessName')
+                            efris_inv.buyer_tin = efris_rec.get('buyerTin')
+                            efris_inv.currency = efris_rec.get('currency')
+                            efris_inv.gross_amount = float(efris_rec.get('grossAmount', 0))
+                            efris_inv.tax_amount = float(efris_rec.get('taxAmount', 0))
+                            efris_inv.net_amount = float(efris_rec.get('netAmount', 0)) if efris_rec.get('netAmount') else None
+                            efris_inv.issued_date = issued_date
+                            efris_inv.efris_data = efris_rec
+                            synced_count += 1
+            
+            if synced_count > 0:
+                db.commit()
+                print(f"[SYNC] Successfully synced {synced_count} invoices with EFRIS")
+            
+            return {
+                "success": True,
+                "message": f"Synced {synced_count} invoices with EFRIS",
+                "synced_count": synced_count,
+                "efris_count": len(efris_records)
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Could not retrieve EFRIS invoices",
+                "synced_count": 0
+            }
+            
+    except Exception as e:
+        print(f"[SYNC] Error syncing with EFRIS: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

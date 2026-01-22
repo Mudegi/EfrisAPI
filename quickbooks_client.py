@@ -144,18 +144,27 @@ class QuickBooksClient:
             'Authorization': f'Bearer {self.access_token}'
         }
         
-        response = requests.request(
-            method=method,
-            url=url,
-            headers=headers,
-            params=params,
-            json=data
-        )
-        
-        if response.status_code in [200, 201]:
-            return response.json()
-        else:
-            raise Exception(f"QuickBooks API error: {response.status_code} - {response.text}")
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=headers,
+                params=params,
+                json=data
+            )
+            
+            if response.status_code in [200, 201]:
+                # Check if response has content before parsing JSON
+                if not response.text:
+                    raise Exception(f"Empty response from QuickBooks API for {endpoint}")
+                try:
+                    return response.json()
+                except ValueError as e:
+                    raise Exception(f"Invalid JSON response from QuickBooks: {response.text[:200]}")
+            else:
+                raise Exception(f"QuickBooks API error: {response.status_code} - {response.text}")
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Network error calling QuickBooks API: {str(e)}")
     
     # ========== PRODUCTS/ITEMS ==========
     
@@ -247,6 +256,13 @@ class QuickBooksClient:
         
         result = self._make_request('GET', 'query', params=params)
         return result.get('QueryResponse', {}).get('Customer', [])
+    
+    def get_tax_codes(self) -> List[Dict]:
+        """Fetch all TaxCode definitions from QuickBooks"""
+        query = "SELECT * FROM TaxCode"
+        params = {'query': query}
+        result = self._make_request('GET', 'query', params=params)
+        return result.get('QueryResponse', {}).get('TaxCode', [])
     
     def get_customer_by_id(self, customer_id: str) -> Dict:
         """Fetch specific customer by ID"""

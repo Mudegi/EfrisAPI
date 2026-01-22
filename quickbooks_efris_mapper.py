@@ -70,8 +70,15 @@ class QuickBooksEfrisMapper:
         return product
     
     @staticmethod
-    def map_invoice_to_efris(qb_invoice: Dict, qb_customer: Dict, company_info: Dict) -> Dict:
-        """Map QuickBooks Invoice to EFRIS Invoice format"""
+    def map_invoice_to_efris(qb_invoice: Dict, qb_customer: Dict, company_info: Dict, line_item_tax_categories: Dict = None) -> Dict:
+        """Map QuickBooks Invoice to EFRIS Invoice format
+        
+        Args:
+            qb_invoice: QuickBooks Invoice object
+            qb_customer: QuickBooks Customer object
+            company_info: Company information
+            line_item_tax_categories: Dict mapping line IDs to tax category codes (01/02/03)
+        """
         
         # Get buyer type from invoice (set in dashboard), default to 1 (Individual/General - no TIN required)
         buyer_type = qb_invoice.get('BuyerType', '1')
@@ -101,6 +108,10 @@ class QuickBooksEfrisMapper:
         }
         
         # Map seller details from company info
+        seller_reference_no = qb_invoice.get('DocNumber', '')
+        print(f"[T109] Invoice DocNumber (Seller Reference): '{seller_reference_no}'")
+        print(f"[T109] Invoice Id: {qb_invoice.get('Id', 'N/A')}")
+        
         seller_details = {
             "tin": company_info.get('EfrisTin') or company_info.get('TaxIdentifier', ''),
             "ninBrn": "",
@@ -111,7 +122,7 @@ class QuickBooksEfrisMapper:
             "linePhone": "",
             "emailAddress": company_info.get('Email', {}).get('Address', ''),
             "placeOfBusiness": company_info.get('Country', 'Uganda'),
-            "referenceNo": qb_invoice.get('DocNumber', '')
+            "referenceNo": seller_reference_no
         }
         
         # Map basic information (T109 spec page 90-91)
@@ -199,6 +210,38 @@ class QuickBooksEfrisMapper:
                 quantity = detail.get('Qty', 1)
                 qb_unit_price = detail.get('UnitPrice', 0)  # QuickBooks price (includes excise)
                 amount = line.get('Amount', 0)
+                
+                # DEBUG: Log QuickBooks API values
+                print(f"[T109] QB API values - Qty: {quantity}, UnitPrice: {qb_unit_price}, Line.Amount: {amount}")
+                
+                # CRITICAL VALIDATION: Check if invoice is tax-inclusive or tax-exclusive
+                # Different handling for UK vs US QuickBooks
+                
+                # Get region
+                qb_region = company_info.get('qb_region', 'US')
+                print(f"[T109] Company region detected: {qb_region}")
+                
+                # Check if amount includes tax or not
+                # Tax-inclusive: Line.Amount ≈ UnitPrice × Qty (tax already in the amount)
+                # Tax-exclusive: Line.Amount < UnitPrice × Qty (tax is added separately)
+                expected_subtotal = qb_unit_price * quantity
+                is_tax_inclusive = abs(amount - expected_subtotal) < 0.01
+                
+                # UK QuickBooks: MUST be tax-inclusive, reject if exclusive
+                if qb_region in ['UK', 'UK_SANDBOX'] and not is_tax_inclusive:
+                    error_msg = (
+                        f"❌ CONFIGURATION ERROR: QuickBooks UK invoice must be TAX-INCLUSIVE.\n\n"
+                        f"Item: {item_name}\n"
+                        f"QuickBooks shows: UnitPrice={qb_unit_price}, Qty={quantity}, Amount={amount}\n\n"
+                        f"⚠️ UK QuickBooks should always use tax-inclusive pricing.\n\n"
+                        f"📋 TO FIX:\n"
+                        f"1. In QuickBooks, go to Settings → Sales → VAT\n"
+                        f"2. Ensure VAT is set to 'Inclusive'\n"
+                        f"3. Re-create the invoice\n"
+                        f"4. Then fiscalize the new invoice\n\n"
+                        f"This validation ensures EFRIS receipt matches your QuickBooks invoice."
+                    )
+                    raise ValueError(error_msg)
                 
                 # Extract excise duty from QuickBooks unit price
                 # QuickBooks selling price includes excise, but EFRIS expects them separate
@@ -297,27 +340,54 @@ class QuickBooksEfrisMapper:
                 
                 # EFRIS TAX HANDLING - CRITICAL UNDERSTANDING:
                 # 
-                # EFRIS assumes ALL prices/totals are TAX-INCLUSIVE
+                # EFRIS assumes ALL prices/totals are TAX-INCLUSIVE (gross amounts)
                 # EFRIS extracts VAT using: tax = total × rate / (1 + rate)
                 # 
-                # QuickBooks behavior:
-                #   - Unit price: 500 (selling price)
-                #   - Qty: 10
-                #   - Line Amount: Could be discounted (e.g., 4500 if 10% discount)
-                # 
-                # For discounts:
-                #   - total = unit_price × qty (full price before discount)
-                #   - discountTotal = discount amount (negative)
-                #   - EFRIS calculates: effective = total + discountTotal
-                #   - EFRIS extracts VAT from the effective amount
+                # QuickBooks behavior by region:
+                # - UK "Inclusive of Tax": API returns NET prices, we add VAT to get GROSS
+                # - US tax-inclusive: API may return NET, we add VAT to get GROSS
+                # - US tax-exclusive: API returns NET prices, we add VAT to get GROSS
                 #
-                # The QB Line.Amount tells us the final price AFTER discount
-                #
-                full_total = round(unit_price * quantity, 2)  # Full price before discount
+                qb_region = company_info.get('qb_region', 'US')
+                
+                # Determine if we need to convert prices to tax-inclusive
+                # Track if we did a conversion (to skip discount detection later)
+                did_tax_conversion = False
+                
+                if qb_region in ['UK', 'UK_SANDBOX']:
+                    # UK: QuickBooks API returns NET price, add VAT to get GROSS for EFRIS
+                    if tax_rate > 0:
+                        inclusive_unit_price = unit_price * (1 + tax_rate)
+                        did_tax_conversion = True
+                        print(f"[T109] UK (tax-inclusive): Converting NET {unit_price:.2f} → GROSS {inclusive_unit_price:.2f} (adding {tax_rate*100}% VAT)")
+                    else:
+                        inclusive_unit_price = unit_price
+                        print(f"[T109] UK (zero/exempt): Using price as-is: {inclusive_unit_price:.2f}")
+                elif is_tax_inclusive:
+                    # US with tax-inclusive configuration: API may return NET, so add VAT
+                    if tax_rate > 0:
+                        inclusive_unit_price = unit_price * (1 + tax_rate)
+                        did_tax_conversion = True
+                        print(f"[T109] US (tax-inclusive): Converting NET {unit_price:.2f} → GROSS {inclusive_unit_price:.2f} (adding {tax_rate*100}% VAT)")
+                    else:
+                        inclusive_unit_price = unit_price
+                        print(f"[T109] US (tax-inclusive, zero/exempt): Using price as-is: {inclusive_unit_price:.2f}")
+                else:
+                    # US with tax-exclusive configuration, convert to inclusive
+                    if tax_rate > 0:
+                        inclusive_unit_price = unit_price * (1 + tax_rate)
+                        did_tax_conversion = True
+                        print(f"[T109] US (tax-exclusive): Converting {unit_price:.2f} → {inclusive_unit_price:.2f} (adding {tax_rate*100}% tax)")
+                    else:
+                        inclusive_unit_price = unit_price  # No tax, use as-is
+                
+                # Calculate full total with inclusive price
+                full_total = round(inclusive_unit_price * quantity, 2)  # Full price before discount (INCLUSIVE)
                 
                 # Check if there's a discount by comparing full total vs QB amount
                 # QB Line.Amount is the final amount after any discount
-                if abs(full_total - amount) > 0.01 and invoice_level_discount_amount == 0:
+                # SKIP discount detection if we did a tax conversion (NET→GROSS), because QB amount is NET
+                if not did_tax_conversion and abs(full_total - amount) > 0.01 and invoice_level_discount_amount == 0:
                     # Line has implicit discount
                     line_discount = round(full_total - amount, 2)
                     has_discount = True
@@ -328,36 +398,19 @@ class QuickBooksEfrisMapper:
                 line_total = full_total
                 
                 if tax_rate > 0:
-                    # Region-aware VAT calculation
-                    qb_region = company_info.get('qb_region', 'US')  # Default to US
-                    
-                    if qb_region == 'UK':
-                        # QBO UK: amounts are already tax-inclusive
-                        # Use QB's calculated VAT directly if available
-                        qb_vat_amount = line_item.get('TaxAmount', 0) if hasattr(line_item, 'get') else 0
-                        if qb_vat_amount > 0:
-                            vat_amount = float(qb_vat_amount)
-                            print(f"[T109] Using QBO UK VAT amount directly: {vat_amount:.2f}")
-                        else:
-                            # Extract VAT from inclusive amount (same as US logic)
-                            effective_amount = line_total - discount_amount if has_discount else line_total
-                            vat_amount = round((tax_rate / (1 + tax_rate)) * effective_amount, 2)
-                            print(f"[T109] Extracted VAT from UK inclusive amount: {vat_amount:.2f}")
-                    else:
-                        # QBO US/other: tax-exclusive, extract VAT from inclusive amount
-                        effective_amount = line_total - discount_amount if has_discount else line_total
-                        vat_amount = round((tax_rate / (1 + tax_rate)) * effective_amount, 2)
-                        print(f"[T109] VAT calculation ({qb_region}): total={line_total:.2f}, discount={discount_amount:.2f}, effective={effective_amount:.2f}, VAT={vat_amount:.2f}")
-                    
-                    net_amount = (line_total - discount_amount) - vat_amount
+                    # Calculate VAT from the inclusive amount (EFRIS extracts VAT from gross)
+                    effective_amount = full_total - discount_amount if has_discount else full_total
+                    vat_amount = round((tax_rate / (1 + tax_rate)) * effective_amount, 2)
+                    net_amount = effective_amount - vat_amount
+                    print(f"[T109] VAT calculation: total={full_total:.2f}, discount={discount_amount:.2f}, effective={effective_amount:.2f}, VAT={vat_amount:.2f}")
                 else:
                     # Zero-rated or exempt - no VAT
                     vat_amount = 0
-                    effective_amount = line_total - discount_amount if has_discount else line_total
+                    effective_amount = full_total - discount_amount if has_discount else full_total
                     net_amount = effective_amount
-                    print(f"[T109] Zero-rated/Exempt: total={line_total:.2f}, discount={discount_amount:.2f}, effective={effective_amount:.2f}")
+                    print(f"[T109] Zero-rated/Exempt: total={full_total:.2f}, discount={discount_amount:.2f}, effective={effective_amount:.2f}")
                 
-                print(f"[T109] Unit price: {unit_price:.2f}")
+                print(f"[T109] Unit price: {inclusive_unit_price:.2f}")
                 
                 # T109 goodsDetails structure (page 92-94)
                 # CRITICAL: Use the EXACT unit that was registered with T123
@@ -408,33 +461,73 @@ class QuickBooksEfrisMapper:
                 # 01 = Standard VAT (18%)
                 # 02 = Zero-rated (0%)
                 # 03 = Exempt
-                if tax_rate == 0:
-                    # Check if it's zero-rated or exempt
-                    tax_code_name = detail.get('TaxCodeRef', {}).get('name', '').upper()
-                    if 'EXEMPT' in tax_code_name:
-                        tax_category_code = "03"  # Exempt
+                
+                # Get user-selected tax category for this line item (if provided)
+                line_id = line.get('Id', '')
+                if line_item_tax_categories and line_id in line_item_tax_categories:
+                    # Use user-selected category from UI
+                    tax_category_code = line_item_tax_categories[line_id]
+                    print(f"[T109] Using user-selected tax category '{tax_category_code}' for line {line_id}")
+                    
+                    # Set flags based on selected category
+                    if tax_category_code == "03":  # Exempt
                         is_exempt = "101"  # Yes
                         is_zero_rate = "102"  # No
-                    else:
-                        tax_category_code = "02"  # Zero-rated
+                    elif tax_category_code == "02":  # Zero-rated
                         is_zero_rate = "101"  # Yes
                         is_exempt = "102"  # No
+                    else:  # "01" Standard
+                        is_zero_rate = "102"  # No
+                        is_exempt = "102"  # No
                 else:
-                    tax_category_code = "01"  # Standard VAT
-                    is_zero_rate = "102"  # No
-                    is_exempt = "102"  # No
+                    # Fallback to automatic detection based on tax rate and EFRIS registration
+                    if tax_rate == 0:
+                        # Priority 1: Use EFRIS registration metadata (most reliable)
+                        is_zero_rated_meta = item_details.get('IsZeroRated', False)
+                        is_exempt_meta = item_details.get('IsExempt', False)
+                        
+                        print(f"[T109] Item {item_name}: tax_rate=0, IsExempt={is_exempt_meta}, IsZeroRated={is_zero_rated_meta}")
+                        
+                        if is_exempt_meta:
+                            # Product registered as Exempt in EFRIS
+                            tax_category_code = "03"  # Exempt
+                            is_exempt = "101"  # Yes
+                            is_zero_rate = "102"  # No
+                        elif is_zero_rated_meta:
+                            # Product registered as Zero-rated in EFRIS
+                            tax_category_code = "02"  # Zero-rated
+                            is_zero_rate = "101"  # Yes
+                            is_exempt = "102"  # No
+                        else:
+                            # Priority 2: Check QuickBooks TaxCodeRef name
+                            tax_code_name = item_details.get('TaxCodeName', '') or detail.get('TaxCodeRef', {}).get('name', '')
+                            tax_code_name = tax_code_name.upper()
+                            
+                            if 'EXEMPT' in tax_code_name:
+                                tax_category_code = "03"  # Exempt
+                                is_exempt = "101"  # Yes
+                                is_zero_rate = "102"  # No
+                            else:
+                                # Default to zero-rated for 0% tax
+                                tax_category_code = "02"  # Zero-rated
+                                is_zero_rate = "101"  # Yes
+                                is_exempt = "102"  # No
+                    else:
+                        tax_category_code = "01"  # Standard VAT
+                        is_zero_rate = "102"  # No
+                        is_exempt = "102"  # No
                 
                 goods_item = {
                     "item": item_name,
                     "itemCode": item_code,  # Product code (Description field) registered in EFRIS
                     "qty": str(quantity),
                     "unitOfMeasure": unit_of_measure,  # Use same unit as product registration
-                    "unitPrice": str(unit_price),  # Unit price (EFRIS treats as inclusive)
-                    "total": str(line_total),  # Full price before discount (unitPrice × qty)
-                    "taxRate": str(tax_rate),
+                    "unitPrice": str(inclusive_unit_price),  # Unit price (TAX-INCLUSIVE for EFRIS)
+                    "total": str(full_total),  # Full price before discount (unitPrice × qty, INCLUSIVE)
+                    "taxRate": "-" if tax_category_code == "03" else str(tax_rate),  # "-" for Exempt, "0" for Zero-rated, "0.18" for Standard
                     "tax": str(round(vat_amount, 2)),  # VAT on effective (discounted) amount
                     "discountTotal": str(-abs(discount_amount)) if has_discount else "",  # NEGATIVE per EFRIS spec
-                    "discountTaxRate": str(tax_rate) if has_discount and tax_rate > 0 else "",  # Tax rate on discount
+                    "discountTaxRate": "-" if (tax_category_code == "03" and has_discount) else (str(tax_rate) if has_discount and tax_rate > 0 else ""),  # Tax rate on discount
                     "orderNumber": str(idx),
                     "discountFlag": "1" if has_discount else "2",  # 1=Has discount, 2=No discount
                     "deemedFlag": "1" if is_deemed else "2",  # 1=Deemed VAT, 2=Not deemed
@@ -454,7 +547,7 @@ class QuickBooksEfrisMapper:
                     "taxCategoryCode": tax_category_code,  # 01=Standard, 02=Zero-rated, 03=Exempt
                     "isZeroRate": is_zero_rate,  # 101=Yes, 102=No
                     "isExempt": is_exempt,  # 101=Yes, 102=No
-                    "vatApplicableFlag": "1" if tax_rate > 0 else "2"  # 1=VAT applicable, 2=Not applicable
+                    "vatApplicableFlag": "1"  # Always "1" - VAT is applicable for all categories (Standard/Zero/Exempt)
                 }
                 
                 # Add deemed VAT project info if applicable
@@ -490,7 +583,32 @@ class QuickBooksEfrisMapper:
             total_before_discount = sum(float(item['total']) for item in goods_details)
             
             if total_before_discount > 0:
-                # Distribute discount proportionally to ALL items
+                # QuickBooks (tax-inclusive mode) applies discount to NET amounts for taxable items
+                # For exempt/zero-rated, discount applies to GROSS amounts
+                # Calculate total NET value (excluding VAT) for proportional distribution
+                total_net_value = 0
+                item_net_values = []
+                
+                for item in goods_details:
+                    item_total = float(item['total'])
+                    tax_rate_str = item.get('taxRate', '0')
+                    
+                    if tax_rate_str == '-' or tax_rate_str == '':
+                        tax_rate = 0
+                    else:
+                        tax_rate = float(tax_rate_str)
+                    
+                    # For taxable items, extract NET amount (remove VAT)
+                    # For non-taxable items, use GROSS amount
+                    if tax_rate > 0:
+                        item_net = item_total / (1 + tax_rate)
+                    else:
+                        item_net = item_total
+                    
+                    item_net_values.append(item_net)
+                    total_net_value += item_net
+                
+                # Distribute discount proportionally based on NET values
                 remaining_discount = invoice_level_discount_amount
                 
                 # We'll build a new list with discount detail lines inserted
@@ -498,21 +616,34 @@ class QuickBooksEfrisMapper:
                 
                 for idx, item in enumerate(goods_details):
                     item_total = float(item['total'])
-                    tax_rate = float(item['taxRate'])
+                    item_net = item_net_values[idx]
                     
-                    # Calculate this item's share of the discount
+                    # Handle taxRate - can be numeric or "-" for exempt
+                    tax_rate_str = item.get('taxRate', '0')
+                    if tax_rate_str == '-' or tax_rate_str == '':
+                        tax_rate = 0
+                    else:
+                        tax_rate = float(tax_rate_str)
+                    
+                    # Calculate this item's share of discount based on NET value
                     if idx == len(goods_details) - 1:
                         # Last item gets remaining to avoid rounding errors
-                        item_discount = remaining_discount
+                        item_discount_net = round(remaining_discount, 2)
                     else:
-                        # Proportional discount
-                        item_discount = round((item_total / total_before_discount) * invoice_level_discount_amount, 2)
-                        remaining_discount -= item_discount
+                        # Proportional discount based on NET value
+                        item_discount_net = round((item_net / total_net_value) * invoice_level_discount_amount, 2)
+                        remaining_discount -= item_discount_net
+                    
+                    # For taxable items, convert discount back to GROSS (include VAT in discount)
+                    if tax_rate > 0:
+                        item_discount = round(item_discount_net * (1 + tax_rate), 2)
+                    else:
+                        item_discount = item_discount_net
                     
                     if item_discount > 0.01:
                         # Mark this item as having a discount (discountFlag=1)
                         # EFRIS requirement: discountTotal on flag=1 line must match total on flag=0 line
-                        discount_total_value = str(-abs(item_discount))  # NEGATIVE
+                        discount_total_value = str(round(-abs(item_discount), 2))  # NEGATIVE, properly rounded
                         item['discountFlag'] = "1"  # Has discount - next line will be detail
                         item['discountTotal'] = discount_total_value  # Set discount amount here
                         item['discountTaxRate'] = str(tax_rate) if tax_rate > 0 else ""
@@ -522,10 +653,15 @@ class QuickBooksEfrisMapper:
                         # Create discount detail line (discountFlag=0)
                         # EFRIS REQUIREMENT: 
                         #   - item name must end with " (Discount)" when discountFlag=0
-                        #   - total must match discountTotal from the flag=1 line
+                        #   - total must match discountTotal from flag=1 line
                         discount_vat = round((tax_rate / (1 + tax_rate)) * item_discount, 2) if tax_rate > 0 else 0
                         item_name = item.get('item', '')
                         discount_item_name = f"{item_name} (Discount)"  # EFRIS required format
+                        
+                        # Get tax category from the original item
+                        tax_category_code = item.get('taxCategoryCode', '01')
+                        original_tax_rate = item.get('taxRate', '0')
+                        
                         discount_detail = {
                             "item": discount_item_name,  # Must end with " (Discount)"
                             "itemCode": item.get('itemCode', ''),  # Same code
@@ -533,8 +669,8 @@ class QuickBooksEfrisMapper:
                             "unitOfMeasure": "",  # Empty for discount line
                             "unitPrice": "",  # Empty for discount line
                             "total": discount_total_value,  # Must match discountTotal from flag=1 line
-                            "taxRate": str(tax_rate) if tax_rate > 0 else "",
-                            "tax": str(-abs(discount_vat)) if discount_vat > 0 else "",  # NEGATIVE VAT on discount
+                            "taxRate": original_tax_rate,  # Inherit from parent item ("-" for exempt, "0.0" for zero-rated, rate for standard)
+                            "tax": str(-abs(discount_vat)) if discount_vat > 0 else "0",  # "0" not empty string
                             "discountTotal": "",
                             "discountTaxRate": "",
                             "discountFlag": "0",  # Discount detail line
@@ -552,6 +688,7 @@ class QuickBooksEfrisMapper:
                             "exciseCurrency": "",
                             "exciseRateName": "",
                             "orderNumber": str(len(new_goods_details)),
+                            "taxCategoryCode": tax_category_code,  # Inherit from parent
                             "isZeroRate": item.get('isZeroRate', '102'),
                             "isExempt": item.get('isExempt', '102'),
                         }
@@ -606,7 +743,13 @@ class QuickBooksEfrisMapper:
             cat_code = item.get('taxCategoryCode', '01')
             item_total = float(item['total']) if item.get('total', '') else 0  # Can be negative for discount lines
             item_tax = float(item['tax']) if item.get('tax', '') else 0  # Can be negative for discount lines
-            item_rate = float(item['taxRate']) if item.get('taxRate', '') else 0
+            
+            # Handle taxRate - can be numeric or "-" for exempt
+            tax_rate_str = item.get('taxRate', '')
+            if tax_rate_str == '-' or tax_rate_str == '':
+                item_rate = 0
+            else:
+                item_rate = float(tax_rate_str)
             
             # Simple sum - discount lines already have negative values
             # gross = sum of all totals (including negative discount lines)
@@ -658,7 +801,7 @@ class QuickBooksEfrisMapper:
             tax_detail = {
                 "taxCategoryCode": cat_code,  # 01=Standard, 02=Zero-rated, 03=Exempt
                 "netAmount": str(round(net_amount_details, 2)),
-                "taxRate": str(rate),
+                "taxRate": "-" if cat_code == "03" else str(rate),  # "-" for Exempt, numeric for others
                 "taxAmount": str(round(total_vat, 2)),  # Total VAT (base + excise)
                 "grossAmount": str(round(gross_amount, 2)),
                 "tax": str(round(category_total_tax, 2)),  # VAT + Excise

@@ -107,6 +107,10 @@ class Product(Base):
     excise_rate = Column(String(50))
     excise_rule = Column(String(10))
     
+    # Tax Classification
+    is_zero_rated = Column(Boolean, default=False)  # 0% VAT
+    is_exempt = Column(Boolean, default=False)  # Tax exempt
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

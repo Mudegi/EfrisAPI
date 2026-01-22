@@ -922,6 +922,7 @@
                             <div style="display:flex; gap:0.5rem; align-items:center;">
                                 <input type="text" id="qbInvoicesSearch" placeholder="🔍 Search invoices..." style="padding:0.5rem 1rem; border:2px solid #e0e0e0; border-radius:6px; font-size:0.9rem; width:250px;" oninput="searchQBInvoices(this.value)" onkeypress="if(event.key==='Enter'){searchQBInvoices(this.value)}" />
                                 <button class="btn btn-primary" onclick="importFromQuickBooks('invoices')">📥 Import from QuickBooks</button>
+                                <button class="btn btn-secondary" onclick="syncQBInvoicesWithEFRIS()">🔄 Sync with EFRIS</button>
                             </div>
                         </div>
                         <div class="card-body" id="qbInvoicesContent">
@@ -1411,6 +1412,30 @@
                         <option value="LED200000">LED200000 - Wines (20%)</option>
                     </select>
                     <small style="color: #e67e22; display: block; margin-top: 5px;">⚠️ Select the appropriate excise duty code for this item</small>
+                </div>
+
+                <div style="margin-bottom: 20px; padding: 15px; background: #e8f8f5; border-radius: 8px; border: 1px solid #16a085;">
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="editIsZeroRated" 
+                                   style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+                            <span style="font-weight: bold; color: #2c3e50;">Zero-Rated (0% VAT)</span>
+                        </label>
+                        <small style="color: #16a085; display: block; margin-left: 28px; margin-top: 4px;">
+                            ✓ Applies 0% VAT (e.g., exports, certain food items)
+                        </small>
+                    </div>
+                    
+                    <div>
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="editIsExempt" 
+                                   style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+                            <span style="font-weight: bold; color: #2c3e50;">Tax Exempt</span>
+                        </label>
+                        <small style="color: #16a085; display: block; margin-left: 28px; margin-top: 4px;">
+                            ✓ Completely exempt from VAT (e.g., medical supplies, education)
+                        </small>
+                    </div>
                 </div>
 
                 <div style="display: flex; gap: 10px; margin-top: 25px;">
@@ -2386,10 +2411,18 @@
                 }
             }
             
-            // Reset excise fields
-            document.getElementById('editHasExcise').checked = false;
-            document.getElementById('editExciseDutyCode').value = '';
-            document.getElementById('exciseFields').style.display = 'none';
+            // Load excise fields from existing data (don't reset if item has excise info)
+            const hasExcise = item.HasExcise || false;
+            document.getElementById('editHasExcise').checked = hasExcise;
+            document.getElementById('editExciseDutyCode').value = item.ExciseDutyCode || '';
+            document.getElementById('exciseFields').style.display = hasExcise ? 'block' : 'none';
+            
+            // Load zero-rated and exempt fields from existing data
+            // CRITICAL: These must be preserved to distinguish between Zero-rated (02) and Exempt (03) in EFRIS
+            document.getElementById('editIsZeroRated').checked = item.IsZeroRated || false;
+            document.getElementById('editIsExempt').checked = item.IsExempt || false;
+            
+            console.log('[Edit Item] Tax flags loaded - IsZeroRated:', item.IsZeroRated, 'IsExempt:', item.IsExempt);
             
             // Populate excise codes dropdown from database
             populateExciseCodes();
@@ -2431,7 +2464,9 @@
                 efris_unit_of_measure: unitValue,
                 has_excise: document.getElementById('editHasExcise').checked,
                 excise_duty_code: document.getElementById('editHasExcise').checked ? 
-                                 document.getElementById('editExciseDutyCode').value : null
+                                 document.getElementById('editExciseDutyCode').value : null,
+                is_zero_rated: document.getElementById('editIsZeroRated').checked,
+                is_exempt: document.getElementById('editIsExempt').checked
             };
             
             try {
@@ -2681,17 +2716,37 @@
                     
                     console.log('Final discount - Percent:', discountPercent, 'Amount:', discountAmount);
                     
-                    // Get tax rate
-                    let taxRate = itemDetails.TaxRate || 0.18;
+                    // Get tax rate from backend (already determined from QuickBooks)
+                    let taxRate = itemDetails.TaxRate !== undefined ? itemDetails.TaxRate : 0.18;
                     const taxCodeName = (detail.TaxCodeRef?.name || '').toUpperCase();
                     if (taxCodeName.includes('EXEMPT') || taxCodeName.includes('ZERO')) {
                         taxRate = 0;
                     }
                     
                     // Determine tax category and badge
+                    // Priority 1: Use IsExempt/IsZeroRated from backend (saved in database by user)
+                    // Priority 2: Fall back to QuickBooks TaxCodeRef name detection
                     let taxBadge = '';
                     let taxBgColor = '#28a745';
-                    if (taxRate === 0) {
+                    
+                    // Check backend flags first (these are saved values from control panel)
+                    const isExemptFromDB = itemDetails.IsExempt || false;
+                    const isZeroRatedFromDB = itemDetails.IsZeroRated || false;
+                    
+                    console.log(`[Tax Badge] Item: ${itemDetails.Name}, IsExempt=${isExemptFromDB}, IsZeroRated=${isZeroRatedFromDB}, TaxCodeName=${taxCodeName}`);
+                    
+                    if (isExemptFromDB) {
+                        // User explicitly marked as Exempt in control panel
+                        taxBadge = 'EXEMPT';
+                        taxBgColor = '#fd7e14';  // Orange for exempt
+                        taxRate = 0;
+                    } else if (isZeroRatedFromDB) {
+                        // User explicitly marked as Zero-rated in control panel
+                        taxBadge = '0% Zero';
+                        taxBgColor = '#17a2b8';  // Cyan for zero-rated
+                        taxRate = 0;
+                    } else if (taxRate === 0) {
+                        // Fall back to QB TaxCodeName detection for 0% items
                         if (taxCodeName.includes('EXEMPT')) {
                             taxBadge = 'EXEMPT';
                             taxBgColor = '#fd7e14';
@@ -2780,6 +2835,7 @@
             let subtotal = 0;
             let totalDiscount = 0;
             let totalExcise = 0;
+            let totalVAT = 0;
             
             const lineItems = currentEditingInvoice.Line || [];
             
@@ -2838,14 +2894,35 @@
                         lineDiscount = detail.DiscountAmt;
                         totalDiscount += lineDiscount;
                     }
+                    
+                    // Calculate VAT for this line based on its tax category
+                    const lineNetAmount = lineTotal - lineDiscount;
+                    const lineTaxableAmount = lineNetAmount + lineExcise;
+                    
+                    // Determine tax rate based on item details
+                    let lineTaxRate = 0;
+                    
+                    // Check if item is Exempt or Zero-rated
+                    if (itemDetails.IsExempt) {
+                        lineTaxRate = 0; // Exempt - no VAT
+                        console.log(`  Line ${line.Id || ''} - EXEMPT: No VAT`);
+                    } else if (itemDetails.IsZeroRated) {
+                        lineTaxRate = 0; // Zero-rated - no VAT
+                        console.log(`  Line ${line.Id || ''} - ZERO-RATED: No VAT`);
+                    } else {
+                        // Standard rate - check TaxRate or default to 18%
+                        lineTaxRate = parseFloat(itemDetails.TaxRate || detail.TaxRate || 0.18);
+                        console.log(`  Line ${line.Id || ''} - STANDARD: ${lineTaxRate * 100}% VAT`);
+                    }
+                    
+                    const lineVAT = lineTaxableAmount * lineTaxRate;
+                    totalVAT += lineVAT;
                 }
             }
             
-            // Calculate VAT on (net amount + excise) - VAT is on both base and excise
+            // Calculate totals
             const netAmount = subtotal - totalDiscount;
             const taxableAmount = netAmount + totalExcise;
-            const totalVAT = taxableAmount * 0.18; // 18% on (net + excise)
-            
             const grandTotal = netAmount + totalExcise + totalVAT;
             
             console.log('Summary Calculation:');
@@ -2854,7 +2931,7 @@
             console.log('  Net Amount:', netAmount);
             console.log('  Excise:', totalExcise);
             console.log('  Taxable (net + excise):', taxableAmount);
-            console.log('  VAT (18%):', totalVAT);
+            console.log('  VAT (calculated per line):', totalVAT);
             console.log('  Grand Total:', grandTotal);
             
             // Update summary display
@@ -3063,7 +3140,7 @@
                 
                 showToast('Submitting invoice to EFRIS...', 'success');
                 
-                // Prepare invoice data with updated fields
+                // Prepare invoice data with updated fields (tax categories auto-detected from QuickBooks)
                 const invoiceData = {
                     ...currentEditingInvoice,
                     BuyerType: buyerType,
@@ -3110,6 +3187,35 @@
                 const submitBtn = document.getElementById('submitInvoiceBtn');
                 submitBtn.disabled = false;
                 submitBtn.textContent = '💾 Save & Submit to EFRIS';
+            }
+        }
+
+        async function syncQBInvoicesWithEFRIS() {
+            if (!currentCompany) {
+                showToast('Please select a company first', 'error');
+                return;
+            }
+
+            try {
+                showToast('Syncing invoices with EFRIS...', 'success');
+                const response = await fetch(`${API_BASE}/api/companies/${currentCompany.id}/qb-invoices/sync-efris`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to sync with EFRIS');
+
+                const data = await response.json();
+                showToast(data.message || `Synced ${data.synced_count || 0} invoices`, 'success');
+                
+                // Reload invoices to show updated statuses
+                await loadQBData('invoices');
+            } catch (error) {
+                console.error('Sync error:', error);
+                showToast('Failed to sync with EFRIS', 'error');
             }
         }
 
