@@ -1,0 +1,24 @@
+name: Deploy to Production
+on:
+  push:
+    branches:
+      - main  # Runs every time you push to 'main'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: 21098
+          script: |
+            cd /home/${{ secrets.SSH_USER }}/public_html  # Change this to your actual project path
+            git pull origin main
+            # If this is a Laravel/Node project, add commands like 'npm install' or 'composer install' here
