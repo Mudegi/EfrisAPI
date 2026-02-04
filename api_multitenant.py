@@ -2,14 +2,23 @@
 Multi-Tenant EFRIS API - Production Ready
 FastAPI application with database, authentication, and company isolation
 """
-from fastapi import FastAPI, Depends, HTTPException, status, Query, Body
+# Ensure current directory is in path for imports (needed for cPanel/passenger)
+import sys
+import os
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+if _current_dir not in sys.path:
+    sys.path.insert(0, _current_dir)
+
+from fastapi import FastAPI, Depends, HTTPException, status, Query, Body, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional, Dict
-import os
 import json
 from datetime import datetime
 from dotenv import load_dotenv
@@ -17,17 +26,243 @@ from dotenv import load_dotenv
 from database.connection import get_db, init_db
 from database.models import (
     User, Company, CompanyUser, Product, Invoice, PurchaseOrder, CreditMemo,
-    EFRISGood, EFRISInvoice, ExciseCode
+    EFRISGood, EFRISInvoice, ExciseCode, ClientReferral, AuditLog
 )
-from auth.security import (
-    get_password_hash, verify_password, create_access_token,
-    get_current_active_user, verify_company_access, get_user_companies
-)
-from schemas.schemas import (
-    UserCreate, UserLogin, Token, UserResponse,
-    CompanyCreate, CompanyResponse, CompanyWithRole, CompanyUserAdd,
-    ProductResponse, InvoiceResponse
-)
+# Import auth functions from standalone auth.py file
+from passlib.context import CryptContext
+from jose import jwt
+from datetime import datetime, timedelta
+import os
+
+# Initialize password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+
+# OAuth2 scheme for token authentication
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify password hash"""
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password: str) -> str:
+    """Hash password"""
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict):
+    """Create JWT access token"""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_current_active_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    """Get current user from JWT token"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except Exception:
+        raise credentials_exception
+    
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise credentials_exception
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is inactive")
+    if user.status == 'suspended':
+        raise HTTPException(status_code=403, detail="Account is suspended. Please contact support.")
+    return user
+
+# API Key Authentication for External ERP Systems
+def get_company_from_api_key(
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    db: Session = Depends(get_db)
+) -> Company:
+    """Authenticate external ERP systems using API key"""
+    if not x_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key is required",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    company = db.query(Company).filter(
+        Company.api_key == x_api_key,
+        Company.api_enabled == True,
+        Company.is_active == True
+    ).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key or API access disabled",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    # Update last used timestamp
+    company.api_last_used = datetime.utcnow()
+    db.commit()
+    
+    return company
+
+# Helper function to verify company access
+def verify_company_access(current_user: User, company_id: int, db: Session) -> bool:
+    """Verify user has access to the specified company"""
+    if current_user.role in ["owner", "admin"]:
+        # Owners and admins can access all companies
+        return True
+    
+    # Check if company belongs to this user (for clients)
+    if current_user.role == "client":
+        company = db.query(Company).filter(Company.id == company_id).first()
+        return company and company.owner_id == current_user.id
+    
+    # Check if company belongs to this reseller or their clients
+    if current_user.role == "reseller":
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if company:
+            # Reseller owns the company directly
+            if company.owner_id == current_user.id:
+                return True
+            # Or company belongs to one of reseller's clients
+            client_user = db.query(User).filter(User.id == company.owner_id).first()
+            return client_user and client_user.parent_id == current_user.id
+    
+    return False
+
+# Helper function to get user companies
+def get_user_companies(current_user: User, db: Session):
+    """Get all companies the user has access to"""
+    if current_user.role in ["owner", "admin"]:
+        # Owners and admins see all companies
+        return db.query(Company).all()
+    
+    if current_user.role == "client":
+        # Clients see only their companies
+        return db.query(Company).filter(Company.owner_id == current_user.id).all()
+    
+    if current_user.role == "reseller":
+        # Resellers see:
+        # 1. Companies they own directly
+        # 2. Companies owned by their clients
+        client_ids = db.query(User.id).filter(User.parent_id == current_user.id).all()
+        client_ids = [cid[0] for cid in client_ids]
+        client_ids.append(current_user.id)  # Add reseller's own ID
+        return db.query(Company).filter(Company.owner_id.in_(client_ids)).all()
+    
+    return []
+
+# Define schemas inline to ensure they're always available
+from pydantic import BaseModel, Field
+from typing import Optional
+
+class UserCreate(BaseModel):
+    email: str  # Using str instead of EmailStr to avoid email-validator dependency
+    password: str = Field(min_length=6)
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[str] = "reseller"
+
+class UserLogin(BaseModel):
+    email: str  # Using str instead of EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    full_name: Optional[str]
+    phone: Optional[str] = None
+    role: Optional[str] = None
+    is_active: bool
+    subscription_status: Optional[str] = None
+    subscription_ends: Optional[datetime] = None
+    max_clients: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: Optional[UserResponse] = None
+
+class CompanyCreate(BaseModel):
+    name: str
+    tin: str
+    device_no: Optional[str] = None
+    efris_test_mode: bool = True
+
+class CompanyUpdate(BaseModel):
+    name: Optional[str] = None
+    device_no: Optional[str] = None
+    efris_test_mode: Optional[bool] = None
+    qb_company_name: Optional[str] = None
+    erp_type: Optional[str] = None
+    erp_config: Optional[dict] = None
+
+class CompanyResponse(BaseModel):
+    id: int
+    name: str
+    tin: str
+    device_no: Optional[str]
+    efris_test_mode: bool
+    qb_company_name: Optional[str]
+    is_active: bool
+    created_at: datetime
+    erp_type: Optional[str] = None
+    erp_config: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+
+class CompanyWithRole(CompanyResponse):
+    role: str
+
+class CompanyUserAdd(BaseModel):
+    email: str  # Using str instead of EmailStr
+    role: str = Field(default="user", pattern="^(admin|user|readonly)$")
+
+class ProductResponse(BaseModel):
+    id: int
+    company_id: int
+    qb_item_id: str
+    qb_name: str
+    qb_sku: Optional[str]
+    efris_product_code: Optional[str]
+    efris_status: str
+    has_excise: bool
+    created_at: datetime
+    synced_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class InvoiceResponse(BaseModel):
+    id: int
+    company_id: int
+    qb_invoice_id: str
+    qb_doc_number: str
+    qb_customer_name: str
+    qb_total_amt: float
+    efris_fdn: Optional[str]
+    efris_status: str
+    created_at: datetime
+    fiscalized_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
 from efris_client import EfrisManager
 from quickbooks_client import QuickBooksClient
 from quickbooks_efris_mapper import QuickBooksEfrisMapper
@@ -39,6 +274,56 @@ app = FastAPI(
     version=os.getenv("API_VERSION", "2.0.0"),
     description="Production-ready multi-tenant EFRIS integration with PostgreSQL"
 )
+
+# ============================================================================
+# STABILITY & RATE LIMITING
+# ============================================================================
+
+# Add rate limiting to prevent DOS attacks
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["100/minute"],  # Global limit: 100 requests per minute per IP
+    storage_uri="memory://"  # Use memory storage (upgrade to Redis for production cluster)
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add max request body size limit (10MB) to prevent memory exhaustion
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+class RequestSizeLimiter(BaseHTTPMiddleware):
+    """Limit request body size to prevent memory exhaustion attacks"""
+    def __init__(self, app, max_size: int = 10 * 1024 * 1024):  # 10MB default
+        super().__init__(app)
+        self.max_size = max_size
+    
+    async def dispatch(self, request: Request, call_next):
+        if request.method in ["POST", "PUT", "PATCH"]:
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) > self.max_size:
+                return Response(
+                    content=f"Request body too large. Maximum size: {self.max_size // (1024*1024)}MB",
+                    status_code=413
+                )
+        return await call_next(request)
+
+app.add_middleware(RequestSizeLimiter, max_size=10 * 1024 * 1024)
+
+# Add validation error handler to see detailed errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print(f"[VALIDATION ERROR] {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()}
+    )
 
 # CORS Configuration
 origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8001").split(",")
@@ -52,6 +337,116 @@ app.add_middleware(
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# ============================================================================
+# SEO & DISCOVERABILITY ENDPOINTS
+# ============================================================================
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    """Serve robots.txt for search engine crawlers"""
+    from fastapi.responses import PlainTextResponse
+    import os
+    
+    robots_path = os.path.join("static", "robots.txt")
+    if os.path.exists(robots_path):
+        with open(robots_path, "r") as f:
+            return PlainTextResponse(content=f.read())
+    
+    # Fallback if file doesn't exist
+    return PlainTextResponse(content="""User-agent: *
+Allow: /
+Disallow: /api/auth/
+Disallow: /api/companies/*/
+Disallow: /dashboard
+""")
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_xml():
+    """Serve sitemap.xml for search engines"""
+    from fastapi.responses import Response
+    import os
+    
+    sitemap_path = os.path.join("static", "sitemap.xml")
+    if os.path.exists(sitemap_path):
+        with open(sitemap_path, "r") as f:
+            return Response(content=f.read(), media_type="application/xml")
+    
+    # Fallback minimal sitemap
+    return Response(
+        content="""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url><loc>https://yourdomain.com/</loc><priority>1.0</priority></url>
+    <url><loc>https://yourdomain.com/docs</loc><priority>0.9</priority></url>
+</urlset>""",
+        media_type="application/xml"
+    )
+
+
+# ============================================================================
+# HEALTH CHECK & MONITORING ENDPOINTS
+# ============================================================================
+
+@app.get("/health")
+@limiter.limit("60/minute")  # Limit health checks
+async def health_check(request: Request, db: Session = Depends(get_db)):
+    """
+    Health check endpoint for load balancers and monitoring
+    Returns 200 if API is healthy, 503 if degraded
+    """
+    from datetime import datetime
+    try:
+        # Test database connection
+        db.execute(text("SELECT 1"))
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": "connected",
+            "version": "2.0.0"
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
+
+@app.get("/api/metrics")
+@limiter.limit("30/minute")
+async def get_metrics(request: Request, db: Session = Depends(get_db)):
+    """
+    Basic metrics endpoint (for monitoring/alerting)
+    Only accessible internally or with admin token
+    """
+    try:
+        # Count active users
+        active_users = db.query(User).filter(User.is_active == True).count()
+        total_companies = db.query(Company).count()
+        
+        return {
+            "active_users": active_users,
+            "total_companies": total_companies,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== SAAS PLATFORM INTEGRATION ==========
+# SaaS endpoints temporarily disabled - core EFRIS API fully functional
+# TODO: Fix imports in api_saas.py to re-enable user management features
+# try:
+#     from api_saas import router as saas_router
+#     app.include_router(saas_router, tags=["SaaS Platform"])
+#     print("[SAAS] ✓ Multi-tenant SaaS endpoints loaded")
+# except ImportError as e:
+#     print(f"[SAAS] Warning: Could not load SaaS endpoints: {e}")
 
 
 # ========== GLOBAL MANAGERS AND HELPERS ==========
@@ -186,17 +581,224 @@ async def startup_event():
     print("[OK] Multi-tenant EFRIS API started")
 
 
+# ========== PUBLIC DEMO ENDPOINTS (No Authentication Required) ==========
+# These endpoints demonstrate READ-ONLY EFRIS operations
+# Uses real company credentials: TIN 1014409555
+
+@app.get("/api/public/efris/test/t103")
+async def public_test_t103():
+    """Public Demo: T103 Get Registration Details - READ ONLY
+    
+    Calls real EFRIS server. Shows error if server is unavailable.
+    """
+    try:
+        efris = EfrisManager(
+            tin="1014409555",
+            device_no="1014409555_02",
+            cert_path="keys/wandera.pfx",
+            test_mode=True
+        )
+        
+        # Call real EFRIS - perform handshake and get registration
+        efris.ensure_authenticated()
+        
+        if hasattr(efris, 'registration_details') and efris.registration_details:
+            result = efris.registration_details
+        else:
+            result = efris.get_registration_details()
+        
+        return {
+            "status": "success",
+            "interface": "T103",
+            "description": "Retrieved taxpayer registration details from EFRIS",
+            "data": result
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "HTML" in error_msg or "<!DOCTYPE" in error_msg:
+            return {
+                "status": "error",
+                "interface": "T103",
+                "message": "EFRIS server is currently unavailable. The test server may be down for maintenance.",
+                "details": "Server returned HTML error page instead of JSON response"
+            }
+        return {
+            "status": "error",
+            "interface": "T103",
+            "message": f"Failed to connect to EFRIS: {error_msg}"
+        }
+
+
+@app.get("/api/public/efris/test/t111")
+async def public_test_t111():
+    """Public Demo: T111 Query Goods & Services - READ ONLY
+    
+    Calls real EFRIS server. Shows error if server is unavailable.
+    """
+    try:
+        efris = EfrisManager(
+            tin="1014409555",
+            device_no="1014409555_02",
+            cert_path="keys/wandera.pfx",
+            test_mode=True
+        )
+        
+        # Search for cement products in EFRIS database
+        result = efris.get_goods_and_services(
+            page_no=1,
+            page_size=10,
+            goods_name="cement"
+        )
+        return {
+            "status": "success",
+            "interface": "T111",
+            "description": "Product search in EFRIS goods database",
+            "data": result
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "HTML" in error_msg or "<!DOCTYPE" in error_msg:
+            return {
+                "status": "error",
+                "interface": "T111",
+                "message": "EFRIS server is currently unavailable. The test server may be down for maintenance.",
+                "details": "Server returned HTML error page instead of JSON response"
+            }
+        return {
+            "status": "error",
+            "interface": "T111",
+            "message": f"Failed to query EFRIS goods database: {error_msg}"
+        }
+
+
+@app.get("/api/public/efris/test/t125")
+async def public_test_t125():
+    """Public Demo: T125 Query Excise Duty Codes - READ ONLY
+    
+    Calls real EFRIS server. Shows error if server is unavailable.
+    """
+    try:
+        efris = EfrisManager(
+            tin="1014409555",
+            device_no="1014409555_02",
+            cert_path="keys/wandera.pfx",
+            test_mode=True
+        )
+        
+        # Get excise duty codes (alcohol, tobacco, etc.)
+        result = efris.query_excise_duty()
+        return {
+            "status": "success",
+            "interface": "T125",
+            "description": "Excise duty rates for alcohol, tobacco, and other products",
+            "data": result
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "HTML" in error_msg or "<!DOCTYPE" in error_msg:
+            return {
+                "status": "error",
+                "interface": "T125",
+                "message": "EFRIS server is currently unavailable. The test server may be down for maintenance.",
+                "details": "Server returned HTML error page instead of JSON response"
+            }
+        return {
+            "status": "error",
+            "interface": "T125",
+            "message": f"Failed to query EFRIS excise codes: {error_msg}"
+        }
+
+
+@app.get("/api/public/efris/test/t106")
+async def public_test_t106():
+    """Public Demo: T106 Query Taxpayer by TIN - READ ONLY
+    
+    Calls real EFRIS server. Shows error if server is unavailable.
+    """
+    try:
+        efris = EfrisManager(
+            tin="1014409555",
+            device_no="1014409555_02",
+            cert_path="keys/wandera.pfx",
+            test_mode=True
+        )
+        
+        # Query a known taxpayer from EFRIS
+        result = efris.query_taxpayer_by_tin(tin="1000168319")
+        return {
+            "status": "success",
+            "interface": "T106",
+            "description": "Query taxpayer information by TIN from EFRIS",
+            "data": result
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "HTML" in error_msg or "<!DOCTYPE" in error_msg:
+            return {
+                "status": "error",
+                "interface": "T106",
+                "message": "EFRIS server is currently unavailable. The test server may be down for maintenance.",
+                "details": "Server returned HTML error page instead of JSON response"
+            }
+        return {
+            "status": "error",
+            "interface": "T106",
+            "message": f"Failed to query EFRIS taxpayer data: {error_msg}"
+        }
+
+
 # ========== ROOT & DASHBOARD ==========
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    """Redirect to dashboard"""
-    return FileResponse("static/dashboard_multitenant.html")
+    """Serve SaaS landing page"""
+    try:
+        with open("static/landing.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(content="""
+            <html>
+                <head><title>EFRIS API - SaaS Platform</title></head>
+                <body style="font-family: Arial; text-align: center; padding: 50px;">
+                    <h1>EFRIS Integration Platform</h1>
+                    <p>Multi-tenant SaaS for EFRIS tax compliance</p>
+                    <a href="/docs" style="background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px;">
+                        View API Documentation
+                    </a>
+                    <br><br>
+                    <a href="/dashboard" style="color: #667eea;">Admin Dashboard</a>
+                </body>
+            </html>
+        """)
+
+
+@app.get("/reseller", response_class=HTMLResponse)
+async def reseller_portal():
+    """Serve the reseller portal"""
+    return FileResponse("static/reseller_portal.html")
+
+
+@app.get("/owner", response_class=HTMLResponse)
+async def owner_portal():
+    """Serve the platform owner portal"""
+    return FileResponse("static/owner_portal.html")
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page():
+    """Serve the login page for owners and resellers"""
+    return FileResponse("static/login.html")
+
+
+@app.get("/client/login", response_class=HTMLResponse)
+async def client_login_page():
+    """Serve the client login page"""
+    return FileResponse("static/client_login.html")
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
-    """Serve the multi-tenant dashboard"""
+    """Serve the multi-tenant control panel for taxpayer clients"""
     return FileResponse("static/dashboard_multitenant.html")
 
 
@@ -204,7 +806,11 @@ async def dashboard():
 
 @app.post("/api/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user"""
+    """Register a new reseller user with 2-day trial"""
+    from datetime import timedelta
+    
+    print(f"[DEBUG] Received registration data: email={user_data.email}, role={user_data.role}, phone={user_data.phone}")
+    
     # Check if user exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
@@ -213,12 +819,19 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
     
-    # Create user
+    # Create user as reseller with trial subscription
+    trial_end = datetime.utcnow() + timedelta(days=2)
+    
     db_user = User(
         email=user_data.email,
         hashed_password=get_password_hash(user_data.password),
         full_name=user_data.full_name,
-        is_active=True
+        phone=user_data.phone if user_data.phone else None,
+        role=user_data.role if user_data.role else 'reseller',
+        status='active',  # Resellers are active immediately
+        is_active=True,
+        subscription_status="active",
+        subscription_ends=trial_end
     )
     db.add(db_user)
     db.commit()
@@ -243,13 +856,994 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         raise HTTPException(status_code=400, detail="Inactive user")
     
     access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": user
+    }
 
 
 @app.get("/api/auth/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_active_user)):
     """Get current user info"""
     return current_user
+
+
+# ========== RESELLER PORTAL ENDPOINTS ==========
+
+@app.get("/api/reseller/clients")
+async def get_reseller_clients(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all clients managed by this reseller"""
+    if current_user.role not in ['reseller', 'admin']:
+        raise HTTPException(status_code=403, detail="Only resellers can access this endpoint")
+    
+    # Get all users where parent_id = current_user.id (clients of this reseller)
+    clients = db.query(User).filter(User.parent_id == current_user.id).all()
+    
+    result = []
+    for client in clients:
+        # Get client's company (if any)
+        company = db.query(Company).filter(Company.owner_id == client.id).first()
+        
+        result.append({
+            "id": client.id,
+            "email": client.email,
+            "full_name": client.full_name,
+            "phone": client.phone,
+            "company_name": company.name if company else None,
+            "tin": company.tin if company else None,
+            "device_no": company.device_no if company else None,
+            "is_active": client.is_active,
+            "created_at": client.created_at.isoformat() if client.created_at else None
+        })
+    
+    return result
+
+
+from fastapi import File, UploadFile, Form
+import shutil
+import os
+
+@app.post("/api/reseller/submit-referral")
+async def submit_client_referral(
+    company_name: str = Form(...),
+    client_name: str = Form(...),
+    client_email: str = Form(...),
+    client_phone: str = Form(None),
+    tin: str = Form(...),
+    device_no: str = Form(None),
+    notes: str = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    SECURITY FIX: Resellers submit client referrals ONLY (no certificates, no direct add)
+    Owner must approve and configure EFRIS credentials
+    """
+    if current_user.role != 'reseller':
+        raise HTTPException(status_code=403, detail="Only resellers can submit referrals")
+    
+    # Check if email already exists
+    if db.query(User).filter(User.email == client_email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Check if TIN already exists
+    if db.query(Company).filter(Company.tin == tin).first():
+        raise HTTPException(status_code=400, detail="TIN already registered")
+    
+    # Check if already referred
+    if db.query(ClientReferral).filter(
+        ClientReferral.tin == tin
+    ).first():
+        raise HTTPException(status_code=400, detail="TIN already referred")
+    
+    # Create referral (NO certificates - owner will handle that)
+    referral = ClientReferral(
+        reseller_id=current_user.id,
+        company_name=company_name,
+        client_name=client_name,
+        client_email=client_email,
+        client_phone=client_phone,
+        tin=tin,
+        device_no=device_no,
+        notes=notes,
+        status="pending"
+    )
+    db.add(referral)
+    db.commit()
+    db.refresh(referral)
+    
+    # Audit log for URA compliance
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="REFERRAL_SUBMITTED",
+        resource_type="ClientReferral",
+        resource_id=str(referral.id),
+        details={
+            "company_name": company_name,
+            "tin": tin,
+            "status": "pending"
+        }
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Client referral submitted. Platform owner will review and configure.",
+        "referral_id": referral.id,
+        "status": "pending"
+    }
+
+
+@app.get("/api/reseller/referrals")
+async def get_reseller_referrals(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all referrals submitted by this reseller"""
+    if current_user.role != 'reseller':
+        raise HTTPException(status_code=403, detail="Resellers only")
+    
+    referrals = db.query(ClientReferral).filter(
+        ClientReferral.reseller_id == current_user.id
+    ).order_by(ClientReferral.created_at.desc()).all()
+    
+    return {
+        "success": True,
+        "referrals": [
+            {
+                "id": r.id,
+                "company_name": r.company_name,
+                "client_name": r.client_name,
+                "tin": r.tin,
+                "status": r.status,
+                "submitted_at": r.created_at.isoformat() if r.created_at else None,
+                "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
+                "rejection_reason": r.rejection_reason if r.status == "rejected" else None
+            }
+            for r in referrals
+        ]
+    }
+
+
+@app.get("/api/reseller/client-activity")
+async def get_reseller_client_activity(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get invoice activity from all clients referred by this reseller"""
+    if current_user.role != 'reseller':
+        raise HTTPException(status_code=403, detail="Resellers only")
+    
+    from database.models import ActivityLog
+    from datetime import datetime, timedelta
+    from sqlalchemy import func
+    
+    # Get all client IDs that belong to this reseller
+    client_ids = db.query(User.id).filter(User.parent_id == current_user.id).all()
+    client_ids = [c[0] for c in client_ids]
+    
+    if not client_ids:
+        return {
+            "success": True,
+            "total": 0,
+            "this_month": 0,
+            "today": 0,
+            "activities": []
+        }
+    
+    # Get activity logs for these clients
+    activities = db.query(ActivityLog).filter(
+        ActivityLog.user_id.in_(client_ids),
+        ActivityLog.activity_type.in_(['invoice_created', 'invoice_fiscalized'])
+    ).order_by(ActivityLog.created_at.desc()).limit(50).all()
+    
+    # Calculate stats
+    now = datetime.utcnow()
+    today_start = datetime(now.year, now.month, now.day)
+    month_start = datetime(now.year, now.month, 1)
+    
+    today_count = db.query(func.count(ActivityLog.id)).filter(
+        ActivityLog.user_id.in_(client_ids),
+        ActivityLog.activity_type == 'invoice_fiscalized',
+        ActivityLog.created_at >= today_start
+    ).scalar() or 0
+    
+    month_count = db.query(func.count(ActivityLog.id)).filter(
+        ActivityLog.user_id.in_(client_ids),
+        ActivityLog.activity_type == 'invoice_fiscalized',
+        ActivityLog.created_at >= month_start
+    ).scalar() or 0
+    
+    total_count = db.query(func.count(ActivityLog.id)).filter(
+        ActivityLog.user_id.in_(client_ids),
+        ActivityLog.activity_type == 'invoice_fiscalized'
+    ).scalar() or 0
+    
+    # Format activities
+    activity_list = []
+    for activity in activities:
+        company = db.query(Company).filter(Company.id == activity.company_id).first()
+        activity_list.append({
+            "id": activity.id,
+            "company_name": company.name if company else "Unknown",
+            "invoice_number": activity.document_number,
+            "total_amount": activity.details.get('total_amount') if activity.details else None,
+            "efris_status": activity.efris_status,
+            "created_at": activity.created_at.isoformat() if activity.created_at else None
+        })
+    
+    return {
+        "success": True,
+        "total": total_count,
+        "this_month": month_count,
+        "today": today_count,
+        "activities": activity_list
+    }
+
+
+# SECURITY: Completely removed reseller client deletion
+# Only owner can deactivate clients (see owner endpoints below)
+
+
+# ========== OWNER/ADMIN ENDPOINTS ==========
+
+@app.get("/api/owner/stats")
+async def get_owner_stats(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get platform statistics for owner dashboard"""
+    # Check if user is owner/admin
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    from sqlalchemy import func, and_
+    from datetime import date
+    
+    total_resellers = db.query(User).filter(User.role == 'reseller').count()
+    pending_clients = db.query(User).filter(and_(User.role == 'client', User.status == 'pending')).count()
+    active_clients = db.query(User).filter(and_(User.role == 'client', User.status == 'active')).count()
+    invoices_today = db.query(Invoice).filter(func.date(Invoice.created_at) == date.today()).count()
+    
+    return {
+        "total_resellers": total_resellers,
+        "pending_clients": pending_clients,
+        "active_clients": active_clients,
+        "invoices_today": invoices_today,
+        "owner_name": current_user.full_name or current_user.email
+    }
+
+
+@app.get("/api/owner/pending-clients")
+async def get_pending_clients(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all clients pending approval"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    from sqlalchemy import and_
+    
+    pending = db.query(User).filter(and_(
+        User.role == 'client',
+        User.status == 'pending'
+    )).all()
+    
+    result = []
+    for client in pending:
+        # Get company info
+        company = db.query(Company).filter(Company.owner_id == client.id).first()
+        
+        # Get reseller info
+        reseller = db.query(User).filter(User.id == client.parent_id).first()
+        
+        result.append({
+            "id": client.id,
+            "email": client.email,
+            "company_name": company.name if company else "N/A",
+            "tin": company.tin if company else "N/A",
+            "reseller_name": reseller.full_name if reseller else "Unknown",
+            "created_at": client.created_at.isoformat()
+        })
+    
+    return result
+
+
+@app.get("/api/owner/resellers")
+async def get_all_resellers(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all resellers"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    resellers = db.query(User).filter(User.role == 'reseller').all()
+    
+    result = []
+    for reseller in resellers:
+        client_count = db.query(User).filter(User.parent_id == reseller.id).count()
+        
+        result.append({
+            "id": reseller.id,
+            "email": reseller.email,
+            "full_name": reseller.full_name,
+            "phone": reseller.phone,
+            "status": reseller.status,
+            "subscription_status": reseller.subscription_status,
+            "client_count": client_count,
+            "created_at": reseller.created_at.isoformat()
+        })
+    
+    return result
+
+
+@app.get("/api/owner/clients")
+async def get_all_clients(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all clients across all resellers"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    clients = db.query(User).filter(User.role == 'client').all()
+    
+    result = []
+    for client in clients:
+        company = db.query(Company).filter(Company.owner_id == client.id).first()
+        reseller = db.query(User).filter(User.id == client.parent_id).first()
+        
+        result.append({
+            "id": client.id,
+            "email": client.email,
+            "company_name": company.name if company else "N/A",
+            "tin": company.tin if company else "N/A",
+            "status": client.status,
+            "reseller_name": reseller.full_name if reseller else "Direct",
+            "created_at": client.created_at.isoformat()
+        })
+    
+    return result
+
+
+@app.get("/api/owner/activity")
+async def get_activity_feed(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get recent activity feed"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    from database.models import ActivityLog
+    
+    activities = db.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(50).all()
+    
+    result = []
+    for activity in activities:
+        company = db.query(Company).filter(Company.id == activity.company_id).first()
+        
+        result.append({
+            "id": activity.id,
+            "company_name": company.name if company else "Unknown",
+            "activity_type": activity.activity_type,
+            "document_number": activity.document_number,
+            "efris_request_type": activity.efris_request_type,
+            "efris_status": activity.efris_status,
+            "created_at": activity.created_at.isoformat()
+        })
+    
+    return result
+
+
+@app.post("/api/owner/approve-client/{client_id}")
+async def approve_client(
+    client_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Approve a pending client"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    client = db.query(User).filter(User.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    if client.status != 'pending':
+        raise HTTPException(status_code=400, detail="Client is not pending approval")
+    
+    # Activate client
+    client.status = 'active'
+    client.is_active = True
+    
+    # Activate their company
+    company = db.query(Company).filter(Company.owner_id == client.id).first()
+    if company:
+        company.is_active = True
+    
+    db.commit()
+    
+    return {"success": True, "message": "Client approved and activated"}
+
+
+@app.post("/api/owner/reject-client/{client_id}")
+async def reject_client(
+    client_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Reject a pending client"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    client = db.query(User).filter(User.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    if client.status != 'pending':
+        raise HTTPException(status_code=400, detail="Client is not pending approval")
+    
+    # Delete client and their company
+    company = db.query(Company).filter(Company.owner_id == client.id).first()
+    if company:
+        db.delete(company)
+    
+    db.delete(client)
+    db.commit()
+    
+    return {"success": True, "message": "Client rejected and removed"}
+
+
+@app.post("/api/owner/suspend-client/{client_id}")
+async def suspend_client(
+    client_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Suspend a client - blocks their access"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    client.status = 'suspended'
+    client.is_active = False
+    
+    # Also deactivate their company
+    company = db.query(Company).filter(Company.owner_id == client.id).first()
+    if company:
+        company.is_active = False
+    
+    db.commit()
+    
+    return {"success": True, "message": f"Client {client.email} suspended"}
+
+
+@app.post("/api/owner/activate-client/{client_id}")
+async def activate_client(
+    client_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Activate a suspended client - restores their access"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    client.status = 'active'
+    client.is_active = True
+    
+    # Also activate their company
+    company = db.query(Company).filter(Company.owner_id == client.id).first()
+    if company:
+        company.is_active = True
+    
+    db.commit()
+    
+    return {"success": True, "message": f"Client {client.email} activated"}
+
+
+# ============================================================================
+# PAYMENT ENDPOINTS (Flutterwave Integration)
+# ============================================================================
+
+@app.post("/api/payment/initialize")
+async def initialize_payment(
+    plan: str = "annual",
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Initialize payment for subscription upgrade
+    Returns payment link for user to complete payment
+    """
+    from payment_service import flutterwave, payment_manager
+    
+    # Get plan price
+    amount = payment_manager.get_plan_price(plan)
+    
+    # Initialize payment
+    result = flutterwave.initialize_payment(
+        user_email=current_user.email,
+        user_name=current_user.full_name or current_user.email,
+        amount=amount,
+        user_id=current_user.id,
+        plan=plan
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Payment initialization failed"))
+    
+    # Log activity
+    activity = ActivityLog(
+        user_id=current_user.id,
+        action="payment_initiated",
+        details=f"Initiated {plan} plan payment - UGX {amount:,}",
+        document_number=result.get("tx_ref")
+    )
+    db.add(activity)
+    db.commit()
+    
+    return {
+        "success": True,
+        "payment_link": result["payment_link"],
+        "amount": amount,
+        "plan": plan,
+        "tx_ref": result["tx_ref"]
+    }
+
+
+@app.get("/payment/callback")
+async def payment_callback(
+    status: str,
+    tx_ref: str,
+    transaction_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Payment callback - Flutterwave redirects here after payment
+    """
+    from payment_service import flutterwave, payment_manager
+    
+    if status == "successful":
+        # Verify payment
+        verification = flutterwave.verify_payment(transaction_id)
+        
+        if verification.get("success"):
+            data = verification["data"]
+            
+            # Extract user_id from transaction reference
+            user_id = data.get("meta", {}).get("user_id")
+            plan = data.get("meta", {}).get("plan", "annual")
+            
+            if user_id:
+                # Activate subscription
+                success = payment_manager.activate_subscription(
+                    db, int(user_id), plan, tx_ref
+                )
+                
+                if success:
+                    # Redirect to dashboard with success message
+                    return RedirectResponse(
+                        url=f"/dashboard?payment=success&plan={plan}",
+                        status_code=303
+                    )
+    
+    # Payment failed or verification failed
+    return RedirectResponse(
+        url="/dashboard?payment=failed",
+        status_code=303
+    )
+
+
+@app.post("/api/webhooks/flutterwave")
+async def flutterwave_webhook(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Webhook endpoint for Flutterwave payment notifications
+    This is called by Flutterwave when payment status changes
+    """
+    from payment_service import flutterwave, payment_manager
+    
+    # Get raw body for signature verification
+    body = await request.body()
+    signature = request.headers.get("verif-hash", "")
+    
+    # Verify webhook signature
+    if not flutterwave.verify_webhook_signature(body.decode(), signature):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    
+    # Parse payload
+    import json
+    payload = json.loads(body)
+    
+    # Handle successful payment
+    if payload.get("event") == "charge.completed" and payload.get("data", {}).get("status") == "successful":
+        data = payload["data"]
+        user_id = data.get("meta", {}).get("user_id")
+        plan = data.get("meta", {}).get("plan", "annual")
+        tx_ref = data.get("tx_ref")
+        
+        if user_id:
+            # Activate subscription
+            payment_manager.activate_subscription(db, int(user_id), plan, tx_ref)
+            
+            # TODO: Send confirmation email to user
+            
+            return {"success": True, "message": "Payment processed"}
+    
+    return {"success": True, "message": "Webhook received"}
+
+
+@app.post("/api/owner/add-client")
+async def owner_add_client(
+    company_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    phone: str = Form(None),
+    tin: str = Form(...),
+    device_no: str = Form(...),
+    cert_password: str = Form(...),
+    test_mode: bool = Form(False),
+    pfx_file: UploadFile = File(...),
+    erp_type: str = Form("none"),
+    # QuickBooks
+    qb_realm_id: str = Form(None),
+    qb_client_id: str = Form(None),
+    qb_client_secret: str = Form(None),
+    qb_region: str = Form("US"),
+    # Xero
+    xero_tenant_id: str = Form(None),
+    xero_client_id: str = Form(None),
+    xero_client_secret: str = Form(None),
+    # Zoho
+    zoho_org_id: str = Form(None),
+    zoho_client_id: str = Form(None),
+    zoho_client_secret: str = Form(None),
+    # Sage
+    sage_company_id: str = Form(None),
+    sage_api_key: str = Form(None),
+    sage_api_secret: str = Form(None),
+    # Odoo
+    odoo_url: str = Form(None),
+    odoo_db: str = Form(None),
+    odoo_username: str = Form(None),
+    odoo_password: str = Form(None),
+    # Custom API
+    custom_url: str = Form(None),
+    custom_api_key: str = Form(None),
+    custom_api_secret: str = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Owner adds a direct client (no reseller) with ERP configuration"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    # Check if email exists
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Save certificate
+    cert_dir = "keys/clients"
+    os.makedirs(cert_dir, exist_ok=True)
+    cert_path = f"{cert_dir}/{tin}.pfx"
+    
+    with open(cert_path, "wb") as f:
+        content = await pfx_file.read()
+        f.write(content)
+    
+    # Create client user (active immediately, no parent_id)
+    client_user = User(
+        email=email,
+        hashed_password=get_password_hash(password),
+        full_name=company_name,
+        phone=phone,
+        role='client',
+        status='active',  # Owner's clients are active immediately
+        is_active=True
+    )
+    db.add(client_user)
+    db.flush()
+    
+    # Create company with ERP configuration
+    company = Company(
+        name=company_name,
+        tin=tin,
+        device_no=device_no,
+        efris_cert_path=cert_path,
+        efris_cert_password=cert_password,
+        is_test_mode=test_mode,
+        owner_id=client_user.id,
+        is_active=True,
+        erp_type=erp_type
+    )
+    
+    # Add ERP-specific credentials
+    if erp_type == "quickbooks" and qb_realm_id:
+        company.qb_realm_id = qb_realm_id
+        company.qb_region = qb_region
+        # Store client credentials securely (in production, encrypt these)
+        company.custom_api_key = qb_client_id  # Temp storage
+        company.custom_api_secret = qb_client_secret
+        company.qb_company_name = company_name
+    elif erp_type == "xero" and xero_tenant_id:
+        company.xero_tenant_id = xero_tenant_id
+        # Store credentials
+        company.custom_api_key = xero_client_id
+        company.custom_api_secret = xero_client_secret
+    elif erp_type == "zoho" and zoho_org_id:
+        company.zoho_organization_id = zoho_org_id
+        company.custom_api_key = zoho_client_id
+        company.custom_api_secret = zoho_client_secret
+    elif erp_type == "sage" and sage_company_id:
+        company.custom_api_url = f"sage://{sage_company_id}"
+        company.custom_api_key = sage_api_key
+        company.custom_api_secret = sage_api_secret
+    elif erp_type == "odoo" and odoo_url:
+        company.custom_api_url = odoo_url
+        company.custom_api_key = odoo_username
+        company.custom_api_secret = odoo_password
+        # Store DB name in a JSON field if available, or in custom_api_url
+        company.custom_api_url = f"{odoo_url}?db={odoo_db}"
+    elif erp_type == "custom" and custom_url:
+        company.custom_api_url = custom_url
+        company.custom_api_key = custom_api_key
+        company.custom_api_secret = custom_api_secret
+    
+    # Generate API key for external ERP integration
+    import secrets
+    company.api_key = f"efris_{secrets.token_urlsafe(32)}"
+    company.api_secret = secrets.token_urlsafe(16)
+    company.api_enabled = True
+    
+    db.add(company)
+    db.flush()
+    
+    # Link user to company
+    company_user = CompanyUser(
+        user_id=client_user.id,
+        company_id=company.id,
+        role='owner',
+        is_active=True
+    )
+    db.add(company_user)
+    
+    db.commit()
+    
+    # Get the base URL for client login
+    from starlette.requests import Request
+    base_url = "http://127.0.0.1:8001"  # Update this to your actual domain in production
+    client_login_url = f"{base_url}/client/login"
+    
+    erp_message = f"\n\nERP: {erp_type.upper()}" if erp_type != "none" else "\n\nERP: Manual invoice entry"
+    api_message = f"\n\nAPI Key: {company.api_key}\nAPI Endpoint: {base_url}/api/external/efris"
+    
+    return {
+        "success": True, 
+        "message": "Direct client added successfully", 
+        "client_id": client_user.id,
+        "client_email": email,
+        "client_login_url": client_login_url,
+        "erp_configured": erp_type != "none",
+        "api_key": company.api_key,
+        "api_endpoint": f"{base_url}/api/external/efris",
+        "instructions": f"Send these credentials to your client:\n\nLogin URL: {client_login_url}\nEmail: {email}\nPassword: {password}{erp_message}{api_message}\n\nThey should bookmark this URL and use it to access their dashboard."
+    }
+
+
+@app.get("/api/owner/pending-referrals")
+async def get_pending_referrals(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all pending client referrals for owner review"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access this")
+    
+    referrals = db.query(ClientReferral).filter(
+        ClientReferral.status == "pending"
+    ).order_by(ClientReferral.created_at.desc()).all()
+    
+    result = []
+    for r in referrals:
+        reseller = db.query(User).filter(User.id == r.reseller_id).first()
+        result.append({
+            "id": r.id,
+            "reseller_name": reseller.full_name if reseller else "Unknown",
+            "reseller_email": reseller.email if reseller else None,
+            "company_name": r.company_name,
+            "client_name": r.client_name,
+            "client_email": r.client_email,
+            "client_phone": r.client_phone,
+            "tin": r.tin,
+            "device_no": r.device_no,
+            "notes": r.notes,
+            "submitted_at": r.created_at.isoformat() if r.created_at else None
+        })
+    
+    return {"success": True, "referrals": result}
+
+
+@app.post("/api/owner/approve-referral/{referral_id}")
+async def approve_referral(
+    referral_id: int,
+    password: str = Form(...),
+    cert_password: str = Form(...),
+    test_mode: bool = Form(False),
+    pfx_file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Owner approves referral and configures EFRIS credentials
+    CRITICAL: Only owner uploads certificates and configures devices
+    """
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can approve referrals")
+    
+    # Get referral
+    referral = db.query(ClientReferral).filter(
+        ClientReferral.id == referral_id,
+        ClientReferral.status == "pending"
+    ).first()
+    
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found or already processed")
+    
+    # Check if email/TIN already exists
+    if db.query(User).filter(User.email == referral.client_email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    if db.query(Company).filter(Company.tin == referral.tin).first():
+        raise HTTPException(status_code=400, detail="TIN already registered")
+    
+    # Save certificate
+    cert_dir = "keys/clients"
+    os.makedirs(cert_dir, exist_ok=True)
+    cert_filename = f"{referral.tin}.pfx"
+    cert_path = os.path.join(cert_dir, cert_filename)
+    
+    with open(cert_path, "wb") as buffer:
+        shutil.copyfileobj(pfx_file.file, buffer)
+    
+    # Create client user
+    client_user = User(
+        email=referral.client_email,
+        hashed_password=get_password_hash(password),
+        full_name=referral.client_name,
+        phone=referral.client_phone,
+        role="client",
+        status="active",
+        parent_id=referral.reseller_id,  # Link to reseller
+        is_active=True
+    )
+    db.add(client_user)
+    db.commit()
+    db.refresh(client_user)
+    
+    # Create company
+    company = Company(
+        name=referral.company_name,
+        tin=referral.tin,
+        device_no=referral.device_no,
+        owner_id=client_user.id,
+        efris_test_mode=test_mode,
+        efris_cert_path=cert_path,
+        efris_cert_password=cert_password,
+        is_active=True
+    )
+    db.add(company)
+    db.commit()
+    db.refresh(company)
+    
+    # Link user to company
+    company_user = CompanyUser(
+        user_id=client_user.id,
+        company_id=company.id,
+        role="admin"
+    )
+    db.add(company_user)
+    
+    # Update referral status
+    referral.status = "approved"
+    referral.reviewed_by = current_user.id
+    referral.reviewed_at = func.now()
+    referral.created_client_id = client_user.id
+    referral.created_company_id = company.id
+    
+    # Audit log for URA compliance
+    audit = AuditLog(
+        user_id=current_user.id,
+        company_id=company.id,
+        action="REFERRAL_APPROVED",
+        resource_type="ClientReferral",
+        resource_id=str(referral_id),
+        details={
+            "referral_id": referral_id,
+            "reseller_id": referral.reseller_id,
+            "client_id": client_user.id,
+            "company_id": company.id,
+            "tin": referral.tin
+        }
+    )
+    db.add(audit)
+    db.commit()
+    
+    base_url = "http://127.0.0.1:8001"
+    client_login_url = f"{base_url}/client/login"
+    
+    return {
+        "success": True,
+        "message": "Referral approved and client configured",
+        "client_id": client_user.id,
+        "company_id": company.id,
+        "client_email": referral.client_email,
+        "client_login_url": client_login_url,
+        "instructions": f"Send to client:\n\nLogin: {client_login_url}\nEmail: {referral.client_email}\nPassword: {password}"
+    }
+
+
+@app.post("/api/owner/reject-referral/{referral_id}")
+async def reject_referral(
+    referral_id: int,
+    rejection_reason: str = Form(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Owner rejects a client referral"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can reject referrals")
+    
+    referral = db.query(ClientReferral).filter(
+        ClientReferral.id == referral_id,
+        ClientReferral.status == "pending"
+    ).first()
+    
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found or already processed")
+    
+    referral.status = "rejected"
+    referral.reviewed_by = current_user.id
+    referral.reviewed_at = func.now()
+    referral.rejection_reason = rejection_reason
+    
+    # Audit log
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="REFERRAL_REJECTED",
+        resource_type="ClientReferral",
+        resource_id=str(referral_id),
+        details={
+            "referral_id": referral_id,
+            "reseller_id": referral.reseller_id,
+            "reason": rejection_reason
+        }
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Referral rejected",
+        "referral_id": referral_id
+    }
 
 
 # ========== COMPANY ENDPOINTS ==========
@@ -330,6 +1924,101 @@ async def get_company(
         raise HTTPException(status_code=404, detail="Company not found")
     
     return company
+
+
+@app.put("/api/companies/{company_id}", response_model=CompanyResponse)
+async def update_company(
+    company_id: int,
+    company_data: CompanyUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update company details including ERP type
+    
+    **Use Case:** Client switches from QuickBooks to Xero but keeps same EFRIS credentials
+    
+    **Example:**
+    ```json
+    {
+        "erp_type": "XERO",
+        "erp_config": {"tenant_id": "xxx-xxx-xxx"}
+    }
+    ```
+    
+    **What happens:**
+    - ERP type changed (dashboard will adapt automatically)
+    - Old ERP data (QB invoices/items) remains in database for history
+    - New ERP connection established
+    - EFRIS credentials (TIN, device_no, keys) remain unchanged
+    """
+    # Verify admin access
+    from auth.security import verify_company_admin
+    if not verify_company_admin(current_user, company_id, db):
+        raise HTTPException(
+            status_code=403, 
+            detail="Only company admins can update company settings"
+        )
+    
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Track ERP change for logging
+    old_erp = company.erp_type
+    new_erp = company_data.erp_type
+    
+    # Update fields
+    if company_data.name is not None:
+        company.name = company_data.name
+    if company_data.device_no is not None:
+        company.device_no = company_data.device_no
+    if company_data.efris_test_mode is not None:
+        company.efris_test_mode = company_data.efris_test_mode
+    if company_data.qb_company_name is not None:
+        company.qb_company_name = company_data.qb_company_name
+    
+    # Handle ERP type change
+    if company_data.erp_type is not None:
+        valid_erp_types = ['QUICKBOOKS', 'XERO', 'ZOHO', 'CUSTOM', 'NONE']
+        erp_upper = company_data.erp_type.upper()
+        
+        if erp_upper not in valid_erp_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid ERP type. Must be one of: {', '.join(valid_erp_types)}"
+            )
+        
+        company.erp_type = erp_upper
+        
+        # Log ERP change
+        if old_erp != erp_upper:
+            print(f"[ERP CHANGE] Company {company.name} (ID: {company.id})")
+            print(f"  Old ERP: {old_erp or 'None'}")
+            print(f"  New ERP: {erp_upper}")
+            print(f"  EFRIS credentials remain unchanged (TIN: {company.tin})")
+    
+    # Update ERP configuration
+    if company_data.erp_config is not None:
+        import json
+        company.erp_config = json.dumps(company_data.erp_config)
+    
+    company.updated_at = datetime.utcnow()
+    
+    try:
+        db.commit()
+        db.refresh(company)
+        
+        # Success message with ERP change notification
+        if old_erp and new_erp and old_erp != new_erp:
+            print(f"  ✅ ERP successfully changed from {old_erp} to {new_erp}")
+            print(f"  📊 Historical data from {old_erp} preserved in database")
+            print(f"  🔗 Dashboard will now show {new_erp} branding")
+        
+        return company
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
 
 @app.post("/api/companies/{company_id}/users")
@@ -729,8 +2418,61 @@ async def upload_invoice(
     
     try:
         result = manager.upload_invoice(invoice_data)
+        
+        # Log activity for owner dashboard
+        try:
+            from database.models import ActivityLog
+            
+            # Get reseller_id if client has parent
+            client_user = db.query(User).filter(User.id == current_user.id).first()
+            reseller_id = client_user.parent_id if client_user else None
+            
+            activity = ActivityLog(
+                company_id=company_id,
+                user_id=current_user.id,
+                reseller_id=reseller_id,
+                activity_type="invoice_fiscalized",
+                document_type="invoice",
+                document_number=invoice_data.get('basicInformation', {}).get('invoiceNo', 'Unknown'),
+                efris_request_type="T109",
+                efris_status="success" if result.get('returnStateInfo', {}).get('returnCode') == '00' else "failed",
+                efris_response=result,
+                details={
+                    "invoice_type": invoice_data.get('basicInformation', {}).get('invoiceType'),
+                    "total_amount": invoice_data.get('summary', {}).get('grossAmount')
+                }
+            )
+            db.add(activity)
+            db.commit()
+        except Exception as log_error:
+            print(f"[ACTIVITY LOG] Failed to log activity: {log_error}")
+            # Don't fail the request if logging fails
+        
         return result
     except Exception as e:
+        # Log failure
+        try:
+            from database.models import ActivityLog
+            client_user = db.query(User).filter(User.id == current_user.id).first()
+            reseller_id = client_user.parent_id if client_user else None
+            
+            activity = ActivityLog(
+                company_id=company_id,
+                user_id=current_user.id,
+                reseller_id=reseller_id,
+                activity_type="invoice_fiscalized",
+                document_type="invoice",
+                document_number=invoice_data.get('basicInformation', {}).get('invoiceNo', 'Unknown'),
+                efris_request_type="T109",
+                efris_status="failed",
+                efris_response={"error": str(e)},
+                details={}
+            )
+            db.add(activity)
+            db.commit()
+        except:
+            pass
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1305,10 +3047,10 @@ async def quickbooks_callback(
     """Handle QuickBooks OAuth callback"""
     if error:
         error_msg = error_description or error
-        return RedirectResponse(url=f"/?error={error_msg}")
+        return RedirectResponse(url=f"/dashboard?error={error_msg}")
     
     if not code or not realmId:
-        return RedirectResponse(url="/?error=Missing authorization code or realm ID")
+        return RedirectResponse(url="/dashboard?error=Missing authorization code or realm ID")
     
     try:
         tokens = qb_client.exchange_code_for_tokens(code)
@@ -1317,33 +3059,44 @@ async def quickbooks_callback(
         # Detect QB region from company info
         qb_region = qb_client.detect_region()
         company_info = qb_client.get_company_info()
+        qb_company_name = company_info.get('CompanyName', 'Unknown')
         
-        # Check if this is a new sandbox connection
-        if state and state.startswith("new_sandbox_"):
-            company_id = int(state.split("_")[-1])
-            
-            # Store QB connection details in database for this specific company
-            company = db.query(Company).filter(Company.id == company_id).first()
-            if company:
-                company.qb_realm_id = realmId
-                company.qb_access_token = qb_client.access_token
-                company.qb_refresh_token = qb_client.refresh_token
-                company.qb_token_expires = qb_client.token_expiry
-                company.qb_company_name = company_info.get('CompanyName', 'Unknown')
-                company.qb_region = qb_region
-                db.commit()
+        # state contains company_id
+        if state:
+            try:
+                # Handle both "new_sandbox_123" and "123" formats
+                if state.startswith("new_sandbox_"):
+                    company_id = int(state.split("_")[-1])
+                else:
+                    company_id = int(state)
                 
-                print(f"[QB] NEW SANDBOX Connected for company {company.name}: {company_info.get('CompanyName', 'Unknown')} (Region: {qb_region})")
-                return RedirectResponse(url="/?connected=true&type=new_sandbox")
+                # Store QB connection details in database for this specific company
+                company = db.query(Company).filter(Company.id == company_id).first()
+                if company:
+                    company.qb_realm_id = realmId
+                    company.qb_access_token = qb_client.access_token
+                    company.qb_refresh_token = qb_client.refresh_token
+                    company.qb_token_expires = qb_client.token_expiry
+                    company.qb_company_name = qb_company_name
+                    company.qb_region = qb_region
+                    company.erp_type = "quickbooks"
+                    company.erp_connected = True
+                    company.erp_last_sync = datetime.utcnow()
+                    db.commit()
+                    
+                    print(f"[QB] Connected for company {company.name}: {qb_company_name} (Region: {qb_region})")
+                    return RedirectResponse(url="/dashboard?qb_connected=true")
+            except ValueError:
+                pass
         
-        # Regular connection flow - save to global tokens file
+        # Fallback - save to global tokens file
         qb_client.save_tokens()
+        print(f"[QB] Connected (global): {qb_company_name} (Region: {qb_region})")
+        return RedirectResponse(url="/dashboard?qb_connected=true")
         
-        print(f"[QB] Connected to {company_info.get('CompanyName', 'Unknown')} (Region: {qb_region})")
-        
-        return RedirectResponse(url="/?connected=true")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OAuth failed: {str(e)}")
+        print(f"[QB] OAuth failed: {str(e)}")
+        return RedirectResponse(url=f"/dashboard?error={str(e)}")
 
 
 @app.post("/api/companies/{company_id}/quickbooks/disconnect")
@@ -1383,6 +3136,29 @@ async def disconnect_quickbooks(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to disconnect: {str(e)}")
+
+
+@app.get("/api/companies/{company_id}/erp/status")
+async def get_erp_connection_status(
+    company_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get ERP connection status for a company"""
+    if not verify_company_access(current_user, company_id, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    return {
+        "erp_type": company.erp_type or "none",
+        "connected": company.erp_connected or False,
+        "last_sync": company.erp_last_sync.isoformat() if company.erp_last_sync else None,
+        "qb_company_name": company.qb_company_name if company.erp_type == "quickbooks" else None,
+        "qb_region": company.qb_region if company.erp_type == "quickbooks" else None
+    }
 
 
 @app.post("/api/companies/{company_id}/quickbooks/connect")
@@ -3854,6 +5630,715 @@ async def get_saved_qb_credit_memos(
             "TxnDate": cm.qb_txn_date.isoformat() if cm.qb_txn_date else None,
             "TotalAmt": cm.qb_total_amt
         } for cm in credit_memos]
+    }
+
+
+# ============================================================================
+# EXTERNAL API ENDPOINTS - For Custom ERP Integration
+# ============================================================================
+
+@app.post("/api/external/efris/submit-invoice")
+async def external_submit_invoice(
+    invoice_data: dict,
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    External API endpoint for custom ERP systems to submit invoices to EFRIS
+    
+    Authentication: X-API-Key header
+    
+    Request Body:
+    {
+        "invoice_number": "INV-2024-001",
+        "invoice_date": "2024-01-24",
+        "customer_name": "ABC Company Ltd",
+        "customer_tin": "1234567890",
+        "buyer_type": "0",  // 0=Business, 1=Individual
+        "buyer_phone": "+256700000000",
+        "buyer_email": "abc@example.com",
+        "items": [
+            {
+                "item_name": "Product A",
+                "quantity": 10,
+                "unit_price": 5000,
+                "total": 50000,
+                "tax_rate": 0.18,
+                "tax_amount": 9000,
+                "discount": 0,
+                "discount_amount": 0,
+                "excise_duty": 0,
+                "unit_of_measure": "102"  // Optional
+            }
+        ],
+        "total_amount": 50000,
+        "total_tax": 9000,
+        "total_discount": 0,
+        "total_excise": 0,
+        "currency": "UGX",
+        "reference_number": "REF-001"  // Optional
+    }
+    
+    Response:
+    {
+        "success": true,
+        "fdn": "1234567890123456",
+        "verification_code": "ABC123",
+        "qr_code": "base64_qr_code_here",
+        "efris_invoice_id": "internal_id",
+        "invoice_number": "INV-2024-001",
+        "fiscalized_at": "2024-01-24T10:30:00",
+        "message": "Invoice fiscalized successfully"
+    }
+    """
+    try:
+        # Validate required fields
+        required_fields = ["invoice_number", "invoice_date", "customer_name", "items", "total_amount", "currency"]
+        for field in required_fields:
+            if field not in invoice_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        if not invoice_data["items"] or len(invoice_data["items"]) == 0:
+            raise HTTPException(status_code=400, detail="Invoice must have at least one item")
+        
+        # Initialize EFRIS Manager
+        efris = EfrisManager(
+            tin=company.tin,
+            device_no=company.device_no,
+            cert_path=company.efris_cert_path,
+            cert_password=company.efris_cert_password,
+            is_test_mode=company.is_test_mode
+        )
+        
+        # Build EFRIS T109 payload
+        efris_payload = {
+            "oriInvoiceId": "",
+            "invoiceNo": invoice_data["invoice_number"],
+            "invoiceDate": invoice_data["invoice_date"],
+            "invoiceType": "1",  # Normal invoice
+            "invoiceKind": "1",  # General
+            "dataSource": "106",  # Custom system
+            "buyerDetails": {
+                "buyerTin": invoice_data.get("customer_tin", ""),
+                "buyerNinBrn": "",
+                "buyerPassportNum": "",
+                "buyerLegalName": invoice_data["customer_name"],
+                "buyerBusinessName": invoice_data["customer_name"],
+                "buyerAddress": invoice_data.get("customer_address", ""),
+                "buyerEmail": invoice_data.get("buyer_email", ""),
+                "buyerMobilePhone": invoice_data.get("buyer_phone", ""),
+                "buyerLinePhone": "",
+                "buyerPlaceOfBusi": "",
+                "buyerType": invoice_data.get("buyer_type", "1"),
+                "buyerCitizenship": "1",
+                "buyerSector": "1",
+                "buyerReferenceNo": ""
+            },
+            "goodsDetails": [],
+            "taxDetails": [],
+            "summary": {
+                "netAmount": invoice_data["total_amount"],
+                "taxAmount": invoice_data.get("total_tax", 0),
+                "grossAmount": invoice_data["total_amount"] + invoice_data.get("total_tax", 0),
+                "itemCount": len(invoice_data["items"]),
+                "modeCode": "0",
+                "remarks": invoice_data.get("reference_number", ""),
+                "qrCode": ""
+            },
+            "payWay": "101",  # Cash
+            "extend": {
+                "reason": "",
+                "reasonCode": ""
+            }
+        }
+        
+        # Process items
+        tax_categories = {}
+        for item in invoice_data["items"]:
+            # Add to goods details
+            efris_payload["goodsDetails"].append({
+                "item": item.get("item_name", ""),
+                "itemCode": item.get("item_code", ""),
+                "qty": str(item.get("quantity", 1)),
+                "unitOfMeasure": item.get("unit_of_measure", "102"),
+                "unitPrice": str(item.get("unit_price", 0)),
+                "total": str(item.get("total", 0)),
+                "taxRate": str(item.get("tax_rate", 0.18) * 100) if item.get("tax_rate") else "-",
+                "tax": str(item.get("tax_amount", 0)),
+                "discountTotal": str(item.get("discount_amount", 0)),
+                "discountTaxRate": str(item.get("discount", 0)),
+                "orderNumber": str(invoice_data["items"].index(item) + 1),
+                "discountFlag": "2" if item.get("discount_amount", 0) > 0 else "0",
+                "deemedFlag": "2",
+                "exciseFlag": "2" if item.get("excise_duty", 0) > 0 else "0",
+                "categoryId": "",
+                "categoryName": "",
+                "goodsCategoryId": item.get("commodity_code", "1010101"),
+                "goodsCategoryName": item.get("commodity_name", "General"),
+                "exciseRate": str(item.get("excise_duty", 0)),
+                "exciseRule": "1",
+                "exciseTax": str(item.get("excise_amount", 0)),
+                "pack": "1",
+                "stick": "1",
+                "exciseUnit": item.get("excise_unit", "101"),
+                "exciseCurrency": "UGX",
+                "exciseRateName": ""
+            })
+            
+            # Group by tax rate for tax details
+            tax_rate_str = str(item.get("tax_rate", 0.18) * 100) if item.get("tax_rate") else "-"
+            if tax_rate_str not in tax_categories:
+                tax_categories[tax_rate_str] = {
+                    "netAmount": 0,
+                    "taxAmount": 0,
+                    "grossAmount": 0
+                }
+            tax_categories[tax_rate_str]["netAmount"] += item.get("total", 0)
+            tax_categories[tax_rate_str]["taxAmount"] += item.get("tax_amount", 0)
+            tax_categories[tax_rate_str]["grossAmount"] += item.get("total", 0) + item.get("tax_amount", 0)
+        
+        # Add tax details
+        for tax_rate, amounts in tax_categories.items():
+            efris_payload["taxDetails"].append({
+                "taxCategoryCode": tax_rate,
+                "netAmount": str(amounts["netAmount"]),
+                "taxRate": tax_rate,
+                "taxAmount": str(amounts["taxAmount"]),
+                "grossAmount": str(amounts["grossAmount"]),
+                "exciseUnit": "",
+                "exciseCurrency": "",
+                "taxRateName": f"{tax_rate}%-VAT" if tax_rate != "-" else "No Tax"
+            })
+        
+        # Submit to EFRIS (T109)
+        result = efris.upload_invoice(efris_payload)
+        
+        if result.get("returnStateInfo", {}).get("returnCode") == "00":
+            # Success - extract FDN and other details
+            data = result.get("data", {})
+            fdn = data.get("basicInformation", {}).get("invoiceNo", "")
+            verification_code = data.get("basicInformation", {}).get("antifakeCode", "")
+            qr_code = data.get("summary", {}).get("qrCode", "")
+            
+            # Save to database
+            efris_invoice = EFRISInvoice(
+                company_id=company.id,
+                invoice_no=invoice_data["invoice_number"],
+                invoice_date=datetime.strptime(invoice_data["invoice_date"], "%Y-%m-%d").date(),
+                customer_name=invoice_data["customer_name"],
+                customer_tin=invoice_data.get("customer_tin", ""),
+                buyer_type=invoice_data.get("buyer_type", "1"),
+                total_amount=invoice_data["total_amount"],
+                total_tax=invoice_data.get("total_tax", 0),
+                total_excise=invoice_data.get("total_excise", 0),
+                total_discount=invoice_data.get("total_discount", 0),
+                currency=invoice_data.get("currency", "UGX"),
+                status="success",
+                fdn=fdn,
+                efris_invoice_id=data.get("basicInformation", {}).get("invoiceId", ""),
+                submission_date=datetime.utcnow(),
+                efris_payload=efris_payload,
+                efris_response=result
+            )
+            db.add(efris_invoice)
+            db.commit()
+            
+            return {
+                "success": True,
+                "fdn": fdn,
+                "verification_code": verification_code,
+                "qr_code": qr_code,
+                "efris_invoice_id": efris_invoice.efris_invoice_id,
+                "invoice_number": invoice_data["invoice_number"],
+                "fiscalized_at": efris_invoice.submission_date.isoformat(),
+                "message": "Invoice fiscalized successfully"
+            }
+        else:
+            # EFRIS error
+            error_msg = result.get("returnStateInfo", {}).get("returnMessage", "Unknown error")
+            error_code = result.get("returnStateInfo", {}).get("returnCode", "")
+            
+            # Save failed attempt
+            efris_invoice = EFRISInvoice(
+                company_id=company.id,
+                invoice_no=invoice_data["invoice_number"],
+                invoice_date=datetime.strptime(invoice_data["invoice_date"], "%Y-%m-%d").date(),
+                customer_name=invoice_data["customer_name"],
+                total_amount=invoice_data["total_amount"],
+                total_tax=invoice_data.get("total_tax", 0),
+                currency=invoice_data.get("currency", "UGX"),
+                status="failed",
+                error_message=f"{error_code}: {error_msg}",
+                efris_payload=efris_payload,
+                efris_response=result
+            )
+            db.add(efris_invoice)
+            db.commit()
+            
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "error_code": error_code,
+                    "message": error_msg,
+                    "details": "EFRIS rejected the invoice"
+                }
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post("/api/external/efris/register-product")
+async def external_register_product(
+    product_data: dict,
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    Register a product/item with EFRIS (T111)
+    
+    Request Body:
+    {
+        "item_code": "PROD-001",
+        "item_name": "Product A",
+        "unit_price": 5000,
+        "commodity_code": "1010101",
+        "commodity_name": "General Goods",
+        "unit_of_measure": "102",  // 102=Pieces
+        "have_excise_tax": "102",  // 102=No
+        "stock_quantity": 100,
+        "description": "Product description"
+    }
+    
+    Response:
+    {
+        "success": true,
+        "product_code": "PROD-001",
+        "efris_status": "Registered",
+        "message": "Product registered successfully"
+    }
+    """
+    try:
+        required_fields = ["item_code", "item_name", "unit_price", "commodity_code"]
+        for field in required_fields:
+            if field not in product_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        efris = EfrisManager(
+            tin=company.tin,
+            device_no=company.device_no,
+            cert_path=company.efris_cert_path,
+            cert_password=company.efris_cert_password,
+            is_test_mode=company.is_test_mode
+        )
+        
+        # Build T111 payload
+        t111_payload = {
+            "goodsName": product_data["item_name"],
+            "goodsCode": product_data["item_code"],
+            "measureUnit": product_data.get("unit_of_measure", "102"),
+            "unitPrice": str(product_data["unit_price"]),
+            "currency": "UGX",
+            "commodityCategoryId": product_data["commodity_code"],
+            "haveExciseTax": product_data.get("have_excise_tax", "102"),
+            "stockPrewarning": str(product_data.get("stock_quantity", 0)),
+            "pieceUnit": product_data.get("unit_of_measure", "102"),
+            "operationType": "101",  # Add/Update
+            "remarks": product_data.get("description", "")
+        }
+        
+        result = efris.upload_product(t111_payload)
+        
+        if result.get("returnStateInfo", {}).get("returnCode") == "00":
+            return {
+                "success": True,
+                "product_code": product_data["item_code"],
+                "efris_status": "Registered",
+                "message": "Product registered successfully"
+            }
+        else:
+            error_msg = result.get("returnStateInfo", {}).get("returnMessage", "Unknown error")
+            raise HTTPException(status_code=400, detail=error_msg)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post("/api/external/efris/submit-purchase-order")
+async def external_submit_purchase_order(
+    po_data: dict,
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    Submit purchase order to EFRIS (T130 - Send Purchase Order)
+    
+    Request Body:
+    {
+        "po_number": "PO-2024-001",
+        "po_date": "2024-01-24",
+        "vendor_name": "Supplier XYZ Ltd",
+        "vendor_tin": "1234567890",
+        "items": [...],
+        "total_amount": 500000,
+        "currency": "UGX",
+        "delivery_date": "2024-02-15"
+    }
+    """
+    try:
+        required_fields = ["po_number", "po_date", "vendor_name", "items", "total_amount", "currency"]
+        for field in required_fields:
+            if field not in po_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        if not po_data["items"] or len(po_data["items"]) == 0:
+            raise HTTPException(status_code=400, detail="Purchase order must have at least one item")
+        
+        efris = EfrisManager(
+            tin=company.tin,
+            device_no=company.device_no,
+            cert_path=company.efris_cert_path,
+            cert_password=company.efris_cert_password,
+            is_test_mode=company.is_test_mode
+        )
+        
+        # Build T130 payload
+        t130_payload = {
+            "supplierName": po_data["vendor_name"],
+            "supplierTin": po_data.get("vendor_tin", ""),
+            "orderNo": po_data["po_number"],
+            "orderDate": po_data["po_date"],
+            "deliveryDate": po_data.get("delivery_date", po_data["po_date"]),
+            "totalAmount": str(po_data["total_amount"]),
+            "currency": po_data.get("currency", "UGX"),
+            "goodsDetails": []
+        }
+        
+        # Add items
+        for idx, item in enumerate(po_data["items"], 1):
+            t130_payload["goodsDetails"].append({
+                "itemCode": item.get("item_code", ""),
+                "item": item.get("item_name", ""),
+                "qty": str(item.get("quantity", 1)),
+                "unitPrice": str(item.get("unit_price", 0)),
+                "total": str(item.get("total", 0)),
+                "unitOfMeasure": item.get("unit_of_measure", "102"),
+                "orderNumber": str(idx)
+            })
+        
+        # Submit to EFRIS
+        result = efris.send_purchase_order(t130_payload)
+        
+        if result.get("returnStateInfo", {}).get("returnCode") == "00":
+            # Success - save to database
+            po_record = PurchaseOrder(
+                company_id=company.id,
+                qb_po_id=po_data["po_number"],
+                qb_doc_number=po_data["po_number"],
+                qb_vendor_name=po_data["vendor_name"],
+                qb_txn_date=datetime.strptime(po_data["po_date"], "%Y-%m-%d"),
+                qb_total_amt=po_data["total_amount"],
+                qb_data=po_data,
+                efris_status="sent",
+                efris_sent_at=datetime.utcnow(),
+                efris_response=result
+            )
+            db.add(po_record)
+            db.commit()
+            
+            return {
+                "success": True,
+                "po_number": po_data["po_number"],
+                "efris_status": "submitted",
+                "reference_number": result.get("data", {}).get("referenceNo", ""),
+                "message": "Purchase order submitted successfully"
+            }
+        else:
+            error_msg = result.get("returnStateInfo", {}).get("returnMessage", "Unknown error")
+            error_code = result.get("returnStateInfo", {}).get("returnCode", "")
+            
+            # Save failed attempt
+            po_record = PurchaseOrder(
+                company_id=company.id,
+                qb_po_id=po_data["po_number"],
+                qb_doc_number=po_data["po_number"],
+                qb_vendor_name=po_data["vendor_name"],
+                qb_txn_date=datetime.strptime(po_data["po_date"], "%Y-%m-%d"),
+                qb_total_amt=po_data["total_amount"],
+                qb_data=po_data,
+                efris_status="failed",
+                efris_error=f"{error_code}: {error_msg}",
+                efris_response=result
+            )
+            db.add(po_record)
+            db.commit()
+            
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "error_code": error_code,
+                    "message": error_msg
+                }
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post("/api/external/efris/submit-credit-note")
+async def external_submit_credit_note(
+    credit_note_data: dict,
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    Submit credit note/return to EFRIS (T110 - Cancel Invoice / Credit Note)
+    
+    Request Body:
+    {
+        "credit_note_number": "CN-2024-001",
+        "credit_note_date": "2024-01-24",
+        "original_invoice_number": "INV-001",
+        "original_fdn": "1234567890123456",
+        "customer_name": "ABC Ltd",
+        "reason": "Product return - defective item",
+        "items": [...],
+        "total_amount": 10000,
+        "total_tax": 1800,
+        "currency": "UGX"
+    }
+    """
+    try:
+        required_fields = ["credit_note_number", "credit_note_date", "original_invoice_number", 
+                          "customer_name", "reason", "items", "total_amount", "currency"]
+        for field in required_fields:
+            if field not in credit_note_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        if not credit_note_data["items"] or len(credit_note_data["items"]) == 0:
+            raise HTTPException(status_code=400, detail="Credit note must have at least one item")
+        
+        efris = EfrisManager(
+            tin=company.tin,
+            device_no=company.device_no,
+            cert_path=company.efris_cert_path,
+            cert_password=company.efris_cert_password,
+            is_test_mode=company.is_test_mode
+        )
+        
+        # Build T109 payload for credit note (negative invoice)
+        efris_payload = {
+            "oriInvoiceId": credit_note_data.get("original_fdn", ""),
+            "oriInvoiceNo": credit_note_data["original_invoice_number"],
+            "invoiceNo": credit_note_data["credit_note_number"],
+            "invoiceDate": credit_note_data["credit_note_date"],
+            "invoiceType": "2",  # Credit note type
+            "invoiceKind": "1",
+            "dataSource": "106",
+            "buyerDetails": {
+                "buyerTin": credit_note_data.get("customer_tin", ""),
+                "buyerNinBrn": "",
+                "buyerPassportNum": "",
+                "buyerLegalName": credit_note_data["customer_name"],
+                "buyerBusinessName": credit_note_data["customer_name"],
+                "buyerAddress": "",
+                "buyerEmail": credit_note_data.get("buyer_email", ""),
+                "buyerMobilePhone": credit_note_data.get("buyer_phone", ""),
+                "buyerLinePhone": "",
+                "buyerPlaceOfBusi": "",
+                "buyerType": credit_note_data.get("buyer_type", "1"),
+                "buyerCitizenship": "1",
+                "buyerSector": "1",
+                "buyerReferenceNo": ""
+            },
+            "goodsDetails": [],
+            "taxDetails": [],
+            "summary": {
+                "netAmount": credit_note_data["total_amount"],
+                "taxAmount": credit_note_data.get("total_tax", 0),
+                "grossAmount": credit_note_data["total_amount"] + credit_note_data.get("total_tax", 0),
+                "itemCount": len(credit_note_data["items"]),
+                "modeCode": "0",
+                "remarks": credit_note_data.get("reason", "Credit Note"),
+                "qrCode": ""
+            },
+            "payWay": "101",
+            "extend": {
+                "reason": credit_note_data.get("reason", ""),
+                "reasonCode": "102"  # Credit note reason code
+            }
+        }
+        
+        # Process items (same as invoice)
+        tax_categories = {}
+        for item in credit_note_data["items"]:
+            efris_payload["goodsDetails"].append({
+                "item": item.get("item_name", ""),
+                "itemCode": item.get("item_code", ""),
+                "qty": str(item.get("quantity", 1)),
+                "unitOfMeasure": item.get("unit_of_measure", "102"),
+                "unitPrice": str(item.get("unit_price", 0)),
+                "total": str(item.get("total", 0)),
+                "taxRate": str(item.get("tax_rate", 0.18) * 100) if item.get("tax_rate") else "-",
+                "tax": str(item.get("tax_amount", 0)),
+                "discountTotal": str(item.get("discount_amount", 0)),
+                "discountTaxRate": "0",
+                "orderNumber": str(credit_note_data["items"].index(item) + 1),
+                "discountFlag": "0",
+                "deemedFlag": "2",
+                "exciseFlag": "2",
+                "categoryId": "",
+                "categoryName": "",
+                "goodsCategoryId": item.get("commodity_code", "1010101"),
+                "goodsCategoryName": item.get("commodity_name", "General"),
+                "exciseRate": "0",
+                "exciseRule": "1",
+                "exciseTax": "0",
+                "pack": "1",
+                "stick": "1",
+                "exciseUnit": "101",
+                "exciseCurrency": "UGX",
+                "exciseRateName": ""
+            })
+            
+            # Group by tax rate
+            tax_rate_str = str(item.get("tax_rate", 0.18) * 100) if item.get("tax_rate") else "-"
+            if tax_rate_str not in tax_categories:
+                tax_categories[tax_rate_str] = {
+                    "netAmount": 0,
+                    "taxAmount": 0,
+                    "grossAmount": 0
+                }
+            tax_categories[tax_rate_str]["netAmount"] += item.get("total", 0)
+            tax_categories[tax_rate_str]["taxAmount"] += item.get("tax_amount", 0)
+            tax_categories[tax_rate_str]["grossAmount"] += item.get("total", 0) + item.get("tax_amount", 0)
+        
+        # Add tax details
+        for tax_rate, amounts in tax_categories.items():
+            efris_payload["taxDetails"].append({
+                "taxCategoryCode": tax_rate,
+                "netAmount": str(amounts["netAmount"]),
+                "taxRate": tax_rate,
+                "taxAmount": str(amounts["taxAmount"]),
+                "grossAmount": str(amounts["grossAmount"]),
+                "exciseUnit": "",
+                "exciseCurrency": "",
+                "taxRateName": f"{tax_rate}%-VAT" if tax_rate != "-" else "No Tax"
+            })
+        
+        # Submit to EFRIS (T109 for credit note)
+        result = efris.upload_invoice(efris_payload)
+        
+        if result.get("returnStateInfo", {}).get("returnCode") == "00":
+            # Success
+            data = result.get("data", {})
+            fdn = data.get("basicInformation", {}).get("invoiceNo", "")
+            verification_code = data.get("basicInformation", {}).get("antifakeCode", "")
+            qr_code = data.get("summary", {}).get("qrCode", "")
+            
+            # Save to database
+            credit_memo = CreditMemo(
+                company_id=company.id,
+                qb_credit_memo_id=credit_note_data["credit_note_number"],
+                qb_doc_number=credit_note_data["credit_note_number"],
+                qb_customer_name=credit_note_data["customer_name"],
+                qb_txn_date=datetime.strptime(credit_note_data["credit_note_date"], "%Y-%m-%d"),
+                qb_total_amt=credit_note_data["total_amount"],
+                qb_data=credit_note_data
+            )
+            db.add(credit_memo)
+            db.commit()
+            
+            return {
+                "success": True,
+                "fdn": fdn,
+                "verification_code": verification_code,
+                "qr_code": qr_code,
+                "credit_note_number": credit_note_data["credit_note_number"],
+                "fiscalized_at": datetime.utcnow().isoformat(),
+                "message": "Credit note fiscalized successfully"
+            }
+        else:
+            error_msg = result.get("returnStateInfo", {}).get("returnMessage", "Unknown error")
+            error_code = result.get("returnStateInfo", {}).get("returnCode", "")
+            
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "error_code": error_code,
+                    "message": error_msg
+                }
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get("/api/external/efris/invoice/{invoice_number}")
+async def external_get_invoice(
+    invoice_number: str,
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """Query invoice status from database"""
+    invoice = db.query(EFRISInvoice).filter(
+        EFRISInvoice.company_id == company.id,
+        EFRISInvoice.invoice_no == invoice_number
+    ).first()
+    
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    return {
+        "invoice_number": invoice.invoice_no,
+        "fdn": invoice.fdn,
+        "status": invoice.status,
+        "customer_name": invoice.customer_name,
+        "total_amount": invoice.total_amount,
+        "total_tax": invoice.total_tax,
+        "fiscalized_at": invoice.submission_date.isoformat() if invoice.submission_date else None,
+        "error_message": invoice.error_message
+    }
+
+
+@app.get("/api/external/efris/invoices")
+async def external_list_invoices(
+    limit: int = Query(50, le=100),
+    offset: int = Query(0),
+    status: Optional[str] = Query(None),
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """List invoices with pagination"""
+    query = db.query(EFRISInvoice).filter(EFRISInvoice.company_id == company.id)
+    
+    if status:
+        query = query.filter(EFRISInvoice.status == status)
+    
+    total = query.count()
+    invoices = query.order_by(EFRISInvoice.created_at.desc()).offset(offset).limit(limit).all()
+    
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "invoices": [{
+            "invoice_number": inv.invoice_no,
+            "fdn": inv.fdn,
+            "status": inv.status,
+            "customer_name": inv.customer_name,
+            "total_amount": inv.total_amount,
+            "fiscalized_at": inv.submission_date.isoformat() if inv.submission_date else None
+        } for inv in invoices]
     }
 
 

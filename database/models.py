@@ -1,34 +1,82 @@
 """
 Database Models for Multi-Tenant EFRIS API
+Supports: Admin → Resellers → Clients (Taxpayers)
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, Text, Float, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, Text, Float, JSON, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
+import enum
 
 Base = declarative_base()
 
 
+class UserRole(enum.Enum):
+    """User roles in the system"""
+    ADMIN = "admin"           # Platform owner (you)
+    RESELLER = "reseller"     # Agents/accountants who bring clients
+    CLIENT = "client"         # End taxpayer who uses control panel
+
+
+class UserStatus(enum.Enum):
+    """User account status (for activation workflow)"""
+    PENDING = "pending"       # Waiting for owner approval
+    ACTIVE = "active"         # Approved and active
+    SUSPENDED = "suspended"   # Temporarily disabled
+    DEACTIVATED = "deactivated"  # Permanently disabled
+
+
+class SubscriptionStatus(enum.Enum):
+    """Subscription status for resellers"""
+    TRIAL = "trial"
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
 class User(Base):
-    """User accounts - can belong to multiple companies"""
+    """
+    User accounts - supports different roles:
+    - ADMIN: Platform owner
+    - RESELLER: Agents who register, pay, and manage clients
+    - CLIENT: End taxpayers who use the control panel
+    """
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255))
+    phone = Column(String(50))
+    role = Column(String(20), default="client")  # admin, reseller, client, owner
+    status = Column(String(20), default="active")  # pending, active, suspended, deactivated
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+    
+    # For RESELLER: who manages this reseller (admin)
+    # For CLIENT: who manages this client (reseller_id)
+    parent_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Subscription (for resellers)
+    subscription_status = Column(String(20), default="trial")  # trial, active, expired
+    subscription_ends = Column(DateTime(timezone=True))
+    max_clients = Column(Integer, default=5)  # How many clients can reseller add
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     company_users = relationship("CompanyUser", back_populates="user")
+    # For resellers: their clients
+    clients = relationship("User", backref="reseller", remote_side=[id])
 
 
 class Company(Base):
-    """Company/Business - each has their own TIN, QuickBooks, EFRIS config"""
+    """
+    Company/Business - stores EFRIS credentials for each taxpayer
+    Each CLIENT has ONE company with their TIN, device_no, and private key
+    """
     __tablename__ = "companies"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -36,20 +84,51 @@ class Company(Base):
     tin = Column(String(50), unique=True, index=True, nullable=False)
     device_no = Column(String(50))
     
-    # EFRIS Configuration
+    # Owner - the CLIENT user who owns this company
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # EFRIS Configuration (CRITICAL - stored by reseller for the client)
     efris_test_mode = Column(Boolean, default=True)
-    efris_cert_path = Column(String(500))
-    efris_cert_password = Column(String(255))  # Encrypted
-    efris_aes_key = Column(Text)  # Encrypted, cached
+    efris_cert_path = Column(String(500))      # Path to .pfx file
+    efris_cert_password = Column(String(255))  # Password for .pfx
+    efris_aes_key = Column(Text)               # Cached AES key
     efris_aes_key_expires = Column(DateTime(timezone=True))
     
-    # QuickBooks Configuration
+    # QuickBooks Configuration (optional - if client uses QB)
     qb_realm_id = Column(String(50))
-    qb_access_token = Column(Text)  # Encrypted
-    qb_refresh_token = Column(Text)  # Encrypted
+    qb_access_token = Column(Text)
+    qb_refresh_token = Column(Text)
     qb_token_expires = Column(DateTime(timezone=True))
     qb_company_name = Column(String(255))
-    qb_region = Column(String(10), default="US")  # US, UK, CA, AU, etc.
+    qb_region = Column(String(10), default="US")
+    
+    # Xero Configuration (optional - if client uses Xero)
+    xero_tenant_id = Column(String(100))
+    xero_access_token = Column(Text)
+    xero_refresh_token = Column(Text)
+    xero_token_expires = Column(DateTime(timezone=True))
+    
+    # Zoho Books Configuration (optional)
+    zoho_organization_id = Column(String(100))
+    zoho_access_token = Column(Text)
+    zoho_refresh_token = Column(Text)
+    zoho_token_expires = Column(DateTime(timezone=True))
+    
+    # Custom ERP/API Configuration (optional)
+    custom_api_url = Column(String(500))
+    custom_api_key = Column(Text)
+    custom_api_secret = Column(Text)
+    
+    # ERP Connection Status
+    erp_type = Column(String(50))  # quickbooks, xero, zoho, custom, none
+    erp_connected = Column(Boolean, default=False)
+    erp_last_sync = Column(DateTime(timezone=True))
+    
+    # API Access for Custom ERP Integration
+    api_key = Column(String(100), unique=True, index=True)  # For external API calls
+    api_secret = Column(String(100))  # Optional signing secret
+    api_enabled = Column(Boolean, default=True)
+    api_last_used = Column(DateTime(timezone=True))
     
     # Status
     is_active = Column(Boolean, default=True)
@@ -57,6 +136,7 @@ class Company(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
+    owner = relationship("User", foreign_keys=[owner_id])
     company_users = relationship("CompanyUser", back_populates="company")
     products = relationship("Product", back_populates="company")
     invoices = relationship("Invoice", back_populates="company")
@@ -76,6 +156,48 @@ class CompanyUser(Base):
     # Relationships
     user = relationship("User", back_populates="company_users")
     company = relationship("Company", back_populates="company_users")
+
+
+class ClientReferral(Base):
+    """
+    Client referrals from resellers - OWNER MUST APPROVE
+    Security: Prevents resellers from adding/deleting clients directly
+    """
+    __tablename__ = "client_referrals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Referral Info
+    reseller_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    company_name = Column(String(255), nullable=False)
+    client_name = Column(String(255), nullable=False)
+    client_email = Column(String(255), nullable=False)
+    client_phone = Column(String(50))
+    tin = Column(String(50), nullable=False)
+    device_no = Column(String(50))
+    
+    # Status
+    status = Column(String(20), default="pending")  # pending, approved, rejected
+    notes = Column(Text)  # Reseller's notes about the client
+    
+    # Owner's Actions
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Owner who reviewed
+    reviewed_at = Column(DateTime(timezone=True))
+    rejection_reason = Column(Text)
+    
+    # When approved, links to created client
+    created_client_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    reseller = relationship("User", foreign_keys=[reseller_id])
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+    created_client = relationship("User", foreign_keys=[created_client_id])
+    created_company = relationship("Company", foreign_keys=[created_company_id])
 
 
 class Product(Base):
@@ -337,3 +459,32 @@ class AuditLog(Base):
     ip_address = Column(String(50))
     user_agent = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ActivityLog(Base):
+    """Activity log for tracking invoice/EFRIS operations (for owner dashboard)"""
+    __tablename__ = "activity_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))  # The client user
+    reseller_id = Column(Integer, ForeignKey("users.id"))  # The reseller who manages this client
+    
+    # Activity details
+    activity_type = Column(String(50), nullable=False)  # invoice_created, invoice_fiscalized, product_synced, etc.
+    document_type = Column(String(50))  # invoice, credit_memo, product
+    document_number = Column(String(100))  # INV-1023, etc.
+    
+    # EFRIS specific
+    efris_request_type = Column(String(20))  # T109, T110, T111, etc.
+    efris_status = Column(String(20))  # success, failed, pending
+    efris_response = Column(JSON)  # Store EFRIS response
+    
+    # Metadata
+    details = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    company = relationship("Company")
+    user = relationship("User", foreign_keys=[user_id])
+    reseller = relationship("User", foreign_keys=[reseller_id])

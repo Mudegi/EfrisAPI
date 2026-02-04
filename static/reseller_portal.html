@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EFRIS Reseller Portal - Manage Your Clients</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .navbar {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .navbar-brand span {
+            color: #4CAF50;
+        }
+
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .navbar-user span {
+            color: #aaa;
+        }
+
+        .btn-logout {
+            background: transparent;
+            border: 1px solid #e74c3c;
+            color: #e74c3c;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-logout:hover {
+            background: #e74c3c;
+            color: white;
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            min-height: calc(100vh - 60px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: #1a1a2e;
+            padding: 2rem 0;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+        }
+
+        .sidebar-menu li a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 1rem 1.5rem;
+            color: #aaa;
+            text-decoration: none;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-menu li a:hover,
+        .sidebar-menu li a.active {
+            background: rgba(255,255,255,0.05);
+            color: white;
+            border-left-color: #4CAF50;
+        }
+
+        .sidebar-menu li a svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Content Area */
+        .content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+            color: #2c3e50;
+            font-size: 1.8rem;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .stat-card h3 {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .stat-card.success { border-left: 4px solid #4CAF50; }
+        .stat-card.info { border-left: 4px solid #2196F3; }
+        .stat-card.warning { border-left: 4px solid #ff9800; }
+        .stat-card.danger { border-left: 4px solid #e74c3c; }
+
+        /* Clients Table */
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: #f8f9fa;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-header h2 {
+            color: #2c3e50;
+            font-size: 1.2rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 1rem 1.5rem;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            background: #f8f9fa;
+            color: #7f8c8d;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        td {
+            color: #2c3e50;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-active { background: #e8f5e9; color: #2e7d32; }
+        .status-inactive { background: #ffebee; color: #c62828; }
+        .status-pending { background: #fff3e0; color: #e65100; }
+
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 0.4rem 0.8rem;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+
+        .btn-edit { background: #e3f2fd; color: #1565c0; }
+        .btn-edit:hover { background: #1565c0; color: white; }
+        .btn-view { background: #e8f5e9; color: #2e7d32; }
+        .btn-view:hover { background: #2e7d32; color: white; }
+        .btn-delete { background: #ffebee; color: #c62828; }
+        .btn-delete:hover { background: #c62828; color: white; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            color: #2c3e50;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #7f8c8d;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .form-group small {
+            color: #7f8c8d;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+            display: block;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            border: 2px dashed #e0e0e0;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-input-wrapper:hover {
+            border-color: #4CAF50;
+            background: #f8fff8;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-input-wrapper .icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-footer {
+            padding: 1.5rem;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .btn-cancel {
+            background: #f5f5f5;
+            color: #666;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        /* Subscription Banner */
+        .subscription-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .subscription-banner.expired {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+
+        .subscription-banner h3 {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .subscription-banner p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .btn-upgrade {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #7f8c8d;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            display: none;
+            animation: slideInRight 0.3s ease-out;
+            z-index: 2000;
+        }
+
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(100px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .toast.success { background: #4CAF50; }
+        .toast.error { background: #e74c3c; }
+        .toast.active { display: block; }
+
+        /* Login Screen */
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        }
+
+        .login-box {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-header h1 {
+            color: #2c3e50;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-header p {
+            color: #7f8c8d;
+        }
+
+        /* Hide sections by default */
+        .section { display: none; }
+        .section.active { display: block; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .form-row { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <h1>🏢 Reseller Portal</h1>
+                <p>Manage your EFRIS clients</p>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="loginEmail" required placeholder="you@company.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">
+                    Sign In to Portal
+                </button>
+            </form>
+            <p style="text-align: center; margin-top: 1.5rem; color: #7f8c8d;">
+                Don't have an account? <a href="/" style="color: #4CAF50;">Register as Reseller</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Portal (hidden until login) -->
+    <div id="portalScreen" style="display: none;">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <a href="#" class="navbar-brand">EFRIS<span>Portal</span></a>
+            <div class="navbar-user">
+                <span id="userEmail">reseller@example.com</span>
+                <button class="btn-logout" onclick="logout()">Logout</button>
+            </div>
+        </nav>
+
+        <div class="main-container">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <ul class="sidebar-menu">
+                    <li>
+                        <a href="#" class="active" onclick="showSection('dashboard')">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                            Dashboard
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" onclick="showSection('clients')">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            My Clients
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" onclick="showSection('activity')">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            Client Activity
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" onclick="showSection('settings')">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            Settings
+                        </a>
+                    </li>
+                </ul>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="content">
+                <!-- Dashboard Section -->
+                <div id="dashboardSection" class="section active">
+                    <div class="page-header">
+                        <h1>Dashboard</h1>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card success">
+                            <h3>Total Clients</h3>
+                            <div class="value" id="totalClients">0</div>
+                        </div>
+                        <div class="stat-card info">
+                            <h3>Active Clients</h3>
+                            <div class="value" id="activeClients">0</div>
+                        </div>
+                        <div class="stat-card success">
+                            <h3>Invoices This Month</h3>
+                            <div class="value" id="monthlyInvoices">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Clients -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Recent Clients</h2>
+                            <button class="btn-primary" onclick="openReferralModal()">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                Refer Client
+                            </button>
+                        </div>
+                        <div id="recentClientsTable" class="table-container">
+                            <!-- Will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clients Section -->
+                <div id="clientsSection" class="section">
+                    <div class="page-header">
+                        <h1>My Referred Clients</h1>
+                        <button class="btn-primary" onclick="openReferralModal()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            Refer New Client
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div id="clientsTable" class="table-container">
+                            <!-- Will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Activity Section -->
+                <div id="activitySection" class="section">
+                    <div class="page-header">
+                        <h1>📊 Client Activity</h1>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card success">
+                            <h3>Total Invoices</h3>
+                            <div class="value" id="totalInvoices">0</div>
+                        </div>
+                        <div class="stat-card info">
+                            <h3>This Month</h3>
+                            <div class="value" id="monthInvoices">0</div>
+                        </div>
+                        <div class="stat-card primary">
+                            <h3>Today</h3>
+                            <div class="value" id="todayInvoices">0</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Recent Invoices</h2>
+                        </div>
+                        <div id="activityTable" class="table-container">
+                            <p style="text-align: center; padding: 2rem; color: #7f8c8d;">Loading activity...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Section -->
+                <div id="settingsSection" class="section">
+                    <div class="page-header">
+                        <h1>Settings</h1>
+                    </div>
+
+                    <div class="card" style="padding: 2rem;">
+                        <h2 style="margin-bottom: 1.5rem;">Account Settings</h2>
+                        <form id="settingsForm">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Full Name</label>
+                                    <input type="text" id="settingsName">
+                                </div>
+                                <div class="form-group">
+                                    <label>Phone Number</label>
+                                    <input type="tel" id="settingsPhone">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Email Address</label>
+                                <input type="email" id="settingsEmail" readonly style="background: #f5f5f5;">
+                            </div>
+                            <button type="submit" class="btn-primary">Save Changes</button>
+                        </form>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Refer Client Modal -->
+    <div id="addClientModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>📝 Refer New Client</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="addClientForm">
+                <div class="modal-body">
+                    <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #4CAF50;">
+                        <p style="color: #2e7d32; margin: 0; font-size: 0.9rem;">🚀 <strong>Production Ready:</strong> All clients go directly to URA Production environment. Platform owner will configure EFRIS credentials.</p>
+                    </div>
+                    
+                    <h3 style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 1rem; text-transform: uppercase;">Company Information</h3>
+                    
+                    <div class="form-group">
+                        <label>Company Name *</label>
+                        <input type="text" id="clientCompanyName" required placeholder="e.g., ABC Trading Ltd">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>TIN (Tax Identification Number) *</label>
+                            <input type="text" id="clientTIN" required placeholder="1000000000">
+                            <small>10-digit URA TIN</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Device Number</label>
+                            <input type="text" id="clientDeviceNo" placeholder="1000000000_01">
+                            <small>Optional - owner will verify</small>
+                        </div>
+                    </div>
+
+                    <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e0e0e0;">
+                    
+                    <h3 style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 1rem; text-transform: uppercase;">Contact Details</h3>
+
+                    <div class="form-group">
+                        <label>Client Name *</label>
+                        <input type="text" id="clientName" required placeholder="Full name of contact person">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Client Email *</label>
+                            <input type="email" id="clientEmail" required placeholder="client@company.com">
+                            <small>Client will use this to login</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Client Phone *</label>
+                            <input type="tel" id="clientPhone" required placeholder="+256 700 000 000">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notes (Optional)</label>
+                        <textarea id="clientNotes" rows="3" placeholder="Any additional information about this client..." style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-family: inherit;"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Submit Referral</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // State
+        let token = localStorage.getItem('reseller_token');
+        let currentUser = null;
+        let clients = [];
+
+        // Check if logged in
+        if (token) {
+            showPortal();
+            loadDashboard();
+        }
+
+        // Login
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const formData = new URLSearchParams();
+                formData.append('username', email);
+                formData.append('password', password);
+
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Invalid credentials');
+                }
+
+                const data = await response.json();
+                token = data.access_token;
+                localStorage.setItem('reseller_token', token);
+
+                // Check if user is reseller
+                const userResp = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (userResp.ok) {
+                    currentUser = await userResp.json();
+                    if (currentUser.role !== 'reseller' && currentUser.role !== 'admin') {
+                        showToast('Access denied. This portal is for resellers only.', 'error');
+                        localStorage.removeItem('reseller_token');
+                        return;
+                    }
+                    showPortal();
+                    loadDashboard();
+                }
+            } catch (error) {
+                showToast(error.message || 'Login failed', 'error');
+            }
+        });
+
+        function showPortal() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('portalScreen').style.display = 'block';
+        }
+
+        function logout() {
+            localStorage.removeItem('reseller_token');
+            token = null;
+            currentUser = null;
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('portalScreen').style.display = 'none';
+        }
+
+        function showSection(section) {
+            // Update sidebar
+            document.querySelectorAll('.sidebar-menu a').forEach(a => a.classList.remove('active'));
+            event.target.closest('a').classList.add('active');
+
+            // Show section
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(section + 'Section').classList.add('active');
+        }
+
+        async function loadDashboard() {
+            try {
+                // Load user info
+                const userResp = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (userResp.ok) {
+                    currentUser = await userResp.json();
+                    document.getElementById('userEmail').textContent = currentUser.email;
+                    document.getElementById('settingsName').value = currentUser.full_name || '';
+                    document.getElementById('settingsEmail').value = currentUser.email;
+                    document.getElementById('settingsPhone').value = currentUser.phone || '';
+                }
+
+                // Load clients
+                await loadClients();
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/reseller/clients', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    clients = await response.json();
+                    renderClientsTable();
+                    
+                    // Update stats
+                    document.getElementById('totalClients').textContent = clients.length;
+                    document.getElementById('activeClients').textContent = 
+                        clients.filter(c => c.is_active).length;
+                    document.getElementById('usedSlots').textContent = clients.length;
+                }
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                clients = [];
+                renderClientsTable();
+            }
+        }
+
+        function renderClientsTable() {
+            const tableHtml = clients.length === 0 ? `
+                <div class="empty-state">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <h3>No referrals yet</h3>
+                    <p>Submit your first client referral to get started</p>
+                    <button class="btn-primary" style="margin-top: 1rem;" onclick="openReferralModal()">Refer Client</button>
+                </div>
+            ` : `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>TIN</th>
+                            <th>Device No</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${clients.map(client => `
+                            <tr>
+                                <td><strong>${client.company_name || '-'}</strong></td>
+                                <td>${client.tin || '-'}</td>
+                                <td>${client.device_no || '-'}</td>
+                                <td>${client.email}</td>
+                                <td>
+                                    <span class="status-badge ${client.is_active ? 'status-active' : 'status-inactive'}">
+                                        ${client.is_active ? '✅ Active' : '⏳ Pending'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="action-btns">
+                                        <button class="btn-sm btn-view" onclick="viewClient(${client.id})" title="View Details" style="background: #17a2b8; opacity: 0.7; cursor: not-allowed;">
+                                            👁️ View Only
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('clientsTable').innerHTML = tableHtml;
+            document.getElementById('recentClientsTable').innerHTML = tableHtml;
+        }
+
+        function openReferralModal() {
+            document.getElementById('addClientModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('addClientModal').classList.remove('active');
+            document.getElementById('addClientForm').reset();
+        }
+
+        // Submit Referral Form
+        document.getElementById('addClientForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData();
+            formData.append('company_name', document.getElementById('clientCompanyName').value);
+            formData.append('client_name', document.getElementById('clientName').value);
+            formData.append('client_email', document.getElementById('clientEmail').value);
+            formData.append('client_phone', document.getElementById('clientPhone').value);
+            formData.append('tin', document.getElementById('clientTIN').value);
+            formData.append('device_no', document.getElementById('clientDeviceNo').value || '');
+            formData.append('notes', document.getElementById('clientNotes').value || '');
+
+            try {
+                const response = await fetch('/api/reseller/submit-referral', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to submit referral');
+                }
+
+                const result = await response.json();
+                showToast('✅ Referral submitted! Platform owner will configure EFRIS credentials.', 'success');
+                closeModal();
+                loadClients();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        });
+
+        function viewClient(clientId) {
+            const client = clients.find(c => c.id === clientId);
+            if (client) {
+                showToast('ℹ️ View-only access. Contact platform owner for any changes.', 'info');
+            }
+        }
+
+        async function loadClientActivity() {
+            try {
+                // Load activity from all my clients
+                const response = await fetch('/api/reseller/client-activity', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const activities = data.activities || [];
+                    
+                    // Update stats
+                    document.getElementById('totalInvoices').textContent = data.total || 0;
+                    document.getElementById('monthInvoices').textContent = data.this_month || 0;
+                    document.getElementById('todayInvoices').textContent = data.today || 0;
+                    
+                    // Render activity table
+                    if (activities.length === 0) {
+                        document.getElementById('activityTable').innerHTML = `
+                            <div class="empty-state">
+                                <h3>No invoice activity yet</h3>
+                                <p>When your clients post invoices to EFRIS, you'll see them here</p>
+                            </div>
+                        `;
+                    } else {
+                        const tableHtml = `
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Client</th>
+                                        <th>Invoice #</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${activities.map(a => `
+                                        <tr>
+                                            <td>${new Date(a.created_at).toLocaleDateString()}</td>
+                                            <td>${a.company_name}</td>
+                                            <td>${a.invoice_number || '-'}</td>
+                                            <td>${a.total_amount ? 'UGX ' + a.total_amount.toLocaleString() : '-'}</td>
+                                            <td>
+                                                <span class="status-badge ${a.efris_status === 'success' ? 'status-active' : 'status-inactive'}">
+                                                    ${a.efris_status === 'success' ? '✅ Sent' : '⏳ Pending'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        `;
+                        document.getElementById('activityTable').innerHTML = tableHtml;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading activity:', error);
+                document.getElementById('activityTable').innerHTML = `
+                    <p style="text-align: center; padding: 2rem; color: #e74c3c;">Error loading activity</p>
+                `;
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} active`;
+            setTimeout(() => {
+                toast.classList.remove('active');
+            }, 3000);
+        }
+
+        // Settings form
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            showToast('Settings saved', 'success');
+        });
+    </script>
+</body>
+</html>

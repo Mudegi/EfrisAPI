@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EFRIS Integration Platform - Automate Your Tax Compliance</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
+        
+        /* Hero Section */
+        .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 80px 20px; text-align: center; }
+        .hero h1 { font-size: 3em; margin-bottom: 20px; }
+        .hero p { font-size: 1.3em; margin-bottom: 30px; opacity: 0.9; }
+        .cta-button { background: white; color: #667eea; padding: 15px 40px; font-size: 1.1em; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; text-decoration: none; display: inline-block; }
+        .cta-button:hover { transform: scale(1.05); transition: 0.3s; }
+        
+        /* Features */
+        .container { max-width: 1200px; margin: 0 auto; padding: 60px 20px; }
+        .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin: 40px 0; }
+        .feature { background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center; }
+        .feature h3 { color: #667eea; margin-bottom: 15px; }
+        
+        /* Pricing */
+        .pricing { background: #f8f9fa; padding: 60px 20px; }
+        .price-card { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; text-align: center; }
+        .price-card h2 { color: #667eea; margin-bottom: 10px; }
+        .price { font-size: 3em; color: #333; margin: 20px 0; }
+        .price span { font-size: 0.5em; color: #666; }
+        .features-list { text-align: left; margin: 30px 0; }
+        .features-list li { margin: 10px 0; padding-left: 25px; position: relative; }
+        .features-list li:before { content: "✓"; position: absolute; left: 0; color: #667eea; font-weight: bold; }
+        
+        /* Demo Section */
+        .demo { background: white; padding: 60px 20px; }
+        .demo h2 { text-align: center; margin-bottom: 40px; color: #333; }
+        .api-test { background: #f8f9fa; padding: 30px; border-radius: 10px; max-width: 800px; margin: 0 auto; }
+        .test-button { background: #667eea; color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer; margin: 10px 5px; }
+        .test-button:hover { background: #5568d3; }
+        .response { background: #2d3748; color: #a0aec0; padding: 20px; border-radius: 5px; margin-top: 20px; font-family: 'Courier New', monospace; overflow-x: auto; display: none; }
+        
+        /* Auth Forms */
+        .auth-section { max-width: 400px; margin: 40px auto; padding: 30px; background: #f8f9fa; border-radius: 10px; }
+        .auth-section h3 { margin-bottom: 20px; color: #667eea; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .form-group input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em; }
+        .submit-btn { width: 100%; background: #667eea; color: white; padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1em; }
+        .submit-btn:hover { background: #5568d3; }
+        .toggle-auth { text-align: center; margin-top: 15px; color: #667eea; cursor: pointer; }
+        .message { padding: 10px; border-radius: 5px; margin-top: 15px; display: none; }
+        .success { background: #c6f6d5; color: #22543d; }
+        .error { background: #fed7d7; color: #9b2c2c; }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <div class="hero">
+        <h1>🚀 EFRIS Integration Platform</h1>
+        <p>Automate tax compliance for your business. Connect any ERP system to Uganda's EFRIS in minutes.</p>
+        <a href="#pricing" class="cta-button">Start Free Trial - 30 Days</a>
+    </div>
+
+    <!-- Features -->
+    <div class="container">
+        <h2 style="text-align: center; margin-bottom: 40px;">Why Choose Our Platform?</h2>
+        <div class="features">
+            <div class="feature">
+                <h3>🔌 Multi-ERP Support</h3>
+                <p>Works with QuickBooks, Xero, Zoho, or your custom system via API</p>
+            </div>
+            <div class="feature">
+                <h3>⚡ Instant Fiscalization</h3>
+                <p>Automatic invoice submission to EFRIS with real-time status updates</p>
+            </div>
+            <div class="feature">
+                <h3>👥 Multi-Company</h3>
+                <p>Manage unlimited clients from one dashboard. Perfect for accountants!</p>
+            </div>
+            <div class="feature">
+                <h3>🔒 Secure & Compliant</h3>
+                <p>Bank-grade encryption. Your certificates and data are safe</p>
+            </div>
+            <div class="feature">
+                <h3>📊 Usage Analytics</h3>
+                <p>Track invoices, monitor compliance, and generate reports</p>
+            </div>
+            <div class="feature">
+                <h3>🛠️ Developer-Friendly</h3>
+                <p>RESTful API, webhooks, and comprehensive documentation</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Demo Section -->
+    <div class="demo">
+        <h2>Try It Live - Test EFRIS Connectivity</h2>
+        <div class="api-test">
+            <p style="text-align: center; margin-bottom: 20px;">Click below to test our EFRIS integration in real-time:</p>
+            <div style="text-align: center;">
+                <button class="test-button" onclick="testEfrisConnection()">Test EFRIS Server</button>
+                <button class="test-button" onclick="queryInvoice()">Query Sample Invoice</button>
+            </div>
+            <div class="response" id="apiResponse"></div>
+        </div>
+    </div>
+
+    <!-- Pricing -->
+    <div class="pricing" id="pricing">
+        <div class="container">
+            <h2 style="text-align: center; margin-bottom: 40px;">Simple, Transparent Pricing</h2>
+            <div class="price-card">
+                <h2>Annual Plan</h2>
+                <div class="price">UGX 500,000<span>/year</span></div>
+                <ul class="features-list">
+                    <li>30-Day Free Trial</li>
+                    <li>Up to 5 Companies</li>
+                    <li>Unlimited Invoices</li>
+                    <li>All ERP Integrations</li>
+                    <li>Email Support</li>
+                    <li>API Access</li>
+                    <li>Automatic Updates</li>
+                </ul>
+                <a href="#auth" class="cta-button" style="display: block; margin-top: 20px;">Start Free Trial</a>
+                <p style="margin-top: 15px; color: #666; font-size: 0.9em;">No credit card required</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Section -->
+    <div class="container" id="auth">
+        <div class="auth-section">
+            <!-- Register Form -->
+            <div id="registerForm">
+                <h3>Create Your Free Account</h3>
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="reg_name" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="reg_email" placeholder="john@company.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" id="reg_phone" placeholder="+256700000000">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="reg_password" placeholder="Min 6 characters" required>
+                </div>
+                <button class="submit-btn" onclick="register()">Create Account</button>
+                <div class="message" id="regMessage"></div>
+                <p class="toggle-auth" onclick="toggleAuth()">Already have an account? Login</p>
+            </div>
+
+            <!-- Login Form -->
+            <div id="loginForm" style="display: none;">
+                <h3>Welcome Back!</h3>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="login_email" placeholder="john@company.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login_password" required>
+                </div>
+                <button class="submit-btn" onclick="login()">Login</button>
+                <div class="message" id="loginMessage"></div>
+                <p class="toggle-auth" onclick="toggleAuth()">Don't have an account? Register</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8001';
+
+        // Toggle between login and register
+        function toggleAuth() {
+            const regForm = document.getElementById('registerForm');
+            const loginForm = document.getElementById('loginForm');
+            if (regForm.style.display === 'none') {
+                regForm.style.display = 'block';
+                loginForm.style.display = 'none';
+            } else {
+                regForm.style.display = 'none';
+                loginForm.style.display = 'block';
+            }
+        }
+
+        // Register
+        async function register() {
+            const data = {
+                full_name: document.getElementById('reg_name').value,
+                email: document.getElementById('reg_email').value,
+                phone: document.getElementById('reg_phone').value,
+                password: document.getElementById('reg_password').value
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/register`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('regMessage', 'Account created! Please login.', 'success');
+                    setTimeout(() => toggleAuth(), 2000);
+                } else {
+                    showMessage('regMessage', result.detail || 'Registration failed', 'error');
+                }
+            } catch (error) {
+                showMessage('regMessage', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        // Login
+        async function login() {
+            const formData = new URLSearchParams();
+            formData.append('username', document.getElementById('login_email').value);
+            formData.append('password', document.getElementById('login_password').value);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('token', result.access_token);
+                    showMessage('loginMessage', 'Login successful! Redirecting...', 'success');
+                    setTimeout(() => window.location.href = '/dashboard.html', 2000);
+                } else {
+                    showMessage('loginMessage', result.detail || 'Login failed', 'error');
+                }
+            } catch (error) {
+                showMessage('loginMessage', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        // Test EFRIS
+        async function testEfrisConnection() {
+            const responseDiv = document.getElementById('apiResponse');
+            responseDiv.style.display = 'block';
+            responseDiv.textContent = 'Testing connection...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/public/efris/test`);
+                const result = await response.json();
+                responseDiv.textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                responseDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Query Invoice
+        async function queryInvoice() {
+            const responseDiv = document.getElementById('apiResponse');
+            responseDiv.style.display = 'block';
+            responseDiv.textContent = 'Querying sample invoice...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/public/efris/query/325042890787`);
+                const result = await response.json();
+                responseDiv.textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                responseDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        function showMessage(id, text, type) {
+            const msg = document.getElementById(id);
+            msg.textContent = text;
+            msg.className = 'message ' + type;
+            msg.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

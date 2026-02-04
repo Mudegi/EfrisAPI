@@ -1,7 +1,7 @@
 """
 Pydantic schemas for API requests/responses
 """
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
@@ -9,19 +9,22 @@ from datetime import datetime
 # ========== AUTH SCHEMAS ==========
 
 class UserCreate(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8)
+    email: str  # Using str to avoid email-validator dependency
+    password: str = Field(min_length=6)
     full_name: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[str] = "reseller"  # reseller or client
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    email: str  # Using str to avoid email-validator dependency
     password: str
 
 
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: Optional['UserResponse'] = None
 
 
 class TokenData(BaseModel):
@@ -32,6 +35,41 @@ class UserResponse(BaseModel):
     id: int
     email: str
     full_name: Optional[str]
+    phone: Optional[str] = None
+    role: Optional[str] = None
+    is_active: bool
+    subscription_status: Optional[str] = None
+    subscription_ends: Optional[datetime] = None
+    max_clients: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ========== CLIENT SCHEMAS (for reseller to manage clients) ==========
+
+class ClientCreate(BaseModel):
+    """Schema for reseller to add a new client"""
+    company_name: str
+    email: str  # Using str to avoid email-validator dependency
+    password: str = Field(min_length=6)
+    phone: Optional[str] = None
+    tin: str
+    device_no: str
+    cert_password: str
+    test_mode: bool = True
+
+
+class ClientResponse(BaseModel):
+    """Response when listing clients"""
+    id: int
+    email: str
+    full_name: Optional[str]
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    tin: Optional[str] = None
+    device_no: Optional[str] = None
     is_active: bool
     created_at: datetime
 
@@ -53,6 +91,8 @@ class CompanyUpdate(BaseModel):
     device_no: Optional[str] = None
     efris_test_mode: Optional[bool] = None
     qb_company_name: Optional[str] = None
+    erp_type: Optional[str] = None  # Allow changing ERP: QUICKBOOKS, XERO, ZOHO, CUSTOM
+    erp_config: Optional[dict] = None  # ERP-specific configuration (realm_id, tenant_id, etc.)
 
 
 class CompanyResponse(BaseModel):
@@ -64,6 +104,8 @@ class CompanyResponse(BaseModel):
     qb_company_name: Optional[str]
     is_active: bool
     created_at: datetime
+    erp_type: Optional[str] = None  # Current ERP system
+    erp_config: Optional[dict] = None  # ERP-specific config
 
     class Config:
         from_attributes = True
@@ -133,7 +175,7 @@ class InvoiceResponse(BaseModel):
 # ========== COMPANY USER SCHEMAS ==========
 
 class CompanyUserAdd(BaseModel):
-    email: EmailStr
+    email: str  # Using str to avoid email-validator dependency
     role: str = Field(default="user", pattern="^(admin|user|readonly)$")
 
 

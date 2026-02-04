@@ -2,3 +2,19 @@ requests==2.31.0
 requests-oauthlib==1.3.1
 python-dotenv==1.0.0
 cryptography==41.0.7
+
+# SaaS Platform Dependencies
+fastapi==0.104.1
+uvicorn==0.24.0
+sqlalchemy==2.0.23
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.6
+pydantic==2.5.0
+pydantic[email]==2.5.0
+
+# Production Dependencies
+psycopg2-binary==2.9.9  # PostgreSQL driver
+sentry-sdk[fastapi]==1.39.1  # Error monitoring (optional)
+httpx==0.25.2  # Async HTTP client
+slowapi==0.1.9  # Rate limiting

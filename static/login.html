@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - EFRIS Integration Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 440px;
+            padding: 48px 40px;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .logo h1 {
+            font-size: 28px;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+        
+        .logo p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn-login {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-login:active {
+            transform: translateY(0);
+        }
+        
+        .btn-login:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .divider {
+            text-align: center;
+            margin: 32px 0;
+            position: relative;
+        }
+        
+        .divider::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 100%;
+            height: 1px;
+            background: #e0e0e0;
+        }
+        
+        .divider span {
+            background: white;
+            padding: 0 16px;
+            position: relative;
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .signup-link {
+            text-align: center;
+            margin-top: 24px;
+        }
+        
+        .signup-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .signup-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .alert-error {
+            background: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
+        }
+        
+        .alert-success {
+            background: #efe;
+            color: #3c3;
+            border: 1px solid #cfc;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 24px;
+        }
+        
+        .back-link a {
+            color: #999;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .back-link a:hover {
+            color: #667eea;
+        }
+        
+        .demo-credentials {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .demo-credentials h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .demo-credentials p {
+            font-size: 13px;
+            color: #333;
+            margin: 4px 0;
+        }
+        
+        .demo-credentials code {
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>🇺🇬 EFRIS Platform</h1>
+            <p>Platform Owner & Reseller Login</p>
+        </div>
+        
+        <div id="alert" style="display: none;"></div>
+        
+        <!-- Demo Credentials -->
+        <div class="demo-credentials">
+            <h3>🔑 Demo Management Account:</h3>
+            <p><strong>Test Account:</strong> <code>mudegiemma@gmail.com</code> / <code>mudegi@256</code></p>
+            <p style="margin-top: 8px; font-size: 12px; color: #888;">
+                Use this to explore the platform. Manage your own integration or multiple client companies from one dashboard.
+            </p>
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required 
+                       placeholder="your@email.com" autocomplete="email">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required 
+                       placeholder="Enter your password" autocomplete="current-password">
+            </div>
+            
+            <button type="submit" class="btn-login" id="loginBtn">
+                Login to Dashboard
+            </button>
+        </form>
+        
+        <div class="divider">
+            <span>OR</span>
+        </div>
+        
+        <div class="signup-link">
+            <p>Don't have an account? <a href="/">Sign up for free trial</a></p>
+        </div>
+        
+        <div class="back-link">
+            <a href="/">← Back to home</a>
+        </div>
+    </div>
+
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const loginBtn = document.getElementById('loginBtn');
+        const alertDiv = document.getElementById('alert');
+        
+        function showAlert(message, type = 'error') {
+            alertDiv.innerHTML = message;
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.style.display = 'block';
+            setTimeout(() => {
+                alertDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Logging in...';
+            
+            try {
+                // Login request
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        username: email,
+                        password: password
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Login failed');
+                }
+                
+                const data = await response.json();
+                
+                // Store token
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                
+                showAlert('Login successful! Redirecting...', 'success');
+                
+                // Smart redirect based on user role
+                const userRole = data.user.role || 'client';
+                let redirectUrl = '/dashboard'; // Default fallback
+                
+                if (userRole === 'owner' || userRole === 'admin') {
+                    redirectUrl = '/owner';
+                } else if (userRole === 'reseller') {
+                    redirectUrl = '/reseller';
+                } else {
+                    // Clients shouldn't use this login page
+                    showAlert('This login is for owners and resellers. Please use the login URL provided by your reseller.', 'error');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Login to Dashboard';
+                    return;
+                }
+                
+                setTimeout(() => {
+                    window.location.href = redirectUrl;
+                }, 1000);
+                
+            } catch (error) {
+                showAlert(error.message || 'Login failed. Please check your credentials.');
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Login to Dashboard';
+            }
+        });
+    </script>
+</body>
+</html>

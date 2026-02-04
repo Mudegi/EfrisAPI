@@ -1,21 +1,113 @@
-# EFRIS Multi-Tenant API
+# 🚀 EFRIS SaaS Platform
 
-A complete multi-tenant EFRIS (Electronic Fiscal Receipting and Invoicing Solution) API with full QuickBooks integration.
+A complete **multi-tenant SaaS platform** for EFRIS (Electronic Fiscal Receipting and Invoicing Solution) integration with support for QuickBooks, Xero, Zoho, and Custom ERPs.
 
-## 🚀 Quick Start
+---
 
-### Start the Server
+## ⚡ SUPER QUICK START (3 Minutes!)
 
-```bash
-py main.py
+### Step 1: Run Setup (One Command!)
+```powershell
+py setup_saas.py
 ```
 
-Or directly with uvicorn:
-```bash
-py -m uvicorn api_multitenant:app --host 0.0.0.0 --port 8001
+This will:
+- ✅ Install all dependencies
+- ✅ Create .env with secure JWT secret
+- ✅ Run database migration
+- ✅ Create admin user (admin@efris.local / admin123)
+
+### Step 2: Start Server
+```powershell
+py api_multitenant.py
 ```
 
-### Access the Dashboard
+### Step 3: Open Browser
+```
+http://localhost:8001
+```
+
+**🎉 That's it! You now have a working SaaS platform!**
+
+---
+
+## 📚 **NEW! Complete Documentation**
+
+### 🎯 Start Here:
+1. **[START_HERE.md](START_HERE.md)** ← **READ THIS FIRST!**
+   - Platform overview
+   - Business model
+   - Revenue potential
+   - Next steps
+
+2. **[QUICK_START_SAAS.md](QUICK_START_SAAS.md)**
+   - 3-minute setup guide
+   - Troubleshooting
+   - Quick commands
+
+3. **[ARCHITECTURE.md](ARCHITECTURE.md)**
+   - Visual diagrams
+   - System flow
+   - Technical architecture
+   - Security layers
+
+### Complete Guides:
+- **[SAAS_SETUP_GUIDE.md](SAAS_SETUP_GUIDE.md)** - Full technical setup
+- **[TRANSFORMATION_SUMMARY.md](TRANSFORMATION_SUMMARY.md)** - What changed and why
+- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** - Deploy to production
+
+### Original Documentation:
+- **[COMPLETE_SUMMARY.md](COMPLETE_SUMMARY.md)** - Discount calculation fix
+- **[QUICKBOOKS_INTEGRATION.md](QUICKBOOKS_INTEGRATION.md)** - QuickBooks setup
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - EFRIS integration guide
+
+---
+
+## 🌟 What's New? (SaaS Platform Features)
+
+### Before (Single-Tenant):
+- ❌ One company per installation
+- ❌ No user management
+- ❌ No payment tracking
+- ❌ QuickBooks only
+
+### After (Multi-Tenant SaaS):
+- ✅ **Multiple users** with authentication (JWT)
+- ✅ **Each user manages multiple companies**
+- ✅ **Subscription tracking** (30-day trial + annual plans)
+- ✅ **Support for 4 ERP systems** (QuickBooks, Xero, Zoho, Custom)
+- ✅ **Professional landing page** with registration
+- ✅ **REST API** for user/company management
+- ✅ **Ready for payment gateway** (Flutterwave/Paystack)
+
+---
+
+## 💰 Business Model
+
+### Pricing:
+- **Free Trial**: 30 days, 2 companies
+- **Annual Plan**: UGX 500,000/year, 5+ companies
+
+### Revenue Potential:
+- 10 customers = **UGX 5,000,000/year**
+- 50 customers = **UGX 25,000,000/year**
+- 100 customers = **UGX 50,000,000/year**
+
+---
+
+## 🔐 Default Admin Login
+
+After running setup:
+```
+Email:    admin@efris.local
+Password: admin123
+```
+
+**⚠️ Change this password immediately!**
+
+---
+
+## 📖 Access the Dashboard
 
 Open your browser: **http://localhost:8001**
 
