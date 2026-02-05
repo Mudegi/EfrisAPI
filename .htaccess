@@ -1,0 +1,8 @@
+PassengerEnabled on
+PassengerAppRoot /home/nafazplp/public_html/efrisintegration.nafacademy.com
+PassengerPython /home/nafazplp/virtualenv/public_html/efrisintegration.nafacademy.com/3.8/bin/python
+PassengerStartupFile passenger_wsgi.py
+PassengerAppType wsgi
+
+# Disable directory listing
+Options -Indexes

@@ -1,8 +1,8 @@
-name: Deploy to Production
+name: Deploy EfrisAPI
 on:
   push:
     branches:
-      - main  # Runs every time you push to 'main'
+      - main
 
 jobs:
   deploy:
@@ -11,14 +11,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Deploy via SSH
+      - name: SSH and Deploy
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
+          host: 184.94.213.244
+          username: nafazplp
           password: ${{ secrets.SSH_PASSWORD }}
           port: 21098
           script: |
-            cd /home/${{ secrets.SSH_USER }}/public_html  # Change this to your actual project path
+            cd /home/nafazplp/public_html/efrisintegration.nafacademy.com
             git pull origin main
-            # If this is a Laravel/Node project, add commands like 'npm install' or 'composer install' here
