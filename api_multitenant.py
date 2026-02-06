@@ -1187,6 +1187,12 @@ async def external_api_documentation():
         """)
 
 
+@app.get("/how-to-integrate-efris", response_class=HTMLResponse)
+async def how_to_guide():
+    """Serve SEO-optimized guide for EFRIS integration"""
+    return FileResponse("static/how-to-integrate-efris.html")
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
     """Serve the multi-tenant control panel for taxpayer clients"""
