@@ -318,7 +318,7 @@ Visit [/external-api-docs](/external-api-docs) for Custom ERP integration guide.
 
 ### Support
 - 📧 Email: support@efrisintegration.nafacademy.com
-- 📱 WhatsApp: +256 700 000 000
+- 📱 WhatsApp: +256 706090021
 - 📚 Docs: https://efrisintegration.nafacademy.com/docs
     """,
     docs_url="/docs",
