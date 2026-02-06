@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Platform Owner Dashboard - EFRIS Integration</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>⚙️</text></svg>">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
     <style>
         * {
             margin: 0;
@@ -404,6 +410,104 @@
         #loginForm {
             display: block;
         }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+                max-width: 100%;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+            }
+            
+            .header-right {
+                width: 100%;
+                justify-content: space-between;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                padding-bottom: 10px;
+            }
+            
+            .tab {
+                font-size: 12px;
+                padding: 10px 15px;
+            }
+            
+            table {
+                font-size: 12px;
+            }
+            
+            table th, table td {
+                padding: 8px 4px;
+            }
+            
+            /* Stack table on very small screens */
+            @media (max-width: 480px) {
+                table, thead, tbody, th, td, tr {
+                    display: block;
+                }
+                
+                thead tr {
+                    display: none;
+                }
+                
+                tr {
+                    margin-bottom: 15px;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    padding: 10px;
+                }
+                
+                td {
+                    text-align: right;
+                    padding-left: 50%;
+                    position: relative;
+                    border: none;
+                }
+                
+                td:before {
+                    content: attr(data-label);
+                    position: absolute;
+                    left: 10px;
+                    font-weight: bold;
+                    text-align: left;
+                }
+            }
+            
+            .btn {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+            
+            .modal-content {
+                padding: 20px !important;
+                margin: 10px !important;
+            }
+            
+            .login-container {
+                padding: 20px;
+            }
+            
+            .logo {
+                font-size: 50px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -420,6 +524,10 @@
             <div class="form-group">
                 <label>Password</label>
                 <input type="password" id="login_password" required placeholder="Enter your password">
+            </div>
+            <div class="form-group">
+                <label>2FA Code <small style="color: #999;">(if enabled)</small></label>
+                <input type="text" id="login_2fa_code" maxlength="6" placeholder="123456" style="letter-spacing: 5px; text-align: center;">
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%;">Login as Owner</button>
         </form>
@@ -464,6 +572,8 @@
             <button class="tab" onclick="switchTab('resellers')">👥 Resellers</button>
             <button class="tab" onclick="switchTab('clients')">🏢 All Clients</button>
             <button class="tab" onclick="switchTab('activity')">📊 Activity Feed</button>
+            <button class="tab" onclick="switchTab('security')">🔐 Security</button>
+            <button class="tab" onclick="switchTab('settings')">⚙️ Settings</button>
             <button class="tab" onclick="switchTab('add')">➕ Add Direct Client</button>
         </div>
 
@@ -485,6 +595,205 @@
                 </thead>
                 <tbody id="pendingList"></tbody>
             </table>
+        </div>
+
+        <!-- Approval Modal -->
+        <div id="approvalModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; overflow-y: auto;">
+            <div style="background: white; max-width: 700px; margin: 30px auto; border-radius: 10px; padding: 30px; position: relative;">
+                <button onclick="closeApprovalModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+                
+                <h2 style="margin-top: 0;">✅ Approve Client Referral</h2>
+                
+                <div style="background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #4299e1;">
+                    <h4 style="margin: 0 0 10px 0; color: #2d3748;">Referral Details (from Reseller)</h4>
+                    <p style="margin: 5px 0;"><strong>Company:</strong> <span id="ref_company_name"></span></p>
+                    <p style="margin: 5px 0;"><strong>Client Name:</strong> <span id="ref_client_name"></span></p>
+                    <p style="margin: 5px 0;"><strong>Email:</strong> <span id="ref_email"></span></p>
+                    <p style="margin: 5px 0;"><strong>Phone:</strong> <span id="ref_phone"></span></p>
+                    <p style="margin: 5px 0;"><strong>TIN:</strong> <span id="ref_tin"></span></p>
+                    <p style="margin: 5px 0;"><strong>Device Number:</strong> <span id="ref_device_no"></span></p>
+                    <p style="margin: 5px 0;"><strong>Reseller:</strong> <span id="ref_reseller"></span></p>
+                </div>
+
+                <div id="approvalAlert"></div>
+
+                <form id="approvalForm" onsubmit="submitApproval(event)">
+                    <input type="hidden" id="approval_referral_id">
+                    
+                    <div class="form-group">
+                        <label>Client Login Password * <small style="color: #666;">(visible - you'll send this to the client)</small></label>
+                        <input type="text" id="approval_password" required minlength="6" placeholder="Client will use this to login">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Certificate (.pfx file) *</label>
+                        <input type="file" id="approval_pfx_file" accept=".pfx" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Certificate Password * <small style="color: #666;">(visible)</small></label>
+                        <input type="text" id="approval_cert_password" required placeholder="Password for the .pfx certificate">
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #2d3748;">EFRIS Environment *</label>
+                        <div style="background: #f7fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #48bb78;">
+                            <label style="display: flex; align-items: center; margin-bottom: 10px;">
+                                <input type="radio" name="approval_efris_env" value="production" checked style="margin-right: 10px;">
+                                <div>
+                                    <strong>🚀 Production Environment (Default)</strong>
+                                    <p style="font-size: 12px; color: #666; margin: 2px 0 0 0;">For real invoices. Uses: efris.ura.go.ug</p>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center;">
+                                <input type="radio" name="approval_efris_env" value="test" style="margin-right: 10px;">
+                                <div>
+                                    <strong>🧪 Test/Sandbox (Demo only)</strong>
+                                    <p style="font-size: 12px; color: #666; margin: 2px 0 0 0;">Only for public demo endpoints. Uses: efristest.ura.go.ug</p>
+                                </div>
+                            </label>
+                            <p style="margin-top: 10px; font-size: 11px; color: #e53e3e;">⚠️ Most clients should use Production.</p>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #2d3748;">ERP/Accounting System *</label>
+                        <select id="approval_erp_type" onchange="toggleApprovalERPFields()" style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                            <option value="none">None - Manual Invoice Entry</option>
+                            <option value="quickbooks">QuickBooks Online</option>
+                            <option value="xero">Xero</option>
+                            <option value="zoho">Zoho Books</option>
+                            <option value="sage">Sage</option>
+                            <option value="odoo">Odoo</option>
+                            <option value="custom">Custom API Integration</option>
+                        </select>
+                        <p style="font-size: 12px; color: #666; margin: 5px 0 0 0;">
+                            💡 Select the accounting system your client uses. Invoices will sync automatically.
+                        </p>
+                    </div>
+
+                    <!-- QuickBooks Fields -->
+                    <div id="approval_quickbooks_fields" style="display: none; background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin-top: 0; color: #2d3748;">📘 QuickBooks Configuration</h4>
+                        <div class="form-group">
+                            <label>Realm ID (Company ID) *</label>
+                            <input type="text" id="approval_qb_realm_id" placeholder="e.g., 123145876921234">
+                            <p style="font-size: 11px; color: #666; margin: 3px 0 0 0;">Find in QuickBooks: Settings → Your Company → Company ID</p>
+                        </div>
+                        <div class="form-group">
+                            <label>Client ID *</label>
+                            <input type="text" id="approval_qb_client_id" placeholder="From QuickBooks Developer Portal">
+                        </div>
+                        <div class="form-group">
+                            <label>Client Secret *</label>
+                            <input type="password" id="approval_qb_client_secret" placeholder="From QuickBooks Developer Portal">
+                        </div>
+                        <div class="form-group">
+                            <label>Region</label>
+                            <select id="approval_qb_region" style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                                <option value="US">United States</option>
+                                <option value="UK">United Kingdom</option>
+                                <option value="AU">Australia</option>
+                                <option value="CA">Canada</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Xero Fields -->
+                    <div id="approval_xero_fields" style="display: none; background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin-top: 0; color: #2d3748;">📗 Xero Configuration</h4>
+                        <div class="form-group">
+                            <label>Tenant ID *</label>
+                            <input type="text" id="approval_xero_tenant_id" placeholder="Xero Organization ID">
+                        </div>
+                        <div class="form-group">
+                            <label>Client ID *</label>
+                            <input type="text" id="approval_xero_client_id" placeholder="From Xero Developer Portal">
+                        </div>
+                        <div class="form-group">
+                            <label>Client Secret *</label>
+                            <input type="password" id="approval_xero_client_secret" placeholder="From Xero Developer Portal">
+                        </div>
+                    </div>
+
+                    <!-- Zoho Fields -->
+                    <div id="approval_zoho_fields" style="display: none; background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin-top: 0; color: #2d3748;">📕 Zoho Books Configuration</h4>
+                        <div class="form-group">
+                            <label>Organization ID *</label>
+                            <input type="text" id="approval_zoho_org_id" placeholder="Zoho Organization ID">
+                        </div>
+                        <div class="form-group">
+                            <label>Client ID *</label>
+                            <input type="text" id="approval_zoho_client_id" placeholder="From Zoho API Console">
+                        </div>
+                        <div class="form-group">
+                            <label>Client Secret *</label>
+                            <input type="password" id="approval_zoho_client_secret" placeholder="From Zoho API Console">
+                        </div>
+                    </div>
+
+                    <!-- Sage Fields -->
+                    <div id="approval_sage_fields" style="display: none; background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin-top: 0; color: #2d3748;">📙 Sage Configuration</h4>
+                        <div class="form-group">
+                            <label>Company ID *</label>
+                            <input type="text" id="approval_sage_company_id" placeholder="Sage Company ID">
+                        </div>
+                        <div class="form-group">
+                            <label>API Key *</label>
+                            <input type="text" id="approval_sage_api_key" placeholder="From Sage Developer Portal">
+                        </div>
+                        <div class="form-group">
+                            <label>API Secret *</label>
+                            <input type="password" id="approval_sage_api_secret" placeholder="From Sage Developer Portal">
+                        </div>
+                    </div>
+
+                    <!-- Odoo Fields -->
+                    <div id="approval_odoo_fields" style="display: none; background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin-top: 0; color: #2d3748;">🟣 Odoo Configuration</h4>
+                        <div class="form-group">
+                            <label>Odoo URL *</label>
+                            <input type="text" id="approval_odoo_url" placeholder="https://yourcompany.odoo.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Database Name *</label>
+                            <input type="text" id="approval_odoo_db" placeholder="Database name">
+                        </div>
+                        <div class="form-group">
+                            <label>Username *</label>
+                            <input type="text" id="approval_odoo_username" placeholder="Odoo username">
+                        </div>
+                        <div class="form-group">
+                            <label>API Key/Password *</label>
+                            <input type="password" id="approval_odoo_password" placeholder="API Key or Password">
+                        </div>
+                    </div>
+
+                    <!-- Custom API Fields -->
+                    <div id="approval_custom_fields" style="display: none; background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin-top: 0; color: #2d3748;">🔧 Custom API Configuration</h4>
+                        <div class="form-group">
+                            <label>API URL *</label>
+                            <input type="text" id="approval_custom_url" placeholder="https://api.yourcompany.com">
+                        </div>
+                        <div class="form-group">
+                            <label>API Key *</label>
+                            <input type="text" id="approval_custom_api_key" placeholder="Your API Key">
+                        </div>
+                        <div class="form-group">
+                            <label>API Secret</label>
+                            <input type="password" id="approval_custom_api_secret" placeholder="Optional API Secret">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="submit" class="btn btn-success" style="flex: 1;">✓ Approve & Create Client Account</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeApprovalModal()" style="flex: 0.3;">Cancel</button>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <!-- Tab: Resellers -->
@@ -548,8 +857,8 @@
                     <input type="email" id="add_email" required>
                 </div>
                 <div class="form-group">
-                    <label>Password *</label>
-                    <input type="password" id="add_password" required minlength="6">
+                    <label>Password * <small style="color: #666;">(visible - you'll send this to the client)</small></label>
+                    <input type="text" id="add_password" required minlength="6" placeholder="Client will use this to login">
                 </div>
                 <div class="form-group">
                     <label>Phone</label>
@@ -568,8 +877,8 @@
                     <input type="file" id="add_pfx_file" accept=".pfx" required>
                 </div>
                 <div class="form-group">
-                    <label>Certificate Password *</label>
-                    <input type="password" id="add_cert_password" required>
+                    <label>Certificate Password * <small style="color: #666;">(visible)</small></label>
+                    <input type="text" id="add_cert_password" required placeholder="Password for the .pfx certificate">
                 </div>
                 <div class="form-group">
                     <label style="font-weight: bold; color: #2d3748;">
@@ -740,36 +1049,273 @@
                 <button type="submit" class="btn btn-primary">Add Client</button>
             </form>
         </div>
+
+        <!-- Tab: Settings -->
+        <div id="tab-settings" class="tab-content">
+            <h2>⚙️ System Settings</h2>
+            <p style="color: #666; margin-bottom: 20px;">Manage landing page content, contact information, and system configuration.</p>
+
+            <!-- Filter by Category -->
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight: bold; margin-right: 10px;">Filter by Category:</label>
+                <select id="settings-category-filter" onchange="loadSettingsByCategory(this.value)" style="padding: 8px 15px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                    <option value="all">All Settings</option>
+                    <option value="contact">📧 Contact Information</option>
+                    <option value="social">🔗 Social Media</option>
+                    <option value="company">🏢 Company Info</option>
+                    <option value="stats">📊 Statistics</option>
+                    <option value="features">🎛️ Feature Flags</option>
+                    <option value="pricing">💰 Pricing</option>
+                    <option value="email">📮 Email Config</option>
+                    <option value="system">⚙️ System</option>
+                </select>
+                <button class="btn btn-primary" onclick="reloadSettings()" style="margin-left: 10px;">🔄 Refresh</button>
+            </div>
+
+            <!-- Settings Table -->
+            <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <div id="settings-loading" style="text-align: center; padding: 40px; color: #666;">
+                    Loading settings...
+                </div>
+                <div id="settings-container" style="display: none;">
+                    <table id="settings-table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f7fafc;">
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">Setting</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">Current Value</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">Category</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0;">Public</th>
+                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e2e8f0;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="settings-tbody">
+                            <!-- Settings will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Edit Setting Modal (inline, hidden by default) -->
+            <div id="edit-setting-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 30px; border-radius: 15px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                    <h3 style="margin-top: 0; color: #667eea;">✏️ Edit Setting</h3>
+                    <div id="edit-setting-alert"></div>
+                    
+                    <div style="marginBottom: 15px;">
+                        <label style="display: block; font-weight: bold; margin-bottom: 5px;">Setting Key:</label>
+                        <input type="text" id="edit-setting-key" readonly style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 5px; background: #f7fafc;">
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: bold; margin-bottom: 5px;">Description:</label>
+                        <p id="edit-setting-description" style="color: #666; font-size: 14px; margin: 0;"></p>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; font-weight: bold; margin-bottom: 5px;">Value:</label>
+                        <input type="text" id="edit-setting-value" style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                        <textarea id="edit-setting-textarea" style="display: none; width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; min-height: 100px;"></textarea>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn" onclick="closeEditModal()" style="background: #cbd5e0; color: #2d3748;">Cancel</button>
+                        <button class="btn btn-primary" onclick="saveSettingValue()">💾 Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Security -->
+        <div id="tab-security" class="tab-content">
+            <h2>🔐 Security Management</h2>
+            <p style="color: #666; margin-bottom: 20px;">Manage two-factor authentication, IP whitelisting, rate limits, and view security audit logs.</p>
+
+            <!-- 2FA Section -->
+            <div style="background: white; padding: 25px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <h3 style="margin-top: 0; color: #667eea;">📱 Two-Factor Authentication (2FA)</h3>
+                <div id="twofa-status" style="margin-bottom: 20px;">
+                    <p style="color: #666;">Loading 2FA status...</p>
+                </div>
+                <div id="twofa-controls">
+                    <button id="setup2FABtn" class="btn btn-primary" onclick="setup2FA()" style="display:none;">Enable 2FA</button>
+                    <button id="disable2FABtn" class="btn btn-danger" onclick="disable2FA()" style="display:none;">Disable 2FA</button>
+                </div>
+            </div>
+
+            <!-- Client Security Management -->
+            <div style="background: white; padding: 25px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <h3 style="margin-top: 0; color: #667eea;">🏢 Client Security Settings</h3>
+                <p style="color: #666; margin-bottom: 15px;">Manage IP whitelisting and API rate limits for each client.</p>
+                <table id="securityClientsTable">
+                    <thead>
+                        <tr>
+                            <th>Company Name</th>
+                            <th>TIN</th>
+                            <th>IP Whitelist</th>
+                            <th>Rate Limit</th>
+                            <th>API Calls Today</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="securityClientsList"></tbody>
+                </table>
+            </div>
+
+            <!-- Security Audit Logs -->
+            <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <h3 style="margin-top: 0; color: #667eea;">📋 Security Audit Logs</h3>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                    <select id="auditActionFilter" style="padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                        <option value="">All Actions</option>
+                        <option value="login">Login</option>
+                        <option value="2fa_enabled">2FA Enabled</option>
+                        <option value="2fa_disabled">2FA Disabled</option>
+                        <option value="ip_whitelist_updated">IP Whitelist Updated</option>
+                        <option value="rate_limit_updated">Rate Limit Updated</option>
+                        <option value="rate_limit_exceeded">Rate Limit Exceeded</option>
+                        <option value="ip_blocked">IP Blocked</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="loadAuditLogs()">🔍 Filter</button>
+                    <button class="btn btn-warning btn-sm" onclick="exportAuditLogs()">📥 Export CSV</button>
+                </div>
+                <div id="auditLogsList" style="max-height: 500px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2FA Setup Modal -->
+    <div id="twoFASetupModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+        <div style="background: white; max-width: 500px; margin: 50px auto; border-radius: 10px; padding: 30px; position: relative;">
+            <button onclick="close2FASetupModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+            <h2 style="margin-top: 0; color: #667eea;">📱 Enable Two-Factor Authentication</h2>
+            <div id="twofa-qr-section">
+                <p style="color: #666; margin-bottom: 15px;">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)</p>
+                <div style="text-align: center; margin: 20px 0;">
+                    <img id="twofa-qr-image" src="" style="max-width: 250px; border: 2px solid #ddd; padding: 10px; border-radius: 10px;">
+                </div>
+                <p style="background: #f7fafc; padding: 10px; border-radius: 5px; font-family: monospace; text-align: center; word-break: break-all; font-size: 12px;" id="twofa-secret"></p>
+                <div style="margin-top: 20px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Enter 6-digit code to verify:</label>
+                    <input type="text" id="twofa-verify-code" placeholder="123456" maxlength="6" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 18px; text-align: center; letter-spacing: 5px;">
+                </div>
+                <button onclick="enable2FAVerify()" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Verify and Enable 2FA</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2FA Disable Modal -->
+    <div id="twoFADisableModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+        <div style="background: white; max-width: 400px; margin: 100px auto; border-radius: 10px; padding: 30px; position: relative;">
+            <button onclick="close2FADisableModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+            <h2 style="margin-top: 0; color: #dc3545;">⚠️ Disable Two-Factor Authentication</h2>
+            <p style="color: #666; margin-bottom: 15px;">Enter your password to confirm disabling 2FA:</p>
+            <input type="password" id="twofa-disable-password" placeholder="Your password" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px;">
+            <button onclick="disable2FAConfirm()" class="btn btn-danger" style="width: 100%;">Disable 2FA</button>
+        </div>
+    </div>
+
+    <!-- IP Whitelist Modal -->
+    <div id="ipWhitelistModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+        <div style="background: white; max-width: 600px; margin: 50px auto; border-radius: 10px; padding: 30px; position: relative;">
+            <button onclick="closeIPWhitelistModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+            <h2 style="margin-top: 0; color: #667eea;">🌐 IP Whitelist</h2>
+            <p style="color: #666; margin-bottom: 10px;">Company: <strong id="ip-company-name"></strong></p>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Add allowed IP addresses (one per line). Use * for wildcards (e.g., 192.168.1.*). Leave empty to allow all IPs.</p>
+            <textarea id="ip-whitelist-input" rows="10" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; font-size: 13px;" placeholder="192.168.1.100&#10;10.0.0.*&#10;203.45.67.89"></textarea>
+            <input type="hidden" id="ip-whitelist-company-id">
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <button onclick="saveIPWhitelist()" class="btn btn-primary" style="flex: 1;">💾 Save IP Whitelist</button>
+                <button onclick="closeIPWhitelistModal()" class="btn" style="flex: 0.3; background: #6c757d; color: white;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rate Limit Modal -->
+    <div id="rateLimitModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+        <div style="background: white; max-width: 500px; margin: 100px auto; border-radius: 10px; padding: 30px; position: relative;">
+            <button onclick="closeRateLimitModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+            <h2 style="margin-top: 0; color: #667eea;">⚡ API Rate Limit</h2>
+            <p style="color: #666; margin-bottom: 10px;">Company: <strong id="rate-company-name"></strong></p>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Set maximum API requests per day (100-100,000).</p>
+            <input type="number" id="rate-limit-input" min="100" max="100000" step="100" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; margin-bottom: 15px;" placeholder="1000">
+            <input type="hidden" id="rate-limit-company-id">
+            <div style="display: flex; gap: 10px;">
+                <button onclick="saveRateLimit()" class="btn btn-primary" style="flex: 1;">💾 Save Rate Limit</button>
+                <button onclick="closeRateLimitModal()" class="btn" style="flex: 0.3; background: #6c757d; color: white;">Cancel</button>
+            </div>
+        </div>
     </div>
 
     <script>
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/service-worker.js')
+                    .then(registration => {
+                        console.log('✓ Service Worker registered:', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('✗ Service Worker registration failed:', err);
+                    });
+            });
+        }
+        
         let token = localStorage.getItem('owner_token');
         let ownerData = null;
 
         // Check if already logged in
         if (token) {
-            document.getElementById('loginForm').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
-            loadDashboard();
+            // Verify token is still valid before showing dashboard
+            fetch('/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).then(response => {
+                if (response.ok) {
+                    document.getElementById('loginForm').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'block';
+                    loadDashboard();
+                } else {
+                    // Token invalid, clear and show login
+                    localStorage.removeItem('owner_token');
+                    token = null;
+                }
+            }).catch(error => {
+                // Error verifying token, clear and show login
+                console.error('Token verification failed:', error);
+                localStorage.removeItem('owner_token');
+                token = null;
+            });
         }
 
         async function login(e) {
             e.preventDefault();
             const email = document.getElementById('login_email').value;
             const password = document.getElementById('login_password').value;
+            const twoFACode = document.getElementById('login_2fa_code').value;
+
+            console.log('Attempting login...');
+            document.getElementById('loginError').innerHTML = '<div class="alert alert-info">Logging in...</div>';
 
             try {
                 const formData = new FormData();
                 formData.append('username', email);
                 formData.append('password', password);
+                
+                // Build URL with totp_code as query parameter if provided
+                let url = '/api/auth/login';
+                if (twoFACode) {
+                    url += `?totp_code=${encodeURIComponent(twoFACode)}`;
+                }
 
-                const response = await fetch('/api/auth/login', {
+                const response = await fetch(url, {
                     method: 'POST',
                     body: formData
                 });
 
+                console.log('Login response status:', response.status);
+
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('Login successful, user role:', data.user.role);
                     
                     // Check if user is owner/admin
                     if (data.user.role !== 'owner' && data.user.role !== 'admin') {
@@ -781,15 +1327,27 @@
                     ownerData = data.user;
                     localStorage.setItem('owner_token', token);
                     
+                    console.log('Switching to dashboard...');
                     document.getElementById('loginForm').style.display = 'none';
                     document.getElementById('dashboard').style.display = 'block';
-                    loadDashboard();
+                    
+                    console.log('Loading dashboard data...');
+                    await loadDashboard();
+                    console.log('Dashboard loaded successfully');
                 } else {
                     const error = await response.json();
-                    document.getElementById('loginError').innerHTML = `<div class="alert alert-danger">${error.detail || 'Login failed'}</div>`;
+                    console.error('Login failed:', error);
+                    // Show specific error for 2FA
+                    if (error.detail === '2FA code required') {
+                        document.getElementById('loginError').innerHTML = '<div class="alert alert-warning">📱 2FA is enabled. Please enter your 6-digit authentication code.</div>';
+                        document.getElementById('login_2fa_code').focus();
+                    } else {
+                        document.getElementById('loginError').innerHTML = `<div class="alert alert-danger">${error.detail || 'Login failed'}</div>`;
+                    }
                 }
             } catch (error) {
-                document.getElementById('loginError').innerHTML = '<div class="alert alert-danger">Login failed. Please try again.</div>';
+                console.error('Login exception:', error);
+                document.getElementById('loginError').innerHTML = `<div class="alert alert-danger">Login failed: ${error.message}</div>`;
             }
         }
 
@@ -799,13 +1357,20 @@
         }
 
         async function loadDashboard() {
-            await Promise.all([
-                loadStats(),
-                loadPendingClients(),
-                loadResellers(),
-                loadAllClients(),
-                loadActivity()
-            ]);
+            try {
+                console.log('Loading dashboard components...');
+                await Promise.all([
+                    loadStats(),
+                    loadPendingClients(),
+                    loadResellers(),
+                    loadAllClients(),
+                    loadActivity()
+                ]);
+                console.log('All dashboard components loaded');
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                alert('Error loading dashboard data. Please refresh the page.');
+            }
         }
 
         async function loadStats() {
@@ -829,35 +1394,36 @@
 
         async function loadPendingClients() {
             try {
-                const response = await fetch('/api/owner/pending-clients', {
+                const response = await fetch('/api/owner/pending-referrals', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 if (response.ok) {
-                    const clients = await response.json();
+                    const data = await response.json();
+                    const referrals = data.referrals || [];
                     const tbody = document.getElementById('pendingList');
                     
-                    if (clients.length === 0) {
+                    if (referrals.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No pending approvals</td></tr>';
                         return;
                     }
                     
-                    tbody.innerHTML = clients.map(client => `
+                    tbody.innerHTML = referrals.map(ref => `
                         <tr>
-                            <td>${client.company_name}</td>
-                            <td>${client.tin}</td>
-                            <td>${client.email}</td>
-                            <td>${client.reseller_name}</td>
-                            <td>${new Date(client.created_at).toLocaleDateString()}</td>
+                            <td>${ref.company_name}</td>
+                            <td>${ref.tin}</td>
+                            <td>${ref.client_email}</td>
+                            <td>${ref.reseller_name}</td>
+                            <td>${new Date(ref.submitted_at).toLocaleDateString()}</td>
                             <td>
-                                <button class="btn btn-success btn-sm" onclick="approveClient(${client.id})">✓ Approve</button>
-                                <button class="btn btn-danger btn-sm" onclick="rejectClient(${client.id})">✗ Reject</button>
+                                <button class="btn btn-success btn-sm" onclick="approveReferral(${ref.id})">✓ Approve</button>
+                                <button class="btn btn-danger btn-sm" onclick="rejectReferral(${ref.id})">✗ Reject</button>
                             </td>
                         </tr>
                     `).join('');
                 }
             } catch (error) {
-                console.error('Failed to load pending clients:', error);
+                console.error('Failed to load pending referrals:', error);
             }
         }
 
@@ -938,10 +1504,81 @@
                     return;
                 }
                 
+                // Build API Credentials section (only for Custom ERP)
+                let apiCredentialsHtml = '';
+                if (client.api_credentials) {
+                    const lastUsed = client.api_credentials.api_last_used 
+                        ? new Date(client.api_credentials.api_last_used).toLocaleString() 
+                        : 'Never';
+                    const statusBadge = client.api_credentials.api_enabled 
+                        ? '<span class="badge badge-success">✅ Active</span>' 
+                        : '<span class="badge badge-danger">❌ Disabled</span>';
+                    
+                    apiCredentialsHtml = `
+                        <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+                            <h4 style="color: #2c3e50; margin-bottom: 15px;">🔌 API Integration (Custom ERP)</h4>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <p style="margin: 5px 0;"><strong>Status:</strong> ${statusBadge} <small style="color: #7f8c8d;">Last used: ${lastUsed}</small></p>
+                            </div>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #34495e;">API Key:</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="text" id="apiKeyInput" value="${client.api_credentials.api_key}" readonly 
+                                           style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                                    <button onclick="copyToClipboard('apiKeyInput')" 
+                                            style="background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                                        📋 Copy
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #34495e;">API Secret:</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="password" id="apiSecretInput" value="${client.api_credentials.api_secret}" readonly 
+                                           style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                                    <button onclick="toggleSecretVisibility()" 
+                                            style="background: #95a5a6; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                                        <span id="toggleIcon">👁️</span>
+                                    </button>
+                                    <button onclick="copyToClipboard('apiSecretInput')" 
+                                            style="background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                                        📋 Copy
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #34495e;">API Endpoint:</label>
+                                <code style="display: block; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                                    ${client.api_credentials.api_endpoint}
+                                </code>
+                            </div>
+                            
+                            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button onclick="regenerateAPIKey(${client.company.id})" 
+                                        style="flex: 1; background: #e74c3c; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                                    🔄 Regenerate Credentials
+                                </button>
+                                <button onclick="window.open('/DEVELOPER_PACKAGE/README.md', '_blank')" 
+                                        style="flex: 1; background: #9b59b6; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                                    📚 Documentation
+                                </button>
+                            </div>
+                            
+                            <p style="margin-top: 10px; color: #7f8c8d; font-size: 13px;">
+                                💡 <strong>Tip:</strong> Give these credentials to the custom ERP developers. See documentation for integration guide.
+                            </p>
+                        </div>
+                    `;
+                }
+                
                 // Create modal HTML
                 const modalHtml = `
                     <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;" onclick="this.remove()">
-                        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 700px; width: 90%; max-height: 85vh; overflow-y: auto;" onclick="event.stopPropagation()">
                             <h3 style="margin-top: 0; color: #2c3e50;">📊 Client Details</h3>
                             
                             <div style="margin: 20px 0;">
@@ -951,7 +1588,10 @@
                                 <p><strong>Email:</strong> ${client.email}</p>
                                 <p><strong>Status:</strong> <span class="badge badge-${client.status}">${client.status}</span></p>
                                 <p><strong>Created:</strong> ${new Date(client.created_at).toLocaleString()}</p>
+                                ${client.company ? `<p><strong>ERP Type:</strong> ${client.company.erp_type === 'custom' ? '🔌 Custom API' : client.company.erp_type || 'Manual Entry'}</p>` : ''}
                             </div>
+                            
+                            ${apiCredentialsHtml}
                             
                             <div style="margin: 20px 0;">
                                 <h4 style="color: #7f8c8d; margin-bottom: 10px;">Reseller</h4>
@@ -960,6 +1600,12 @@
                             
                             <div style="margin: 20px 0;">
                                 <h4 style="color: #7f8c8d; margin-bottom: 10px;">Quick Actions</h4>
+                                
+                                <button onclick="showEditERPModal(${client.company.id}, '${client.company.erp_type || 'none'}', '${client.company_name}')" 
+                                        style="background: #f39c12; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; margin-bottom: 15px;">
+                                    ✏️ Edit ERP Configuration
+                                </button>
+                                
                                 <p style="color: #95a5a6;">Login as this client to:</p>
                                 <ul style="color: #7f8c8d;">
                                     <li>View EFRIS connection status</li>
@@ -980,6 +1626,224 @@
             } catch (error) {
                 console.error('Failed to load client details:', error);
                 alert('Failed to load client details');
+            }
+        }
+
+        // Helper function: Copy text to clipboard
+        function copyToClipboard(inputId) {
+            const input = document.getElementById(inputId);
+            input.select();
+            input.setSelectionRange(0, 99999); // For mobile
+            
+            navigator.clipboard.writeText(input.value).then(() => {
+                // Show temporary success message
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '✓ Copied!';
+                btn.style.background = '#27ae60';
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.style.background = '#3498db';
+                }, 2000);
+            }).catch(err => {
+                alert('Failed to copy: ' + err);
+            });
+        }
+
+        // Helper function: Toggle API Secret visibility
+        function toggleSecretVisibility() {
+            const input = document.getElementById('apiSecretInput');
+            const icon = document.getElementById('toggleIcon');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                icon.textContent = '👁️';
+            }
+        }
+
+        // Helper function: Regenerate API credentials
+        async function regenerateAPIKey(companyId) {
+            if (!confirm('⚠️ WARNING: Regenerating credentials will:\n\n' +
+                        '• Invalidate the current API key\n' +
+                        '• Break any ERP systems using the old key\n' +
+                        '• Require updating all ERP configurations\n\n' +
+                        'Only do this if credentials were compromised!\n\n' +
+                        'Are you sure you want to continue?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/owner/regenerate-api-key/${companyId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`✅ New credentials generated!\n\n` +
+                          `New API Key: ${result.api_key}\n\n` +
+                          `New API Secret: ${result.api_secret}\n\n` +
+                          `⚠️ Copy these now and give to ERP developers. Old credentials are now invalid.`);
+                    
+                    // Reload client details to show new credentials
+                    document.querySelector('[style*=fixed]').remove();
+                    loadClients();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to regenerate credentials: ' + (error.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function showEditERPModal(companyId, currentErpType, companyName) {
+            // Close any existing modals
+            const existingModals = document.querySelectorAll('[id^="editErpModal"]');
+            existingModals.forEach(modal => modal.remove());
+            
+            const modalHtml = `
+                <div id="editErpModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; align-items: center; justify-content: center;" onclick="if(event.target === this) this.remove()">
+                    <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                        <h3 style="margin-top: 0; color: #2c3e50;">✏️ Edit ERP Configuration</h3>
+                        <p style="color: #7f8c8d; margin-bottom: 20px;">Company: <strong>${companyName}</strong></p>
+                        <p style="color: #e67e22; background: #fef5e7; padding: 10px; border-radius: 4px; margin-bottom: 20px;">
+                            ⚠️ Changing ERP type will clear existing ERP credentials. Make sure you have the new credentials ready.
+                        </p>
+                        
+                        <form id="editErpForm" onsubmit="editClientERP(event, ${companyId})">
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: 600;">New ERP System:</label>
+                                <select id="edit_erp_type" name="erp_type" onchange="toggleEditErpFields()" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                    <option value="none" ${currentErpType === 'none' ? 'selected' : ''}>📝 Manual Entry (No ERP)</option>
+                                    <option value="quickbooks" ${currentErpType === 'quickbooks' ? 'selected' : ''}>📘 QuickBooks Online</option>
+                                    <option value="xero" ${currentErpType === 'xero' ? 'selected' : ''}>📗 Xero</option>
+                                    <option value="zoho" ${currentErpType === 'zoho' ? 'selected' : ''}>📕 Zoho Books</option>
+                                    <option value="sage" ${currentErpType === 'sage' ? 'selected' : ''}>📙 Sage</option>
+                                    <option value="odoo" ${currentErpType === 'odoo' ? 'selected' : ''}>🟣 Odoo</option>
+                                    <option value="custom" ${currentErpType === 'custom' ? 'selected' : ''}>🔧 Custom API</option>
+                                </select>
+                            </div>
+                            
+                            <!-- QuickBooks Fields -->
+                            <div id="edit_qb_fields" style="display: none;">
+                                <h4 style="color: #0077c5; margin: 15px 0 10px;">📘 QuickBooks Online</h4>
+                                <input type="text" id="edit_qb_realm_id" placeholder="Realm ID (Company ID)" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                <input type="text" id="edit_qb_client_id" placeholder="Client ID" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                <input type="text" id="edit_qb_client_secret" placeholder="Client Secret" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                <select id="edit_qb_region" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                    <option value="US">🇺🇸 United States</option>
+                                    <option value="UK">🇬🇧 United Kingdom</option>
+                                    <option value="AU">🇦🇺 Australia</option>
+                                    <option value="CA">🇨🇦 Canada</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Custom API Fields -->
+                            <div id="edit_custom_fields" style="display: none;">
+                                <h4 style="color: #e74c3c; margin: 15px 0 10px;">🔧 Custom API</h4>
+                                <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 10px;">API credentials will be generated automatically. These are for YOUR custom ERP to connect to this EFRIS API.</p>
+                                <input type="text" id="edit_custom_url" placeholder="Custom ERP API URL (optional)" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                <input type="text" id="edit_custom_api_key" placeholder="Custom ERP API Key (optional)" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                <input type="text" id="edit_custom_api_secret" placeholder="Custom ERP API Secret (optional)" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                            </div>
+                            
+                            <div id="editErpAlert"></div>
+                            
+                            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                <button type="button" onclick="document.getElementById('editErpModal').remove()" style="flex: 1; background: #95a5a6; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">Cancel</button>
+                                <button type="submit" style="flex: 1; background: #f39c12; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: 600;">💾 Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            toggleEditErpFields(); // Show appropriate fields based on current selection
+        }
+
+        function toggleEditErpFields() {
+            const erpType = document.getElementById('edit_erp_type').value;
+            
+            // Hide all ERP-specific fields
+            document.getElementById('edit_qb_fields').style.display = 'none';
+            document.getElementById('edit_custom_fields').style.display = 'none';
+            
+            // Show selected ERP fields
+            if (erpType === 'quickbooks') {
+                document.getElementById('edit_qb_fields').style.display = 'block';
+            } else if (erpType === 'custom') {
+                document.getElementById('edit_custom_fields').style.display = 'block';
+            }
+            // Add other ERP types as needed (xero, zoho, etc.)
+        }
+
+        async function editClientERP(event, companyId) {
+            event.preventDefault();
+            
+            const formData = new FormData();
+            const erpType = document.getElementById('edit_erp_type').value;
+            formData.append('erp_type', erpType);
+            
+            // Add ERP-specific credentials
+            if (erpType === 'quickbooks') {
+                formData.append('qb_realm_id', document.getElementById('edit_qb_realm_id').value);
+                formData.append('qb_client_id', document.getElementById('edit_qb_client_id').value);
+                formData.append('qb_client_secret', document.getElementById('edit_qb_client_secret').value);
+                formData.append('qb_region', document.getElementById('edit_qb_region').value);
+            } else if (erpType === 'custom') {
+                formData.append('custom_url', document.getElementById('edit_custom_url').value || '');
+                formData.append('custom_api_key', document.getElementById('edit_custom_api_key').value || '');
+                formData.append('custom_api_secret', document.getElementById('edit_custom_api_secret').value || '');
+            }
+            
+            try {
+                const response = await fetch(`/api/owner/clients/${companyId}/erp`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    // Build success message
+                    let successMessage = `✅ ERP Configuration Updated!\n\n`;
+                    successMessage += `Changed from: ${result.old_erp_type || 'none'}\n`;
+                    successMessage += `Changed to: ${result.erp_type}\n`;
+                    
+                    // If switched to Custom ERP, show API credentials
+                    if (result.api_credentials) {
+                        successMessage += `\n🔑 API Credentials:\n`;
+                        successMessage += `API Key: ${result.api_credentials.api_key}\n`;
+                        successMessage += `API Secret: ${result.api_credentials.api_secret}\n`;
+                        successMessage += `Endpoint: ${result.api_credentials.api_endpoint}\n\n`;
+                        
+                        if (result.api_credentials.newly_generated) {
+                            successMessage += `⚠️ These credentials were just generated. Save them securely!\n`;
+                        } else {
+                            successMessage += `ℹ️ Using existing API credentials. View in Client Details modal.\n`;
+                        }
+                    }
+                    
+                    alert(successMessage);
+                    
+                    // Close modals and reload
+                    document.getElementById('editErpModal').remove();
+                    document.querySelector('[style*=fixed]')?.remove(); // Close client details modal
+                    loadClients();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('editErpAlert').innerHTML = `<div class="alert alert-danger">${error.detail || 'Failed to update ERP configuration'}</div>`;
+                }
+            } catch (error) {
+                console.error('Exception:', error);
+                document.getElementById('editErpAlert').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
             }
         }
 
@@ -1111,6 +1975,189 @@
             }
         }
 
+        let selectedReferralId = null;
+        let currentReferralData = null;
+
+        function approveReferral(referralId) {
+            // Find the referral data
+            const response = fetch('/api/owner/pending-referrals', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).then(res => res.json()).then(data => {
+                const referral = data.referrals.find(r => r.id === referralId);
+                if (!referral) {
+                    alert('Referral not found');
+                    return;
+                }
+                
+                // Populate modal with referral details
+                currentReferralData = referral;
+                document.getElementById('approval_referral_id').value = referralId;
+                document.getElementById('ref_company_name').textContent = referral.company_name;
+                document.getElementById('ref_client_name').textContent = referral.client_name;
+                document.getElementById('ref_email').textContent = referral.client_email;
+                document.getElementById('ref_phone').textContent = referral.client_phone || 'N/A';
+                document.getElementById('ref_tin').textContent = referral.tin;
+                document.getElementById('ref_device_no').textContent = referral.device_no || 'N/A';
+                document.getElementById('ref_reseller').textContent = referral.reseller_name;
+                
+                // Show modal
+                document.getElementById('approvalModal').style.display = 'block';
+            }).catch(error => {
+                console.error('Failed to load referral:', error);
+                alert('Failed to load referral details');
+            });
+        }
+
+        function closeApprovalModal() {
+            document.getElementById('approvalModal').style.display = 'none';
+            document.getElementById('approvalForm').reset();
+            document.getElementById('approvalAlert').innerHTML = '';
+        }
+
+        async function submitApproval(event) {
+            event.preventDefault();
+            
+            const referralId = document.getElementById('approval_referral_id').value;
+            const password = document.getElementById('approval_password').value;
+            const certPassword = document.getElementById('approval_cert_password').value;
+            const testMode = document.querySelector('input[name="approval_efris_env"]:checked').value === 'test';
+            const pfxFile = document.getElementById('approval_pfx_file').files[0];
+            const erpType = document.getElementById('approval_erp_type').value;
+            
+            if (!pfxFile) {
+                alert('Please select a certificate file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('password', password);
+            formData.append('cert_password', certPassword);
+            formData.append('test_mode', testMode);
+            formData.append('pfx_file', pfxFile);
+            formData.append('erp_type', erpType);
+            
+            // Add ERP-specific credentials
+            if (erpType === 'quickbooks') {
+                formData.append('qb_realm_id', document.getElementById('approval_qb_realm_id').value);
+                formData.append('qb_client_id', document.getElementById('approval_qb_client_id').value);
+                formData.append('qb_client_secret', document.getElementById('approval_qb_client_secret').value);
+                formData.append('qb_region', document.getElementById('approval_qb_region').value);
+            } else if (erpType === 'xero') {
+                formData.append('xero_tenant_id', document.getElementById('approval_xero_tenant_id').value);
+                formData.append('xero_client_id', document.getElementById('approval_xero_client_id').value);
+                formData.append('xero_client_secret', document.getElementById('approval_xero_client_secret').value);
+            } else if (erpType === 'zoho') {
+                formData.append('zoho_org_id', document.getElementById('approval_zoho_org_id').value);
+                formData.append('zoho_client_id', document.getElementById('approval_zoho_client_id').value);
+                formData.append('zoho_client_secret', document.getElementById('approval_zoho_client_secret').value);
+            } else if (erpType === 'sage') {
+                formData.append('sage_company_id', document.getElementById('approval_sage_company_id').value);
+                formData.append('sage_api_key', document.getElementById('approval_sage_api_key').value);
+                formData.append('sage_api_secret', document.getElementById('approval_sage_api_secret').value);
+            } else if (erpType === 'odoo') {
+                formData.append('odoo_url', document.getElementById('approval_odoo_url').value);
+                formData.append('odoo_db', document.getElementById('approval_odoo_db').value);
+                formData.append('odoo_username', document.getElementById('approval_odoo_username').value);
+                formData.append('odoo_password', document.getElementById('approval_odoo_password').value);
+            } else if (erpType === 'custom') {
+                formData.append('custom_url', document.getElementById('approval_custom_url').value);
+                formData.append('custom_api_key', document.getElementById('approval_custom_api_key').value);
+                formData.append('custom_api_secret', document.getElementById('approval_custom_api_secret').value || '');
+            }
+            
+            try {
+                const response = await fetch(`/api/owner/approve-referral/${referralId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    const erpNames = {
+                        'none': 'Manual Entry',
+                        'quickbooks': 'QuickBooks Online',
+                        'xero': 'Xero',
+                        'zoho': 'Zoho Books',
+                        'sage': 'Sage',
+                        'odoo': 'Odoo',
+                        'custom': 'Custom API'
+                    };
+                    const erpMsg = result.erp_configured ? ` ERP: ${erpNames[erpType]}` : '';
+                    
+                    let successMsg = `<div class="alert alert-success">✅ Client approved successfully! Account created.${erpMsg}`;
+                    
+                    // Show API credentials if Custom ERP
+                    if (result.api_credentials) {
+                        successMsg += `
+                            <hr>
+                            <h4>🔑 API Credentials for Custom ERP Developers:</h4>
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; font-family: monospace;">
+                                <p><strong>API Key:</strong><br/>
+                                <input type="text" value="${result.api_credentials.api_key}" readonly 
+                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 3px;"
+                                       onclick="this.select()" />
+                                </p>
+                                <p><strong>API Secret:</strong><br/>
+                                <input type="text" value="${result.api_credentials.api_secret}" readonly 
+                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 3px;"
+                                       onclick="this.select()" />
+                                </p>
+                                <p><strong>API Endpoint:</strong><br/>
+                                <code>${result.api_credentials.api_endpoint}</code>
+                                </p>
+                                <p><strong>📚 Documentation:</strong> ${result.api_credentials.documentation}</p>
+                            </div>
+                            <p style="margin-top: 10px;"><small>⚠️ Copy these credentials now! Give them to the ERP development team.</small></p>
+                        `;
+                    }
+                    
+                    successMsg += '</div>';
+                    document.getElementById('approvalAlert').innerHTML = successMsg;
+                    
+                    // Don't auto-close if API credentials shown - give time to copy
+                    const autoCloseDelay = result.api_credentials ? 30000 : 2000;
+                    setTimeout(() => {
+                        closeApprovalModal();
+                        loadDashboard();
+                    }, autoCloseDelay);
+                } else {
+                    const error = await response.json();
+                    document.getElementById('approvalAlert').innerHTML = 
+                        `<div class="alert alert-danger">Failed: ${error.detail || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('approvalAlert').innerHTML = 
+                    `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function rejectReferral(referralId) {
+            const reason = prompt('Reason for rejection:');
+            if (!reason) return;
+            
+            try {
+                const response = await fetch(`/api/owner/reject-referral/${referralId}`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ reason })
+                });
+                
+                if (response.ok) {
+                    document.getElementById('pendingAlert').innerHTML = '<div class="alert alert-success">Referral rejected</div>';
+                    setTimeout(() => document.getElementById('pendingAlert').innerHTML = '', 3000);
+                    loadDashboard();
+                } else {
+                    alert('Failed to reject referral');
+                }
+            } catch (error) {
+                alert('Failed to reject referral');
+            }
+        }
+
         function toggleERPFields() {
             const erpType = document.getElementById('add_erp_type').value;
             
@@ -1135,6 +2182,33 @@
                 document.getElementById('odoo_fields').style.display = 'block';
             } else if (erpType === 'custom') {
                 document.getElementById('custom_fields').style.display = 'block';
+            }
+        }
+
+        function toggleApprovalERPFields() {
+            const erpType = document.getElementById('approval_erp_type').value;
+            
+            // Hide all approval ERP fields
+            document.getElementById('approval_quickbooks_fields').style.display = 'none';
+            document.getElementById('approval_xero_fields').style.display = 'none';
+            document.getElementById('approval_zoho_fields').style.display = 'none';
+            document.getElementById('approval_sage_fields').style.display = 'none';
+            document.getElementById('approval_odoo_fields').style.display = 'none';
+            document.getElementById('approval_custom_fields').style.display = 'none';
+            
+            // Show selected ERP fields
+            if (erpType === 'quickbooks') {
+                document.getElementById('approval_quickbooks_fields').style.display = 'block';
+            } else if (erpType === 'xero') {
+                document.getElementById('approval_xero_fields').style.display = 'block';
+            } else if (erpType === 'zoho') {
+                document.getElementById('approval_zoho_fields').style.display = 'block';
+            } else if (erpType === 'sage') {
+                document.getElementById('approval_sage_fields').style.display = 'block';
+            } else if (erpType === 'odoo') {
+                document.getElementById('approval_odoo_fields').style.display = 'block';
+            } else if (erpType === 'custom') {
+                document.getElementById('approval_custom_fields').style.display = 'block';
             }
         }
 
@@ -1187,14 +2261,19 @@
             }
             
             try {
+                console.log('Attempting to add client...', { token: token ? 'present' : 'missing' });
+                
                 const response = await fetch('/api/owner/add-client', {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` },
                     body: formData
                 });
                 
+                console.log('Response status:', response.status);
+                
                 if (response.ok) {
                     const result = await response.json();
+                    console.log('Success:', result);
                     
                     // Show success message with client login URL
                     const loginUrl = result.client_login_url || 'http://127.0.0.1:8001/client/login';
@@ -1217,6 +2296,23 @@
                         `<p style="margin: 8px 0;"><strong>ERP System:</strong> ${erpNames[erpType] || erpType} (Pre-configured ✅)</p>` :
                         `<p style="margin: 8px 0;"><strong>ERP System:</strong> ${erpNames['none']}</p>`;
                     
+                    // API credentials section for Custom ERP
+                    let apiCredentialsHtml = '';
+                    if (result.api_credentials) {
+                        apiCredentialsHtml = `
+                            <hr style="margin: 10px 0;">
+                            <p style="margin: 8px 0;"><strong>🔑 API Credentials (for Custom ERP):</strong></p>
+                            <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 8px 0;">
+                                <p style="margin: 5px 0; font-family: monospace; font-size: 11px;"><strong>API Key:</strong> ${result.api_credentials.api_key}</p>
+                                <p style="margin: 5px 0; font-family: monospace; font-size: 11px;"><strong>API Secret:</strong> ${result.api_credentials.api_secret}</p>
+                                <p style="margin: 5px 0; font-family: monospace; font-size: 11px;"><strong>Endpoint:</strong> ${result.api_credentials.api_endpoint}</p>
+                                <p style="margin: 8px 0; font-size: 11px; color: #856404; background: #fff3cd; padding: 8px; border-radius: 4px;">
+                                    ⚠️ <strong>Important:</strong> Save these credentials securely! You can view them later in the Client Details modal.
+                                </p>
+                            </div>
+                        `;
+                    }
+                    
                     document.getElementById('addClientAlert').innerHTML = `
                         <div class="alert alert-success">
                             <h4 style="margin-bottom: 15px;">✅ Client Added Successfully!</h4>
@@ -1228,6 +2324,7 @@
                                 <p style="margin: 8px 0;"><strong>Password:</strong> ${password}</p>
                                 <p style="margin: 8px 0;"><strong>EFRIS Environment:</strong> ${environment} (${envUrl})</p>
                                 ${erpMessage}
+                                ${apiCredentialsHtml}
                                 <hr style="margin: 10px 0;">
                                 <p style="margin: 8px 0; font-size: 12px; color: #666;">
                                     ${result.erp_configured ? 
@@ -1244,11 +2341,18 @@
                     e.target.reset();
                     loadDashboard();
                 } else {
-                    const error = await response.json();
-                    document.getElementById('addClientAlert').innerHTML = `<div class="alert alert-danger">${error.detail}</div>`;
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
+                    try {
+                        const error = JSON.parse(errorText);
+                        document.getElementById('addClientAlert').innerHTML = `<div class="alert alert-danger">${error.detail || 'Failed to add client'}</div>`;
+                    } catch {
+                        document.getElementById('addClientAlert').innerHTML = `<div class="alert alert-danger">Failed to add client (Status: ${response.status})</div>`;
+                    }
                 }
             } catch (error) {
-                document.getElementById('addClientAlert').innerHTML = '<div class="alert alert-danger">Failed to add client</div>';
+                console.error('Exception:', error);
+                document.getElementById('addClientAlert').innerHTML = `<div class="alert alert-danger">Failed to add client: ${error.message}</div>`;
             }
         }
 
@@ -1260,6 +2364,340 @@
             // Update tab content
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById('tab-' + tabName).classList.add('active');
+            
+            // Load security data when security tab is opened
+            if (tabName === 'security') {
+                check2FAStatus();
+                loadSecurityClients();
+                loadAuditLogs();
+            }
+            
+            // Load settings when settings tab is opened
+            if (tabName === 'settings') {
+                loadAllSettings();
+            }
+        }
+
+        // ========== 2FA FUNCTIONS ==========
+        
+        async function check2FAStatus() {
+            try {
+                const response = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const user = await response.json();
+                
+                const statusDiv = document.getElementById('twofa-status');
+                if (user.totp_enabled) {
+                    statusDiv.innerHTML = `
+                        <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; border-radius: 5px;">
+                            <strong style="color: #155724;">✅ 2FA is ENABLED</strong>
+                            <p style="color: #155724; margin: 5px 0 0 0; font-size: 14px;">Your account is protected with two-factor authentication.</p>
+                        </div>`;
+                    document.getElementById('setup2FABtn').style.display = 'none';
+                    document.getElementById('disable2FABtn').style.display = 'inline-block';
+                } else {
+                    statusDiv.innerHTML = `
+                        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 5px;">
+                            <strong style="color: #856404;">⚠️ 2FA is DISABLED</strong>
+                            <p style="color: #856404; margin: 5px 0 0 0; font-size: 14px;">Enable 2FA to add an extra layer of security to your account.</p>
+                        </div>`;
+                    document.getElementById('setup2FABtn').style.display = 'inline-block';
+                    document.getElementById('disable2FABtn').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking 2FA status:', error);
+            }
+        }
+
+        async function setup2FA() {
+            try {
+                const response = await fetch('/api/auth/2fa/setup', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('twofa-qr-image').src = data.qr_code;
+                    document.getElementById('twofa-secret').textContent = `Secret Key: ${data.secret}`;
+                    document.getElementById('twoFASetupModal').style.display = 'block';
+                } else {
+                    const error = await response.json();
+                    alert('Failed to setup 2FA: ' + error.detail);
+                }
+            } catch (error) {
+                alert('Error setting up 2FA: ' + error.message);
+            }
+        }
+
+        async function enable2FAVerify() {
+            const code = document.getElementById('twofa-verify-code').value;
+            if (code.length !== 6) {
+                alert('Please enter a 6-digit code');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/auth/2fa/enable?totp_code=${code}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    alert('✅ 2FA enabled successfully!');
+                    close2FASetupModal();
+                    check2FAStatus();
+                } else {
+                    const error = await response.json();
+                    alert('Invalid code: ' + error.detail);
+                }
+            } catch (error) {
+                alert('Error enabling 2FA: ' + error.message);
+            }
+        }
+
+        function close2FASetupModal() {
+            document.getElementById('twoFASetupModal').style.display = 'none';
+            document.getElementById('twofa-verify-code').value = '';
+        }
+
+        function disable2FA() {
+            document.getElementById('twoFADisableModal').style.display = 'block';
+        }
+
+        async function disable2FAConfirm() {
+            const password = document.getElementById('twofa-disable-password').value;
+            if (!password) {
+                alert('Please enter your password');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/auth/2fa/disable?password=${encodeURIComponent(password)}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    alert('✅ 2FA disabled successfully');
+                    close2FADisableModal();
+                    check2FAStatus();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to disable 2FA: ' + error.detail);
+                }
+            } catch (error) {
+                alert('Error disabling 2FA: ' + error.message);
+            }
+        }
+
+        function close2FADisableModal() {
+            document.getElementById('twoFADisableModal').style.display = 'none';
+            document.getElementById('twofa-disable-password').value = '';
+        }
+
+        // ========== CLIENT SECURITY MANAGEMENT ==========
+
+        async function loadSecurityClients() {
+            try {
+                const response = await fetch('/api/owner/clients', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const clients = await response.json();
+                
+                const tbody = document.getElementById('securityClientsList');
+                tbody.innerHTML = '';
+                
+                clients.forEach(client => {
+                    const company = client.company;
+                    const allowedIps = company.allowed_ips ? JSON.parse(company.allowed_ips) : [];
+                    const ipCount = allowedIps.length;
+                    const ipDisplay = ipCount === 0 ? '🌐 All IPs' : `${ipCount} IP(s)`;
+                    
+                    const row = `
+                        <tr>
+                            <td>${company.name}</td>
+                            <td>${company.tin}</td>
+                            <td>${ipDisplay}</td>
+                            <td>${company.api_rate_limit || 1000} req/day</td>
+                            <td>${company.api_calls_today || 0}</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" onclick="openIPWhitelistModal(${company.id}, '${company.name.replace(/'/g, "\\'")}', ${JSON.stringify(allowedIps).replace(/"/g, '&quot;')})">🌐 IP Whitelist</button>
+                                <button class="btn btn-sm btn-warning" onclick="openRateLimitModal(${company.id}, '${company.name.replace(/'/g, "\\'")}', ${company.api_rate_limit || 1000})">⚡ Rate Limit</button>
+                            </td>
+                        </tr>`;
+                    tbody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error loading security clients:', error);
+            }
+        }
+
+        function openIPWhitelistModal(companyId, companyName, allowedIps) {
+            document.getElementById('ip-company-name').textContent = companyName;
+            document.getElementById('ip-whitelist-company-id').value = companyId;
+            document.getElementById('ip-whitelist-input').value = allowedIps.join('\n');
+            document.getElementById('ipWhitelistModal').style.display = 'block';
+        }
+
+        function closeIPWhitelistModal() {
+            document.getElementById('ipWhitelistModal').style.display = 'none';
+        }
+
+        async function saveIPWhitelist() {
+            const companyId = document.getElementById('ip-whitelist-company-id').value;
+            const ipsText = document.getElementById('ip-whitelist-input').value;
+            const allowedIps = ipsText.split('\n').map(ip => ip.trim()).filter(ip => ip.length > 0);
+
+            try {
+                const response = await fetch(`/api/owner/clients/${companyId}/ip-whitelist`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(allowedIps)
+                });
+
+                if (response.ok) {
+                    alert('✅ IP whitelist updated successfully');
+                    closeIPWhitelistModal();
+                    loadSecurityClients();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to update IP whitelist: ' + error.detail);
+                }
+            } catch (error) {
+                alert('Error updating IP whitelist: ' + error.message);
+            }
+        }
+
+        function openRateLimitModal(companyId, companyName, currentLimit) {
+            document.getElementById('rate-company-name').textContent = companyName;
+            document.getElementById('rate-limit-company-id').value = companyId;
+            document.getElementById('rate-limit-input').value = currentLimit;
+            document.getElementById('rateLimitModal').style.display = 'block';
+        }
+
+        function closeRateLimitModal() {
+            document.getElementById('rateLimitModal').style.display = 'none';
+        }
+
+        async function saveRateLimit() {
+            const companyId = document.getElementById('rate-limit-company-id').value;
+            const rateLimit = parseInt(document.getElementById('rate-limit-input').value);
+
+            if (rateLimit < 100 || rateLimit > 100000) {
+                alert('Rate limit must be between 100 and 100,000');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/owner/clients/${companyId}/rate-limit?rate_limit=${rateLimit}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    alert('✅ Rate limit updated successfully');
+                    closeRateLimitModal();
+                    loadSecurityClients();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to update rate limit: ' + error.detail);
+                }
+            } catch (error) {
+                alert('Error updating rate limit: ' + error.message);
+            }
+        }
+
+        // ========== AUDIT LOGS ==========
+
+        async function loadAuditLogs() {
+            const action = document.getElementById('auditActionFilter').value;
+            try {
+                let url = '/api/owner/audit-logs?limit=100';
+                if (action) url += `&action=${action}`;
+                
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                
+                const container = document.getElementById('auditLogsList');
+                if (data.logs.length === 0) {
+                    container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No audit logs found</p>';
+                    return;
+                }
+                
+                container.innerHTML = data.logs.map(log => {
+                    const actionColors = {
+                        'login': '#28a745',
+                        '2fa_enabled': '#007bff',
+                        '2fa_disabled': '#ffc107',
+                        'ip_whitelist_updated': '#17a2b8',
+                        'rate_limit_updated': '#6f42c1',
+                        'rate_limit_exceeded': '#dc3545',
+                        'ip_blocked': '#dc3545'
+                    };
+                    const color = actionColors[log.action] || '#6c757d';
+                    
+                    return `
+                        <div style="border-left: 4px solid ${color}; background: #f8f9fa; padding: 12px; margin-bottom: 10px; border-radius: 5px;">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <strong style="color: ${color};">${log.action.toUpperCase().replace(/_/g, ' ')}</strong>
+                                    <p style="margin: 5px 0; color: #666; font-size: 14px;">${log.details}</p>
+                                    <small style="color: #999;">👤 ${log.user_email}${log.company_name ? ' • 🏢 ' + log.company_name : ''}</small>
+                                </div>
+                                <small style="color: #999; white-space: nowrap;">${new Date(log.timestamp).toLocaleString()}</small>
+                            </div>
+                        </div>`;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading audit logs:', error);
+            }
+        }
+
+        async function exportAuditLogs() {
+            const action = document.getElementById('auditActionFilter').value;
+            let url = '/api/owner/audit-logs?limit=1000';
+            if (action) url += `&action=${action}`;
+            
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                
+                // Convert to CSV
+                const headers = ['Timestamp', 'Action', 'User', 'Company', 'Details'];
+                const rows = data.logs.map(log => [
+                    new Date(log.timestamp).toISOString(),
+                    log.action,
+                    log.user_email,
+                    log.company_name || '',
+                    log.details
+                ]);
+                
+                const csv = [headers, ...rows].map(row => 
+                    row.map(cell => `\"${String(cell).replace(/\"/g, '\"\"')}\"`).join(',')
+                ).join('\n');
+                
+                // Download
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url_obj = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url_obj;
+                a.download = `audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                window.URL.revokeObjectURL(url_obj);
+            } catch (error) {
+                alert('Error exporting audit logs: ' + error.message);
+            }
         }
 
         // Auto-refresh every 30 seconds
@@ -1269,6 +2707,178 @@
                 loadActivity();
             }
         }, 30000);
+
+        // ========== SETTINGS MANAGEMENT FUNCTIONS ==========
+        
+        let allSettingsData = [];
+        
+        async function loadAllSettings() {
+            try {
+                document.getElementById('settings-loading').style.display = 'block';
+                document.getElementById('settings-container').style.display = 'none';
+                
+                const response = await fetch('/api/settings/all', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to load settings');
+                
+                allSettingsData = await response.json();
+                renderSettingsTable(allSettingsData);
+                
+                document.getElementById('settings-loading').style.display = 'none';
+                document.getElementById('settings-container').style.display = 'block';
+            } catch (error) {
+                document.getElementById('settings-loading').innerHTML = `
+                    <div style="color: #dc3545; padding: 20px;">
+                        <strong>Error loading settings:</strong> ${error.message}
+                    </div>`;
+            }
+        }
+        
+        function renderSettingsTable(settings) {
+            const tbody = document.getElementById('settings-tbody');
+            tbody.innerHTML = '';
+            
+            if (settings.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: #666;">No settings found</td></tr>';
+                return;
+            }
+            
+            settings.forEach(setting => {
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid #e2e8f0';
+                
+                // Setting Key
+                const keyCell = document.createElement('td');
+                keyCell.style.padding = '12px';
+                keyCell.innerHTML = `
+                    <div style="font-weight: bold; color: #2d3748;">${setting.setting_key}</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 3px;">${setting.description || ''}</div>
+                `;
+                row.appendChild(keyCell);
+                
+                // Current Value
+                const valueCell = document.createElement('td');
+                valueCell.style.padding = '12px';
+                let displayValue = setting.setting_value || '<em style="color: #999;">Empty</em>';
+                if (setting.setting_type === 'password') {
+                    displayValue = '••••••••';
+                } else if (displayValue.length > 50) {
+                    displayValue = displayValue.substring(0, 47) + '...';
+                }
+                valueCell.innerHTML = `<code style="background: #f7fafc; padding: 4px 8px; border-radius: 4px; font-size: 13px;">${displayValue}</code>`;
+                row.appendChild(valueCell);
+                
+                // Category
+                const categoryCell = document.createElement('td');
+                categoryCell.style.padding = '12px';
+                const categoryColors = {
+                    'contact': '#667eea',
+                    'social': '#48bb78',
+                    'company': '#ed8936',
+                    'stats': '#f56565',
+                    'features': '#9f7aea',
+                    'pricing': '#38b2ac',
+                    'email': '#ecc94b',
+                    'system': '#4299e1'
+                };
+                const bgColor = categoryColors[setting.category] || '#cbd5e0';
+                categoryCell.innerHTML = `<span style="background: ${bgColor}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">${setting.category}</span>`;
+                row.appendChild(categoryCell);
+                
+                // Public Badge
+                const publicCell = document.createElement('td');
+                publicCell.style.padding = '12px';
+                publicCell.innerHTML = setting.is_public ? 
+                    '<span style="background: #d4edda; color: #155724; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">PUBLIC</span>' :
+                    '<span style="background: #f8d7da; color: #721c24; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">PRIVATE</span>';
+                row.appendChild(publicCell);
+                
+                // Actions
+                const actionsCell = document.createElement('td');
+                actionsCell.style.padding = '12px';
+                actionsCell.style.textAlign = 'center';
+                actionsCell.innerHTML = `<button class="btn btn-primary" onclick='editSetting(${JSON.stringify(setting)})' style="font-size: 12px; padding: 6px 12px;">✏️ Edit</button>`;
+                row.appendChild(actionsCell);
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        function loadSettingsByCategory(category) {
+            if (category === 'all') {
+                renderSettingsTable(allSettingsData);
+            } else {
+                const filtered = allSettingsData.filter(s => s.category === category);
+                renderSettingsTable(filtered);
+            }
+        }
+        
+        function reloadSettings() {
+            loadAllSettings();
+        }
+        
+        function editSetting(setting) {
+            document.getElementById('edit-setting-key').value = setting.setting_key;
+            document.getElementById('edit-setting-description').textContent = setting.description || '';
+            
+            const inputField = document.getElementById('edit-setting-value');
+            const textareaField = document.getElementById('edit-setting-textarea');
+            
+            if (setting.setting_type === 'textarea') {
+                inputField.style.display = 'none';
+                textareaField.style.display = 'block';
+                textareaField.value = setting.setting_value || '';
+            } else {
+                inputField.style.display = 'block';
+                textareaField.style.display = 'none';
+                inputField.type = setting.setting_type === 'password' ? 'text' : 'text'; // Show even passwords for editing
+                inputField.value = setting.setting_value || '';
+            }
+            
+            document.getElementById('edit-setting-modal').style.display = 'flex';
+        }
+        
+        function closeEditModal() {
+            document.getElementById('edit-setting-modal').style.display = 'none';
+            document.getElementById('edit-setting-alert').innerHTML = '';
+        }
+        
+        async function saveSettingValue() {
+            const key = document.getElementById('edit-setting-key').value;
+            const inputField = document.getElementById('edit-setting-value');
+            const textareaField = document.getElementById('edit-setting-textarea');
+            const value = inputField.style.display === 'none' ? textareaField.value : inputField.value;
+            const alertDiv = document.getElementById('edit-setting-alert');
+            
+            try {
+                const response = await fetch(`/api/settings/${key}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ setting_value: value })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alertDiv.innerHTML = '<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px;">✅ Setting updated successfully!</div>';
+                    
+                    // Reload settings after 1 second
+                    setTimeout(() => {
+                        closeEditModal();
+                        loadAllSettings();
+                    }, 1000);
+                } else {
+                    alertDiv.innerHTML = `<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px;">❌ Error: ${result.detail || 'Failed to update setting'}</div>`;
+                }
+            } catch (error) {
+                alertDiv.innerHTML = `<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px;">❌ Error: ${error.message}</div>`;
+            }
+        }
     </script>
 </body>
 </html>

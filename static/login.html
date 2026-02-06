@@ -370,6 +370,12 @@
                     <input type="password" id="password" name="password" required 
                            placeholder="Enter your password" autocomplete="current-password">
                 </div>
+                <div style="margin-top: 8px;">
+                    <label style="display: flex; align-items: center; font-size: 0.9em; color: #4a5568; cursor: pointer;">
+                        <input type="checkbox" id="show_password" onchange="togglePasswordVisibility()" style="margin-right: 6px; cursor: pointer;">
+                        Show password
+                    </label>
+                </div>
             </div>
             
             <button type="submit" class="btn-login" id="loginBtn">
@@ -402,6 +408,12 @@
             setTimeout(() => {
                 alertDiv.style.display = 'none';
             }, 5000);
+        }
+        
+        function togglePasswordVisibility() {
+            const passwordField = document.getElementById('password');
+            const checkbox = document.getElementById('show_password');
+            passwordField.type = checkbox.checked ? 'text' : 'password';
         }
         
         loginForm.addEventListener('submit', async (e) => {
@@ -441,14 +453,22 @@
                     throw new Error(data.detail || 'Login failed');
                 }
                 
-                // Store token
-                localStorage.setItem('token', data.access_token);
+                // Store token with appropriate key based on role
+                const userRole = data.user.role || 'client';
+                
+                if (userRole === 'reseller') {
+                    localStorage.setItem('reseller_token', data.access_token);
+                } else if (userRole === 'owner' || userRole === 'admin') {
+                    localStorage.setItem('owner_token', data.access_token);
+                } else {
+                    localStorage.setItem('token', data.access_token);
+                }
+                
                 localStorage.setItem('user', JSON.stringify(data.user));
                 
                 showAlert('Login successful! Redirecting...', 'success');
                 
                 // Smart redirect based on user role
-                const userRole = data.user.role || 'client';
                 let redirectUrl = '/dashboard'; // Default fallback
                 
                 if (userRole === 'owner' || userRole === 'admin') {

@@ -17,16 +17,22 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func
 from typing import List, Optional, Dict
 import json
+import secrets
 from datetime import datetime
 from dotenv import load_dotenv
 
 from database.connection import get_db, init_db
 from database.models import (
     User, Company, CompanyUser, Product, Invoice, PurchaseOrder, CreditMemo,
-    EFRISGood, EFRISInvoice, ExciseCode, ClientReferral, AuditLog
+    EFRISGood, EFRISInvoice, ExciseCode, ClientReferral, AuditLog, SystemSettings
+)
+# Security utilities
+from security_utils import (
+    generate_totp_secret, get_totp_uri, generate_qr_code, verify_totp_code,
+    get_client_ip, enforce_api_security
 )
 # Import auth functions from standalone auth.py file
 from passlib.context import CryptContext
@@ -85,10 +91,11 @@ def get_current_active_user(token: str = Depends(oauth2_scheme), db: Session = D
 
 # API Key Authentication for External ERP Systems
 def get_company_from_api_key(
+    request: Request,
     x_api_key: str = Header(..., alias="X-API-Key"),
     db: Session = Depends(get_db)
 ) -> Company:
-    """Authenticate external ERP systems using API key"""
+    """Authenticate external ERP systems with IP whitelist & rate limiting"""
     if not x_api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -111,6 +118,10 @@ def get_company_from_api_key(
     
     # Update last used timestamp
     company.api_last_used = datetime.utcnow()
+    
+    # SECURITY: IP Whitelisting + Rate Limiting
+    enforce_api_security(request, company, db)
+    
     db.commit()
     
     return company
@@ -163,7 +174,7 @@ def get_user_companies(current_user: User, db: Session):
     return []
 
 # Define schemas inline to ensure they're always available
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
 class UserCreate(BaseModel):
@@ -178,6 +189,8 @@ class UserLogin(BaseModel):
     password: str
 
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     email: str
     full_name: Optional[str]
@@ -188,9 +201,6 @@ class UserResponse(BaseModel):
     subscription_ends: Optional[datetime] = None
     max_clients: Optional[int] = None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
@@ -212,6 +222,8 @@ class CompanyUpdate(BaseModel):
     erp_config: Optional[dict] = None
 
 class CompanyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     name: str
     tin: str
@@ -223,9 +235,6 @@ class CompanyResponse(BaseModel):
     erp_type: Optional[str] = None
     erp_config: Optional[dict] = None
 
-    class Config:
-        from_attributes = True
-
 class CompanyWithRole(CompanyResponse):
     role: str
 
@@ -234,6 +243,8 @@ class CompanyUserAdd(BaseModel):
     role: str = Field(default="user", pattern="^(admin|user|readonly)$")
 
 class ProductResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     company_id: int
     qb_item_id: str
@@ -245,10 +256,9 @@ class ProductResponse(BaseModel):
     created_at: datetime
     synced_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
-
 class InvoiceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     company_id: int
     qb_invoice_id: str
@@ -260,19 +270,68 @@ class InvoiceResponse(BaseModel):
     created_at: datetime
     fiscalized_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
-
 from efris_client import EfrisManager
 from quickbooks_client import QuickBooksClient
 from quickbooks_efris_mapper import QuickBooksEfrisMapper
 
 load_dotenv()
 
+# ========== LIFESPAN EVENTS ==========
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events"""
+    # Startup
+    init_db()
+    load_product_metadata()
+    print("[OK] Database tables created")
+    print("[OK] Multi-tenant EFRIS API started")
+    yield
+    # Shutdown (if needed)
+    pass
+
 app = FastAPI(
     title=os.getenv("API_TITLE", "EFRIS Multi-Tenant API"),
     version=os.getenv("API_VERSION", "2.0.0"),
-    description="Production-ready multi-tenant EFRIS integration with PostgreSQL"
+    description="""
+## EFRIS Multi-Tenant Integration Platform
+
+Production-ready API for Uganda Revenue Authority (URA) EFRIS invoice submission.
+
+### Features
+* 🔐 Multi-tenant authentication and isolation
+* 📱 Mobile-first PWA dashboard
+* 🔄 Real-time invoice submission to EFRIS
+* 📊 Product catalog management
+* 🎯 Custom ERP integration support
+* 🔒 Enterprise-grade security
+
+### Getting Started
+1. **Authentication**: Obtain API key from dashboard
+2. **Submit Products**: Register products with EFRIS
+3. **Create Invoices**: Submit invoices and receive FDN
+4. **Monitor**: Track all submissions in real-time
+
+### External API Documentation
+Visit `/external-api-docs` for Custom ERP integration guide.
+
+### Support
+- 📧 Email: support@yourdomain.com
+- 📱 WhatsApp: +256 XXX XXX XXX
+- 📚 Docs: https://docs.yourdomain.com
+    """,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {"name": "Authentication", "description": "Login and token management"},
+        {"name": "Invoices", "description": "Invoice submission and management"},
+        {"name": "Products", "description": "Product catalog operations"},
+        {"name": "Dashboard", "description": "Statistics and analytics"},
+        {"name": "External API", "description": "External ERP integration endpoints"},
+        {"name": "Admin", "description": "Owner and reseller operations"},
+    ],
+    lifespan=lifespan
 )
 
 # ============================================================================
@@ -570,17 +629,6 @@ def save_product_metadata(metadata=None):
         print(f"[Metadata] Error saving product metadata: {e}")
 
 
-# ========== STARTUP ==========
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup"""
-    init_db()
-    load_product_metadata()
-    print("[OK] Database tables created")
-    print("[OK] Multi-tenant EFRIS API started")
-
-
 # ========== PUBLIC DEMO ENDPOINTS (No Authentication Required) ==========
 # These endpoints demonstrate READ-ONLY EFRIS operations
 # Uses real company credentials: TIN 1014409555
@@ -747,6 +795,100 @@ async def public_test_t106():
         }
 
 
+@app.get("/api/public/efris/test/query-invoices")
+async def public_test_query_invoices():
+    """Public Demo: T106 Query Invoices - READ ONLY
+    
+    Shows example of querying invoices from EFRIS by date range and filters.
+    """
+    try:
+        efris = EfrisManager(
+            tin="1014409555",
+            device_no="1014409555_02",
+            cert_path="keys/wandera.pfx",
+            test_mode=True
+        )
+        
+        # Query recent invoices (last 30 days)
+        from datetime import datetime, timedelta
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+        
+        query_params = {
+            "startDate": start_date.strftime("%Y-%m-%d"),
+            "endDate": end_date.strftime("%Y-%m-%d"),
+            "invoiceKind": "1",  # 1=Invoice, 2=Receipt
+            "pageNo": "1",
+            "pageSize": "10"
+        }
+        
+        result = efris.query_invoice(query_params)
+        return {
+            "status": "success",
+            "interface": "T106 - Query Invoices",
+            "description": "Query invoices from EFRIS by date range and filters",
+            "query": query_params,
+            "data": result
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "HTML" in error_msg or "<!DOCTYPE" in error_msg:
+            return {
+                "status": "error",
+                "interface": "T106 - Query Invoices",
+                "message": "EFRIS server is currently unavailable. The test server may be down for maintenance.",
+                "details": "Server returned HTML error page instead of JSON response"
+            }
+        return {
+            "status": "error",
+            "interface": "T106 - Query Invoices",
+            "message": f"Failed to query EFRIS invoices: {error_msg}"
+        }
+
+
+@app.get("/api/public/efris/test/invoice-details")
+async def public_test_invoice_details():
+    """Public Demo: T108 Get Invoice Details - READ ONLY
+    
+    Shows example of getting specific invoice details by invoice number.
+    Note: May fail if there are no invoices in the test system.
+    """
+    try:
+        efris = EfrisManager(
+            tin="1014409555",
+            device_no="1014409555_02",
+            cert_path="keys/wandera.pfx",
+            test_mode=True
+        )
+        
+        # Try to get invoice details (will fail gracefully if no invoice exists)
+        # This is just to show the endpoint - in real use, client would provide invoice number
+        result = efris.get_invoice_by_number("SAMPLE-INV-001")
+        return {
+            "status": "success",
+            "interface": "T108 - Get Invoice Details",
+            "description": "Get specific invoice details by invoice number",
+            "data": result
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "HTML" in error_msg or "<!DOCTYPE" in error_msg:
+            return {
+                "status": "error",
+                "interface": "T108 - Get Invoice Details",
+                "message": "EFRIS server is currently unavailable. The test server may be down for maintenance.",
+                "details": "Server returned HTML error page instead of JSON response"
+            }
+        # This is expected to fail in demo since we don't have a real invoice number
+        return {
+            "status": "info",
+            "interface": "T108 - Get Invoice Details",
+            "message": "Demo endpoint - In production, provide a real invoice number to query",
+            "note": "This endpoint retrieves detailed information for a specific invoice by its unique number",
+            "error": error_msg
+        }
+
+
 # ========== ROOT & DASHBOARD ==========
 
 @app.get("/", response_class=HTMLResponse)
@@ -804,9 +946,9 @@ async def dashboard():
 
 # ========== AUTHENTICATION ENDPOINTS ==========
 
-@app.post("/api/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/api/auth/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    """Register a new reseller user with 2-day trial"""
+    """Register a new reseller user with 2-day trial and return access token"""
     from datetime import timedelta
     
     print(f"[DEBUG] Received registration data: email={user_data.email}, role={user_data.role}, phone={user_data.phone}")
@@ -837,12 +979,23 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     
-    return db_user
+    # Create access token for immediate login
+    access_token = create_access_token(data={"sub": db_user.email})
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": db_user
+    }
 
 
 @app.post("/api/auth/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Login and get access token"""
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    totp_code: str = None,
+    db: Session = Depends(get_db)
+):
+    """Login and get access token (with optional 2FA)"""
     user = db.query(User).filter(User.email == form_data.username).first()
     
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -854,6 +1007,40 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    
+    # SECURITY: Check 2FA if enabled
+    if user.totp_enabled:
+        if not totp_code:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="2FA code required",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if not verify_totp_code(user.totp_secret, totp_code):
+            # Log failed 2FA attempt
+            audit = AuditLog(
+                company_id=None,
+                user_id=user.id,
+                action="2fa_failed",
+                details=f"Failed 2FA login attempt for {user.email}"
+            )
+            db.add(audit)
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid 2FA code",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    
+    # Log successful login
+    audit = AuditLog(
+        company_id=None,
+        user_id=user.id,
+        action="login",
+        details=f"User {user.email} logged in successfully"
+    )
+    db.add(audit)
+    db.commit()
     
     access_token = create_access_token(data={"sub": user.email})
     return {
@@ -869,6 +1056,102 @@ async def get_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
 
+# ========== 2FA ENDPOINTS ==========
+
+@app.post("/api/auth/2fa/setup")
+async def setup_2fa(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Generate new TOTP secret and QR code for 2FA setup"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only owners and admins can enable 2FA")
+    
+    # Generate new secret
+    secret = generate_totp_secret()
+    totp_uri = get_totp_uri(secret, current_user.email, "EFRIS API")
+    qr_code_base64 = generate_qr_code(totp_uri)
+    
+    # Store secret (not enabled yet)
+    current_user.totp_secret = secret
+    current_user.totp_enabled = False
+    db.commit()
+    
+    # Log action
+    audit = AuditLog(
+        company_id=None,
+        user_id=current_user.id,
+        action="2fa_setup_initiated",
+        details=f"User {current_user.email} initiated 2FA setup"
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {
+        "secret": secret,
+        "qr_code": qr_code_base64,
+        "message": "Scan QR code with authenticator app, then verify with a code to enable 2FA"
+    }
+
+
+@app.post("/api/auth/2fa/enable")
+async def enable_2fa(
+    totp_code: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Verify TOTP code and enable 2FA"""
+    if not current_user.totp_secret:
+        raise HTTPException(status_code=400, detail="2FA not set up. Call /api/auth/2fa/setup first")
+    
+    if not verify_totp_code(current_user.totp_secret, totp_code):
+        raise HTTPException(status_code=400, detail="Invalid 2FA code")
+    
+    # Enable 2FA
+    current_user.totp_enabled = True
+    db.commit()
+    
+    # Log action
+    audit = AuditLog(
+        company_id=None,
+        user_id=current_user.id,
+        action="2fa_enabled",
+        details=f"User {current_user.email} enabled 2FA"
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {"message": "2FA enabled successfully"}
+
+
+@app.post("/api/auth/2fa/disable")
+async def disable_2fa(
+    password: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Disable 2FA (requires password confirmation)"""
+    if not verify_password(password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    
+    # Disable 2FA
+    current_user.totp_enabled = False
+    current_user.totp_secret = None
+    db.commit()
+    
+    # Log action
+    audit = AuditLog(
+        company_id=None,
+        user_id=current_user.id,
+        action="2fa_disabled",
+        details=f"User {current_user.email} disabled 2FA"
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {"message": "2FA disabled successfully"}
+
+
 # ========== RESELLER PORTAL ENDPOINTS ==========
 
 @app.get("/api/reseller/clients")
@@ -876,29 +1159,80 @@ async def get_reseller_clients(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all clients managed by this reseller"""
+    """Get all clients and referrals managed by this reseller"""
     if current_user.role not in ['reseller', 'admin']:
         raise HTTPException(status_code=403, detail="Only resellers can access this endpoint")
     
-    # Get all users where parent_id = current_user.id (clients of this reseller)
-    clients = db.query(User).filter(User.parent_id == current_user.id).all()
-    
     result = []
-    for client in clients:
-        # Get client's company (if any)
-        company = db.query(Company).filter(Company.owner_id == client.id).first()
-        
+    
+    # 1. Get pending referrals (not yet approved)
+    pending_referrals = db.query(ClientReferral).filter(
+        ClientReferral.reseller_id == current_user.id,
+        ClientReferral.status == 'pending'
+    ).all()
+    
+    for referral in pending_referrals:
         result.append({
-            "id": client.id,
-            "email": client.email,
-            "full_name": client.full_name,
-            "phone": client.phone,
-            "company_name": company.name if company else None,
-            "tin": company.tin if company else None,
-            "device_no": company.device_no if company else None,
-            "is_active": client.is_active,
-            "created_at": client.created_at.isoformat() if client.created_at else None
+            "id": referral.id,
+            "referral_id": referral.id,
+            "email": referral.client_email,
+            "full_name": referral.client_name,
+            "phone": referral.client_phone,
+            "company_name": referral.company_name,
+            "tin": referral.tin,
+            "device_no": referral.device_no,
+            "is_active": False,
+            "status": "pending",
+            "created_at": referral.created_at.isoformat() if referral.created_at else None
         })
+    
+    # 2. Get approved referrals (converted to clients)
+    approved_referrals = db.query(ClientReferral).filter(
+        ClientReferral.reseller_id == current_user.id,
+        ClientReferral.status == 'approved'
+    ).all()
+    
+    for referral in approved_referrals:
+        if referral.created_client_id:
+            client = db.query(User).filter(User.id == referral.created_client_id).first()
+            company = db.query(Company).filter(Company.id == referral.created_company_id).first() if referral.created_company_id else None
+            
+            if client:
+                result.append({
+                    "id": client.id,
+                    "referral_id": referral.id,
+                    "email": client.email,
+                    "full_name": client.full_name,
+                    "phone": client.phone,
+                    "company_name": company.name if company else referral.company_name,
+                    "tin": company.tin if company else referral.tin,
+                    "device_no": company.device_no if company else referral.device_no,
+                    "is_active": client.is_active,
+                    "status": "approved",
+                    "created_at": referral.reviewed_at.isoformat() if referral.reviewed_at else None
+                })
+    
+    # 3. Get any clients directly under this reseller (parent_id = reseller_id)
+    direct_clients = db.query(User).filter(User.parent_id == current_user.id).all()
+    
+    for client in direct_clients:
+        # Check if already included via referral
+        if not any(r['id'] == client.id and r.get('status') == 'approved' for r in result):
+            company = db.query(Company).filter(Company.owner_id == client.id).first()
+            
+            result.append({
+                "id": client.id,
+                "referral_id": None,
+                "email": client.email,
+                "full_name": client.full_name,
+                "phone": client.phone,
+                "company_name": company.name if company else None,
+                "tin": company.tin if company else None,
+                "device_no": company.device_no if company else None,
+                "is_active": client.is_active,
+                "status": "approved",
+                "created_at": client.created_at.isoformat() if client.created_at else None
+            })
     
     return result
 
@@ -1200,7 +1534,7 @@ async def get_all_clients(
         company = db.query(Company).filter(Company.owner_id == client.id).first()
         reseller = db.query(User).filter(User.id == client.parent_id).first()
         
-        result.append({
+        client_data = {
             "id": client.id,
             "email": client.email,
             "company_name": company.name if company else "N/A",
@@ -1208,7 +1542,29 @@ async def get_all_clients(
             "status": client.status,
             "reseller_name": reseller.full_name if reseller else "Direct",
             "created_at": client.created_at.isoformat()
-        })
+        }
+        
+        # Include company details and API credentials if company exists
+        if company:
+            client_data["company"] = {
+                "id": company.id,
+                "device_no": company.device_no,
+                "erp_type": company.erp_type or "none",
+                "efris_test_mode": company.efris_test_mode,
+                "is_active": company.is_active
+            }
+            
+            # Include API credentials for Custom ERP clients
+            if company.erp_type == "custom":
+                client_data["api_credentials"] = {
+                    "api_key": company.api_key,
+                    "api_secret": company.api_secret,
+                    "api_enabled": company.api_enabled,
+                    "api_last_used": company.api_last_used.isoformat() if company.api_last_used else None,
+                    "api_endpoint": "http://localhost:8001/api/external/efris"
+                }
+        
+        result.append(client_data)
     
     return result
 
@@ -1241,6 +1597,169 @@ async def get_activity_feed(
         })
     
     return result
+
+
+# ============================================
+# SYSTEM SETTINGS API ENDPOINTS
+# ============================================
+
+@app.get("/api/settings/public")
+async def get_public_settings(db: Session = Depends(get_db)):
+    """Get public settings for landing page (no authentication required)"""
+    settings = db.query(SystemSettings).filter(SystemSettings.is_public == 1).all()
+    
+    result = {}
+    for setting in settings:
+        # Convert boolean strings to actual booleans
+        if setting.setting_type == 'boolean':
+            result[setting.setting_key] = setting.setting_value == '1' or setting.setting_value.lower() == 'true'
+        elif setting.setting_type == 'number':
+            try:
+                result[setting.setting_key] = int(setting.setting_value) if setting.setting_value else 0
+            except:
+                result[setting.setting_key] = 0
+        else:
+            result[setting.setting_key] = setting.setting_value or ''
+    
+    return result
+
+
+@app.get("/api/settings/all")
+async def get_all_settings(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all settings (owner/admin only)"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access settings")
+    
+    settings = db.query(SystemSettings).order_by(SystemSettings.category, SystemSettings.setting_key).all()
+    
+    result = []
+    for setting in settings:
+        result.append({
+            "id": setting.id,
+            "setting_key": setting.setting_key,
+            "setting_value": setting.setting_value,
+            "setting_type": setting.setting_type,
+            "category": setting.category,
+            "description": setting.description,
+            "is_public": setting.is_public,
+            "updated_at": setting.updated_at.isoformat() if setting.updated_at else None
+        })
+    
+    return result
+
+
+@app.get("/api/settings/category/{category}")
+async def get_settings_by_category(
+    category: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get settings by category (owner/admin only)"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can access settings")
+    
+    settings = db.query(SystemSettings).filter(SystemSettings.category == category).all()
+    
+    result = []
+    for setting in settings:
+        result.append({
+            "id": setting.id,
+            "setting_key": setting.setting_key,
+            "setting_value": setting.setting_value,
+            "setting_type": setting.setting_type,
+            "category": setting.category,
+            "description": setting.description,
+            "is_public": setting.is_public
+        })
+    
+    return result
+
+
+@app.put("/api/settings/{setting_key}")
+async def update_setting(
+    setting_key: str,
+    setting_value: str = Body(..., embed=True),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update a setting value (owner/admin only)"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can update settings")
+    
+    setting = db.query(SystemSettings).filter(SystemSettings.setting_key == setting_key).first()
+    
+    if not setting:
+        raise HTTPException(status_code=404, detail=f"Setting '{setting_key}' not found")
+    
+    # Update the setting
+    setting.setting_value = setting_value
+    setting.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(setting)
+    
+    # Log the change
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="update_setting",
+        resource_type="SystemSettings",
+        resource_id=setting_key,
+        details={"old_value": setting.setting_value, "new_value": setting_value}
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Setting '{setting_key}' updated successfully",
+        "setting": {
+            "setting_key": setting.setting_key,
+            "setting_value": setting.setting_value,
+            "setting_type": setting.setting_type,
+            "category": setting.category
+        }
+    }
+
+
+@app.post("/api/settings")
+async def create_setting(
+    setting_key: str = Body(...),
+    setting_value: str = Body(...),
+    setting_type: str = Body(default='text'),
+    category: str = Body(default='general'),
+    description: str = Body(default=''),
+    is_public: int = Body(default=0),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new setting (owner/admin only)"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can create settings")
+    
+    # Check if setting already exists
+    existing = db.query(SystemSettings).filter(SystemSettings.setting_key == setting_key).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Setting '{setting_key}' already exists")
+    
+    # Create new setting
+    new_setting = SystemSettings(
+        setting_key=setting_key,
+        setting_value=setting_value,
+        setting_type=setting_type,
+        category=category,
+        description=description,
+        is_public=is_public
+    )
+    
+    db.add(new_setting)
+    db.commit()
+    db.refresh(new_setting)
+    
+    return {"success": True, "message": "Setting created successfully", "setting_id": new_setting.id}
+
 
 
 @app.post("/api/owner/approve-client/{client_id}")
@@ -1569,7 +2088,7 @@ async def owner_add_client(
         device_no=device_no,
         efris_cert_path=cert_path,
         efris_cert_password=cert_password,
-        is_test_mode=test_mode,
+        efris_test_mode=test_mode,
         owner_id=client_user.id,
         is_active=True,
         erp_type=erp_type
@@ -1607,11 +2126,11 @@ async def owner_add_client(
         company.custom_api_key = custom_api_key
         company.custom_api_secret = custom_api_secret
     
-    # Generate API key for external ERP integration
-    import secrets
-    company.api_key = f"efris_{secrets.token_urlsafe(32)}"
-    company.api_secret = secrets.token_urlsafe(16)
-    company.api_enabled = True
+    # Generate API credentials for Custom ERP integration
+    if erp_type == "custom":
+        company.api_key = f"efris_{secrets.token_urlsafe(32)}"
+        company.api_secret = secrets.token_urlsafe(32)
+        company.api_enabled = True
     
     db.add(company)
     db.flush()
@@ -1620,8 +2139,7 @@ async def owner_add_client(
     company_user = CompanyUser(
         user_id=client_user.id,
         company_id=company.id,
-        role='owner',
-        is_active=True
+        role='owner'
     )
     db.add(company_user)
     
@@ -1633,19 +2151,163 @@ async def owner_add_client(
     client_login_url = f"{base_url}/client/login"
     
     erp_message = f"\n\nERP: {erp_type.upper()}" if erp_type != "none" else "\n\nERP: Manual invoice entry"
-    api_message = f"\n\nAPI Key: {company.api_key}\nAPI Endpoint: {base_url}/api/external/efris"
     
-    return {
+    # Prepare response with API credentials for Custom ERP
+    response_data = {
         "success": True, 
         "message": "Direct client added successfully", 
         "client_id": client_user.id,
         "client_email": email,
         "client_login_url": client_login_url,
+        "erp_type": erp_type,
         "erp_configured": erp_type != "none",
-        "api_key": company.api_key,
-        "api_endpoint": f"{base_url}/api/external/efris",
-        "instructions": f"Send these credentials to your client:\n\nLogin URL: {client_login_url}\nEmail: {email}\nPassword: {password}{erp_message}{api_message}\n\nThey should bookmark this URL and use it to access their dashboard."
+        "instructions": f"Send these credentials to your client:\n\nLogin URL: {client_login_url}\nEmail: {email}\nPassword: {password}{erp_message}\n\nThey should bookmark this URL and use it to access their dashboard."
     }
+    
+    # Include API credentials only for Custom ERP
+    if erp_type == "custom" and company.api_key:
+        response_data["api_credentials"] = {
+            "api_key": company.api_key,
+            "api_secret": company.api_secret,
+            "api_endpoint": f"{base_url}/api/external/efris",
+            "api_enabled": company.api_enabled
+        }
+    
+    return response_data
+
+
+@app.put("/api/owner/clients/{company_id}/erp")
+async def update_client_erp(
+    company_id: int,
+    erp_type: str = Form(...),
+    # QuickBooks
+    qb_realm_id: str = Form(None),
+    qb_client_id: str = Form(None),
+    qb_client_secret: str = Form(None),
+    qb_region: str = Form("US"),
+    # Xero
+    xero_tenant_id: str = Form(None),
+    xero_client_id: str = Form(None),
+    xero_client_secret: str = Form(None),
+    # Zoho
+    zoho_org_id: str = Form(None),
+    zoho_client_id: str = Form(None),
+    zoho_client_secret: str = Form(None),
+    # Sage
+    sage_company_id: str = Form(None),
+    sage_api_key: str = Form(None),
+    sage_api_secret: str = Form(None),
+    # Odoo
+    odoo_url: str = Form(None),
+    odoo_db: str = Form(None),
+    odoo_username: str = Form(None),
+    odoo_password: str = Form(None),
+    # Custom API
+    custom_url: str = Form(None),
+    custom_api_key: str = Form(None),
+    custom_api_secret: str = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update client's ERP configuration (switch ERP types)"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can update ERP configuration")
+    
+    # Get company
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Store old ERP type for audit log
+    old_erp_type = company.erp_type
+    
+    # Clear all ERP credentials first (clean slate)
+    company.qb_realm_id = None
+    company.qb_region = "US"
+    company.qb_company_name = None
+    company.xero_tenant_id = None
+    company.zoho_organization_id = None
+    company.custom_api_url = None
+    company.custom_api_key = None
+    company.custom_api_secret = None
+    
+    # Update ERP type
+    company.erp_type = erp_type
+    
+    # Set new ERP-specific credentials
+    if erp_type == "quickbooks" and qb_realm_id:
+        company.qb_realm_id = qb_realm_id
+        company.qb_region = qb_region
+        company.custom_api_key = qb_client_id  # Temp storage
+        company.custom_api_secret = qb_client_secret
+        company.qb_company_name = company.name
+    elif erp_type == "xero" and xero_tenant_id:
+        company.xero_tenant_id = xero_tenant_id
+        company.custom_api_key = xero_client_id
+        company.custom_api_secret = xero_client_secret
+    elif erp_type == "zoho" and zoho_org_id:
+        company.zoho_organization_id = zoho_org_id
+        company.custom_api_key = zoho_client_id
+        company.custom_api_secret = zoho_client_secret
+    elif erp_type == "sage" and sage_company_id:
+        company.custom_api_url = f"sage://{sage_company_id}"
+        company.custom_api_key = sage_api_key
+        company.custom_api_secret = sage_api_secret
+    elif erp_type == "odoo" and odoo_url:
+        company.custom_api_url = odoo_url
+        company.custom_api_key = odoo_username
+        company.custom_api_secret = odoo_password
+        company.custom_api_url = f"{odoo_url}?db={odoo_db}"
+    elif erp_type == "custom" and custom_url:
+        company.custom_api_url = custom_url
+        company.custom_api_key = custom_api_key
+        company.custom_api_secret = custom_api_secret
+    
+    # Generate API credentials if switching TO Custom ERP (if they don't already exist)
+    if erp_type == "custom":
+        if not company.api_key:  # Only generate if they don't have credentials yet
+            company.api_key = f"efris_{secrets.token_urlsafe(32)}"
+            company.api_secret = secrets.token_urlsafe(32)
+            company.api_enabled = True
+    
+    # Note: We preserve existing API credentials when switching AWAY from Custom ERP
+    # This allows switching back without needing new credentials
+    
+    db.commit()
+    
+    # Create audit log
+    audit_log = AuditLog(
+        company_id=company.id,
+        user_id=current_user.id,
+        action="update_erp_config",
+        details=f"ERP changed from {old_erp_type} to {erp_type}",
+        ip_address="owner_portal"
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    # Prepare response
+    base_url = "http://127.0.0.1:8001"
+    response_data = {
+        "success": True,
+        "message": f"ERP configuration updated from {old_erp_type or 'none'} to {erp_type}",
+        "company_id": company.id,
+        "company_name": company.name,
+        "erp_type": erp_type,
+        "old_erp_type": old_erp_type
+    }
+    
+    # Include API credentials if Custom ERP
+    if erp_type == "custom" and company.api_key:
+        response_data["api_credentials"] = {
+            "api_key": company.api_key,
+            "api_secret": company.api_secret,
+            "api_endpoint": f"{base_url}/api/external/efris",
+            "api_enabled": company.api_enabled,
+            "newly_generated": not company.api_last_used  # True if this is first time
+        }
+    
+    return response_data
 
 
 @app.get("/api/owner/pending-referrals")
@@ -1688,11 +2350,38 @@ async def approve_referral(
     cert_password: str = Form(...),
     test_mode: bool = Form(False),
     pfx_file: UploadFile = File(...),
+    erp_type: str = Form("none"),
+    # QuickBooks fields
+    qb_realm_id: Optional[str] = Form(None),
+    qb_client_id: Optional[str] = Form(None),
+    qb_client_secret: Optional[str] = Form(None),
+    qb_region: Optional[str] = Form("US"),
+    # Xero fields
+    xero_tenant_id: Optional[str] = Form(None),
+    xero_client_id: Optional[str] = Form(None),
+    xero_client_secret: Optional[str] = Form(None),
+    # Zoho fields
+    zoho_org_id: Optional[str] = Form(None),
+    zoho_client_id: Optional[str] = Form(None),
+    zoho_client_secret: Optional[str] = Form(None),
+    # Sage fields
+    sage_company_id: Optional[str] = Form(None),
+    sage_api_key: Optional[str] = Form(None),
+    sage_api_secret: Optional[str] = Form(None),
+    # Odoo fields
+    odoo_url: Optional[str] = Form(None),
+    odoo_db: Optional[str] = Form(None),
+    odoo_username: Optional[str] = Form(None),
+    odoo_password: Optional[str] = Form(None),
+    # Custom API fields
+    custom_url: Optional[str] = Form(None),
+    custom_api_key: Optional[str] = Form(None),
+    custom_api_secret: Optional[str] = Form(None),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    Owner approves referral and configures EFRIS credentials
+    Owner approves referral and configures EFRIS credentials + ERP system
     CRITICAL: Only owner uploads certificates and configures devices
     """
     if current_user.role not in ['owner', 'admin']:
@@ -1723,81 +2412,147 @@ async def approve_referral(
     with open(cert_path, "wb") as buffer:
         shutil.copyfileobj(pfx_file.file, buffer)
     
-    # Create client user
-    client_user = User(
-        email=referral.client_email,
-        hashed_password=get_password_hash(password),
-        full_name=referral.client_name,
-        phone=referral.client_phone,
-        role="client",
-        status="active",
-        parent_id=referral.reseller_id,  # Link to reseller
-        is_active=True
-    )
-    db.add(client_user)
-    db.commit()
-    db.refresh(client_user)
-    
-    # Create company
-    company = Company(
-        name=referral.company_name,
-        tin=referral.tin,
-        device_no=referral.device_no,
-        owner_id=client_user.id,
-        efris_test_mode=test_mode,
-        efris_cert_path=cert_path,
-        efris_cert_password=cert_password,
-        is_active=True
-    )
-    db.add(company)
-    db.commit()
-    db.refresh(company)
-    
-    # Link user to company
-    company_user = CompanyUser(
-        user_id=client_user.id,
-        company_id=company.id,
-        role="admin"
-    )
-    db.add(company_user)
-    
-    # Update referral status
-    referral.status = "approved"
-    referral.reviewed_by = current_user.id
-    referral.reviewed_at = func.now()
-    referral.created_client_id = client_user.id
-    referral.created_company_id = company.id
-    
-    # Audit log for URA compliance
-    audit = AuditLog(
-        user_id=current_user.id,
-        company_id=company.id,
-        action="REFERRAL_APPROVED",
-        resource_type="ClientReferral",
-        resource_id=str(referral_id),
-        details={
-            "referral_id": referral_id,
-            "reseller_id": referral.reseller_id,
-            "client_id": client_user.id,
-            "company_id": company.id,
-            "tin": referral.tin
-        }
-    )
-    db.add(audit)
-    db.commit()
+    try:
+        # Create client user
+        client_user = User(
+            email=referral.client_email,
+            hashed_password=get_password_hash(password),
+            full_name=referral.client_name,
+            phone=referral.client_phone,
+            role="client",
+            status="active",
+            parent_id=referral.reseller_id,  # Link to reseller
+            is_active=True
+        )
+        db.add(client_user)
+        db.flush()  # Get ID without committing
+        
+        # Generate API credentials for external access (used by Custom ERP)
+        api_key = f"efris_{secrets.token_urlsafe(32)}"
+        api_secret = secrets.token_urlsafe(32)
+        
+        # Create company with ERP configuration
+        company = Company(
+            name=referral.company_name,
+            tin=referral.tin,
+            device_no=referral.device_no,
+            owner_id=client_user.id,
+            efris_test_mode=test_mode,
+            efris_cert_path=cert_path,
+            efris_cert_password=cert_password,
+            erp_type=erp_type,
+            # API Credentials (for Custom ERP to call our API)
+            api_key=api_key,
+            api_secret=api_secret,
+            api_enabled=True,
+            # QuickBooks
+            qb_realm_id=qb_realm_id,
+            qb_client_id=qb_client_id,
+            qb_client_secret=qb_client_secret,
+            qb_region=qb_region,
+            # Xero
+            xero_tenant_id=xero_tenant_id,
+            xero_client_id=xero_client_id,
+            xero_client_secret=xero_client_secret,
+            # Zoho
+            zoho_org_id=zoho_org_id,
+            zoho_client_id=zoho_client_id,
+            zoho_client_secret=zoho_client_secret,
+            # Sage
+            sage_company_id=sage_company_id,
+            sage_api_key=sage_api_key,
+            sage_api_secret=sage_api_secret,
+            # Odoo
+            odoo_url=odoo_url,
+            odoo_db=odoo_db,
+            odoo_username=odoo_username,
+            odoo_password=odoo_password,
+            # Custom API
+            custom_api_url=custom_url,
+            custom_api_key=custom_api_key,
+            custom_api_secret=custom_api_secret,
+            is_active=True
+        )
+        db.add(company)
+        db.flush()  # Get ID without committing
+        
+        # Determine if ERP was configured
+        erp_configured = erp_type != "none" and erp_type is not None
+        
+        # Link user to company (CRITICAL: Must be in same transaction)
+        company_user = CompanyUser(
+            user_id=client_user.id,
+            company_id=company.id,
+            role="admin"
+        )
+        db.add(company_user)
+        
+        # Update referral status
+        referral.status = "approved"
+        referral.reviewed_by = current_user.id
+        referral.reviewed_at = func.now()
+        referral.created_client_id = client_user.id
+        referral.created_company_id = company.id
+        
+        # Audit log for URA compliance
+        audit = AuditLog(
+            user_id=current_user.id,
+            company_id=company.id,
+            action="REFERRAL_APPROVED",
+            resource_type="ClientReferral",
+            resource_id=str(referral_id),
+            details={
+                "referral_id": referral_id,
+                "reseller_id": referral.reseller_id,
+                "client_id": client_user.id,
+                "company_id": company.id,
+                "tin": referral.tin,
+                "erp_type": erp_type,
+                "erp_configured": erp_configured
+            }
+        )
+        db.add(audit)
+        
+        # Single commit for atomic transaction
+        # If this fails, everything rolls back (User, Company, CompanyUser)
+        db.commit()
+        db.refresh(client_user)
+        db.refresh(company)
+        
+    except Exception as e:
+        db.rollback()
+        # Clean up uploaded certificate file on error
+        if os.path.exists(cert_path):
+            os.remove(cert_path)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to approve referral: {str(e)}"
+        )
     
     base_url = "http://127.0.0.1:8001"
     client_login_url = f"{base_url}/client/login"
     
-    return {
-        "success": True,
-        "message": "Referral approved and client configured",
+    # Include API credentials in response if Custom ERP selected
+    response_data = {
+        "message": "Client referral approved and account created",
         "client_id": client_user.id,
         "company_id": company.id,
         "client_email": referral.client_email,
         "client_login_url": client_login_url,
-        "instructions": f"Send to client:\n\nLogin: {client_login_url}\nEmail: {referral.client_email}\nPassword: {password}"
+        "erp_configured": erp_configured,
+        "erp_type": erp_type
     }
+    
+    # If custom ERP, include API credentials for developer handoff
+    if erp_type == "custom":
+        response_data["api_credentials"] = {
+            "api_key": company.api_key,
+            "api_secret": company.api_secret,
+            "api_endpoint": f"{base_url}/api/external/efris",
+            "documentation": "See DEVELOPER_PACKAGE folder for integration guide"
+        }
+    
+    return response_data
 
 
 @app.post("/api/owner/reject-referral/{referral_id}")
@@ -1846,6 +2601,187 @@ async def reject_referral(
     }
 
 
+@app.post("/api/owner/regenerate-api-key/{company_id}")
+async def regenerate_api_key(
+    company_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Regenerate API credentials for a company (use when compromised)"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can regenerate API keys")
+    
+    company = db.query(Company).filter(Company.id == company_id).first()
+    
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Generate new credentials
+    old_api_key = company.api_key
+    company.api_key = f"efris_{secrets.token_urlsafe(32)}"
+    company.api_secret = secrets.token_urlsafe(32)
+    company.api_last_used = None  # Reset usage tracking
+    
+    # Audit log for security tracking
+    audit = AuditLog(
+        user_id=current_user.id,
+        company_id=company.id,
+        action="API_KEY_REGENERATED",
+        resource_type="Company",
+        resource_id=str(company_id),
+        details={
+            "company_id": company_id,
+            "company_name": company.name,
+            "tin": company.tin,
+            "old_api_key_prefix": old_api_key[:15] if old_api_key else None,
+            "new_api_key_prefix": company.api_key[:15],
+            "reason": "Owner regenerated credentials"
+        }
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(company)
+    
+    return {
+        "success": True,
+        "message": "API credentials regenerated successfully",
+        "api_key": company.api_key,
+        "api_secret": company.api_secret,
+        "api_endpoint": "http://localhost:8001/api/external/efris",
+        "warning": "Old credentials are now invalid. Update all ERP systems immediately."
+    }
+
+
+# ========== SECURITY MANAGEMENT ENDPOINTS ==========
+
+@app.put("/api/owner/clients/{company_id}/ip-whitelist")
+async def update_ip_whitelist(
+    company_id: int,
+    allowed_ips: List[str],
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update IP whitelist for a company (Custom ERP API access control)"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can manage IP whitelists")
+    
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Store as JSON array
+    import json
+    company.allowed_ips = json.dumps(allowed_ips) if allowed_ips else None
+    
+    # Log action
+    audit = AuditLog(
+        company_id=company_id,
+        user_id=current_user.id,
+        action="ip_whitelist_updated",
+        details=f"Updated IP whitelist for {company.name}: {allowed_ips}"
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "IP whitelist updated successfully",
+        "allowed_ips": allowed_ips
+    }
+
+
+@app.put("/api/owner/clients/{company_id}/rate-limit")
+async def update_rate_limit(
+    company_id: int,
+    rate_limit: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update API rate limit for a company"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can manage rate limits")
+    
+    if rate_limit < 100 or rate_limit > 100000:
+        raise HTTPException(status_code=400, detail="Rate limit must be between 100 and 100,000 requests/day")
+    
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    old_limit = company.api_rate_limit
+    company.api_rate_limit = rate_limit
+    
+    # Log action
+    audit = AuditLog(
+        company_id=company_id,
+        user_id=current_user.id,
+        action="rate_limit_updated",
+        details=f"Updated rate limit for {company.name}: {old_limit} → {rate_limit} req/day"
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Rate limit updated successfully",
+        "rate_limit": rate_limit,
+        "rate_limit_per_day": rate_limit
+    }
+
+
+@app.get("/api/owner/audit-logs")
+async def get_audit_logs(
+    action: str = None,
+    company_id: int = None,
+    start_date: str = None,
+    end_date: str = None,
+    limit: int = 100,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get security audit logs (who did what, when)"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can view audit logs")
+    
+    query = db.query(AuditLog)
+    
+    # Apply filters
+    if action:
+        query = query.filter(AuditLog.action == action)
+    if company_id:
+        query = query.filter(AuditLog.company_id == company_id)
+    if start_date:
+        from datetime import datetime
+        start = datetime.fromisoformat(start_date)
+        query = query.filter(AuditLog.created_at >= start)
+    if end_date:
+        from datetime import datetime
+        end = datetime.fromisoformat(end_date)
+        query = query.filter(AuditLog.created_at <= end)
+    
+    # Get logs with user/company details
+    logs = query.order_by(AuditLog.created_at.desc()).limit(limit).all()
+    
+    result = []
+    for log in logs:
+        user = db.query(User).filter(User.id == log.user_id).first() if log.user_id else None
+        company = db.query(Company).filter(Company.id == log.company_id).first() if log.company_id else None
+        
+        result.append({
+            "id": log.id,
+            "timestamp": log.created_at.isoformat() if log.created_at else None,
+            "action": log.action,
+            "user_email": user.email if user else "System",
+            "company_name": company.name if company else None,
+            "details": log.details
+        })
+    
+    return {
+        "logs": result,
+        "total": len(result)
+    }
+
+
 # ========== COMPANY ENDPOINTS ==========
 
 @app.get("/api/companies", response_model=List[CompanyWithRole])
@@ -1867,6 +2803,8 @@ async def get_my_companies(
             "qb_company_name": cu.company.qb_company_name,
             "is_active": cu.company.is_active,
             "created_at": cu.company.created_at,
+            "erp_type": cu.company.erp_type or "none",
+            "erp_config": None,  # Can be populated with ERP-specific config if needed
             "role": cu.role
         }
         result.append(company_dict)

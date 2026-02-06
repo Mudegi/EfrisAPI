@@ -4,6 +4,11 @@
     <title>EFRIS Multi-Tenant Control Panel</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -692,6 +697,144 @@
             color: #2c3e50;
             font-size: 0.9rem;
             flex: 1;
+        }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 1024px) {
+            .dashboard-container.active {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                flex-direction: row;
+                overflow-x: auto;
+            }
+            
+            .sidebar-header {
+                display: none;
+            }
+            
+            .nav-menu {
+                display: flex;
+                flex-direction: row;
+                padding: 0;
+            }
+            
+            .nav-section {
+                display: flex;
+                margin: 0;
+            }
+            
+            .nav-section-title {
+                display: none;
+            }
+            
+            .nav-item {
+                white-space: nowrap;
+                border-left: none;
+                border-bottom: 3px solid transparent;
+            }
+            
+            .nav-item.active {
+                border-bottom-color: #667eea;
+            }
+            
+            .sidebar-footer {
+                display: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .topbar {
+                padding: 0.75rem 1rem;
+                flex-wrap: wrap;
+            }
+            
+            .topbar h2 {
+                font-size: 1.25rem;
+            }
+            
+            .topbar-center {
+                order: 3;
+                width: 100%;
+                margin-top: 0.5rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.75rem;
+            }
+            
+            .stat-card {
+                padding: 1rem;
+            }
+            
+            .stat-value {
+                font-size: 1.75rem;
+            }
+            
+            .tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                padding-bottom: 10px;
+            }
+            
+            .tab {
+                font-size: 0.85rem;
+                padding: 0.75rem 1rem;
+                white-space: nowrap;
+            }
+            
+            .card {
+                padding: 1rem;
+            }
+            
+            .card-header {
+                flex-direction: column;
+                gap: 0.75rem;
+                align-items: flex-start;
+            }
+            
+            table {
+                font-size: 0.85rem;
+            }
+            
+            table th, table td {
+                padding: 0.5rem 0.25rem;
+            }
+            
+            .btn {
+                padding: 0.625rem 1rem;
+                font-size: 0.85rem;
+            }
+            
+            .modal-overlay {
+                padding: 10px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            table {
+                min-width: 600px;
+            }
+            
+            .login-box {
+                padding: 2rem 1.5rem;
+            }
+            
+            .login-header h1 {
+                font-size: 1.5rem;
+            }
         }
     </style>
 </head>
@@ -1492,6 +1635,21 @@
     </div>
 
     <script>
+        // ===========================
+        // PWA Service Worker Registration
+        // ===========================
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/service-worker.js')
+                    .then(registration => {
+                        console.log('✓ Service Worker registered:', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('✗ Service Worker registration failed:', err);
+                    });
+            });
+        }
+        
         // Configuration
         const API_BASE = 'http://localhost:8001';
         
@@ -1718,6 +1876,8 @@
                 ? currentUser.full_name.charAt(0).toUpperCase()
                 : currentUser.email.charAt(0).toUpperCase();
             document.getElementById('userAvatar').textContent = initial;
+            
+            console.log(`[User Info] Role: ${currentUser.role}, Name: ${currentUser.full_name}`);
         }
 
         function toggleUserMenu() {
@@ -1742,29 +1902,31 @@
             companies = await response.json();
             
             const select = document.getElementById('companySelect');
-            select.innerHTML = '';
+            const companySelector = document.querySelector('.topbar-company');
             
             if (companies.length === 0) {
                 select.innerHTML = '<option value="">No companies available</option>';
                 return;
             }
 
-            companies.forEach(company => {
-                const option = document.createElement('option');
-                option.value = company.id;
-                option.textContent = `${company.name} (${company.tin})`;
-                select.appendChild(option);
-            });
-
-            const savedCompanyId = localStorage.getItem('currentCompanyId');
-            if (savedCompanyId && companies.find(c => c.id == savedCompanyId)) {
-                select.value = savedCompanyId;
-                currentCompany = companies.find(c => c.id == savedCompanyId);
-            } else {
-                select.value = companies[0].id;
-                currentCompany = companies[0];
-                localStorage.setItem('currentCompanyId', companies[0].id);
+            // Auto-select the first (and typically only) company for clients
+            currentCompany = companies[0];
+            localStorage.setItem('currentCompanyId', companies[0].id);
+            
+            // Update ERP configuration based on company's erp_type
+            updateERPConfig();
+            
+            // Hide company selector since clients only have one company
+            if (companySelector) {
+                companySelector.style.display = 'none';
             }
+            
+            // Update page title to show company name
+            document.getElementById('pageTitle').textContent = `${currentCompany.name} Dashboard`;
+            
+            console.log(`[Auto-selected] Company: ${currentCompany.name} (${currentCompany.tin})`);
+            console.log(`[ERP Type] ${currentCompany.erp_type || 'none'}`);
+            showToast(`Welcome to ${currentCompany.name}!`, 'success');
         }
 
         async function switchCompany() {

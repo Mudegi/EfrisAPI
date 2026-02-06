@@ -68,7 +68,30 @@ All requests need header: `X-API-Key: [your_key]`
 
 ---
 
-## 📖 Reading Order
+## � Postman Collection Available! ⭐ **NEW**
+
+**Fastest way to test the API before coding:**
+
+1. **Download**: `EFRIS_API_Postman_Collection.json` (in parent folder)
+2. **Import** into Postman desktop or web app
+3. **Update** the `api_key` variable with your actual key
+4. **Test** all endpoints with pre-configured examples
+
+**What's included:**
+- All invoice operations (T103, T109, T104)
+- Goods & services queries
+- Stock management endpoints
+- Excise duty codes
+- Credit memos, Purchase orders
+- Payment requests
+
+**Location:** `d:\EfrisAPI\EFRIS_API_Postman_Collection.json`
+
+💡 **Pro Tip:** Test with Postman first to understand API responses before writing code!
+
+---
+
+## �📖 Reading Order
 
 **First Time? Read in this order:**
 

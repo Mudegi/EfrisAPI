@@ -227,6 +227,7 @@
         .status-active { background: #e8f5e9; color: #2e7d32; }
         .status-inactive { background: #ffebee; color: #c62828; }
         .status-pending { background: #fff3e0; color: #e65100; }
+        .status-warning { background: #fff3e0; color: #e65100; }
 
         .action-btns {
             display: flex;
@@ -884,13 +885,15 @@
 
                 if (response.ok) {
                     clients = await response.json();
+                    console.log('Loaded clients:', clients);
                     renderClientsTable();
                     
                     // Update stats
+                    const approvedClients = clients.filter(c => c.status === 'approved' || c.is_active);
+                    const pendingClients = clients.filter(c => c.status === 'pending');
+                    
                     document.getElementById('totalClients').textContent = clients.length;
-                    document.getElementById('activeClients').textContent = 
-                        clients.filter(c => c.is_active).length;
-                    document.getElementById('usedSlots').textContent = clients.length;
+                    document.getElementById('activeClients').textContent = approvedClients.length;
                 }
             } catch (error) {
                 console.error('Error loading clients:', error);
@@ -900,6 +903,7 @@
         }
 
         function renderClientsTable() {
+            console.log('Rendering clients table, count:', clients.length);
             const tableHtml = clients.length === 0 ? `
                 <div class="empty-state">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -927,8 +931,16 @@
                                 <td>${client.device_no || '-'}</td>
                                 <td>${client.email}</td>
                                 <td>
-                                    <span class="status-badge ${client.is_active ? 'status-active' : 'status-inactive'}">
-                                        ${client.is_active ? '✅ Active' : '⏳ Pending'}
+                                    <span class="status-badge ${
+                                        client.status === 'pending' ? 'status-warning' : 
+                                        client.status === 'approved' ? 'status-active' : 
+                                        client.is_active ? 'status-active' : 'status-inactive'
+                                    }">
+                                        ${
+                                            client.status === 'pending' ? '⏳ Pending Approval' : 
+                                            client.status === 'approved' ? '✅ Approved' : 
+                                            client.is_active ? '✅ Active' : '⏸️ Inactive'
+                                        }
                                     </span>
                                 </td>
                                 <td>

@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="EFRIS Mobile Client - Submit invoices on-the-go">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EFRIS">
+    <title>EFRIS Mobile Client</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        :root {
+            --primary: #667eea;
+            --primary-dark: #5568d3;
+            --secondary: #764ba2;
+            --success: #00b894;
+            --warning: #fdcb6e;
+            --danger: #ff7675;
+            --text-dark: #2c3e50;
+            --text-light: #7f8c8d;
+            --bg-light: #f5f7fa;
+            --border: #e0e0e0;
+            --shadow: 0 2px 8px rgba(0,0,0,0.1);
+            --shadow-lg: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Mobile-optimized header */
+        .mobile-header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 12px 16px;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 56px;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .menu-btn, .back-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .menu-btn:active, .back-btn:active {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sync-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+        
+        .sync-status.offline {
+            background: var(--danger);
+        }
+        
+        /* Bottom navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        
+        .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 8px;
+            color: var(--text-light);
+            text-decoration: none;
+            font-size: 11px;
+            font-weight: 500;
+            transition: color 0.2s;
+            cursor: pointer;
+            border: none;
+            background: none;
+        }
+        
+        .nav-item.active {
+            color: var(--primary);
+        }
+        
+        .nav-item .nav-icon {
+            font-size: 24px;
+        }
+        
+        /* Main content area */
+        .main-content {
+            padding: 16px 16px 80px 16px;
+            min-height: calc(100vh - 56px);
+        }
+        
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+        
+        .stat-icon.blue { background: rgba(102, 126, 234, 0.1); }
+        .stat-icon.green { background: rgba(0, 184, 148, 0.1); }
+        .stat-icon.orange { background: rgba(253, 203, 110, 0.1); }
+        .stat-icon.red { background: rgba(255, 118, 117, 0.1); }
+        
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+        
+        /* Quick actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .action-btn {
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            color: var(--text-dark);
+        }
+        
+        .action-btn:active {
+            transform: scale(0.95);
+            background: var(--bg-light);
+        }
+        
+        .action-icon {
+            font-size: 28px;
+        }
+        
+        .action-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        /* Invoice list */
+        .invoice-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .invoice-item {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            gap: 12px;
+            align-items: start;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .invoice-item:active {
+            transform: scale(0.98);
+        }
+        
+        .invoice-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        
+        .invoice-icon.pending { background: rgba(253, 203, 110, 0.2); }
+        .invoice-icon.approved { background: rgba(0, 184, 148, 0.2); }
+        .invoice-icon.rejected { background: rgba(255, 118, 117, 0.2); }
+        
+        .invoice-details {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .invoice-number {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+        }
+        
+        .invoice-meta {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+        
+        .invoice-amount {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .invoice-status {
+            flex-shrink: 0;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .invoice-status.pending { background: rgba(253, 203, 110, 0.2); color: #e17055; }
+        .invoice-status.approved { background: rgba(0, 184, 148, 0.2); color: #00b894; }
+        .invoice-status.rejected { background: rgba(255, 118, 117, 0.2); color: #ff7675; }
+        
+        /* Floating action button */
+        .fab {
+            position: fixed;
+            bottom: 88px;
+            right: 16px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 999;
+            transition: transform 0.2s;
+        }
+        
+        .fab:active {
+            transform: scale(0.9);
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+        
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+        }
+        
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-light);
+            color: var(--text-dark);
+        }
+        
+        .btn-block {
+            width: 100%;
+        }
+        
+        /* Pull to refresh */
+        .pull-to-refresh {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            transform: translateY(-100%);
+            transition: transform 0.3s;
+            z-index: 999;
+        }
+        
+        .pull-to-refresh.show {
+            transform: translateY(0);
+        }
+        
+        .refresh-icon {
+            font-size: 24px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+        
+        .empty-text {
+            font-size: 14px;
+            color: var(--text-light);
+            margin-bottom: 24px;
+        }
+        
+        /* Loading spinner */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 96px;
+            left: 16px;
+            right: 16px;
+            background: var(--text-dark);
+            color: white;
+            padding: 16px;
+            border-radius: 10px;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transform: translateY(200%);
+            transition: transform 0.3s;
+            z-index: 9999;
+        }
+        
+        .toast.show {
+            transform: translateY(0);
+        }
+        
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+        .toast.warning { background: var(--warning); color: var(--text-dark); }
+        
+        /* Page transitions */
+        .page {
+            display: none;
+        }
+        
+        .page.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        /* Offline indicator */
+        .offline-banner {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            background: var(--danger);
+            color: white;
+            padding: 12px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            transform: translateY(-100%);
+            transition: transform 0.3s;
+            z-index: 1001;
+        }
+        
+        .offline-banner.show {
+            transform: translateY(0);
+        }
+        
+        /* Install prompt */
+        .install-prompt {
+            position: fixed;
+            bottom: 72px;
+            left: 16px;
+            right: 16px;
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: var(--shadow-lg);
+            display: none;
+            align-items: center;
+            gap: 12px;
+            z-index: 9998;
+        }
+        
+        .install-prompt.show {
+            display: flex;
+        }
+        
+        .install-icon {
+            font-size: 32px;
+        }
+        
+        .install-text {
+            flex: 1;
+        }
+        
+        .install-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .install-subtitle {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+        
+        .install-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-install {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .btn-install.primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-install.secondary {
+            background: transparent;
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+    <!-- Offline Banner -->
+    <div id="offlineBanner" class="offline-banner">
+        📡 You're offline. Changes will sync when connected.
+    </div>
+    
+    <!-- Mobile Header -->
+    <header class="mobile-header">
+        <div class="header-left">
+            <button class="menu-btn" id="menuBtn" onclick="toggleMenu()">☰</button>
+            <div class="header-title" id="headerTitle">Dashboard</div>
+        </div>
+        <div class="header-right">
+            <div class="sync-status" id="syncStatus"></div>
+        </div>
+    </header>
+    
+    <!-- Pull to Refresh -->
+    <div id="pullToRefresh" class="pull-to-refresh">
+        <div class="refresh-icon">↻</div>
+    </div>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Page -->
+        <div id="dashboardPage" class="page active">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon blue">📄</div>
+                    <div class="stat-label">Total Invoices</div>
+                    <div class="stat-value" id="totalInvoices">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green">✓</div>
+                    <div class="stat-label">Approved</div>
+                    <div class="stat-value" id="approvedInvoices">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon orange">⏱</div>
+                    <div class="stat-label">Pending</div>
+                    <div class="stat-value" id="pendingInvoices">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon red">✗</div>
+                    <div class="stat-label">Rejected</div>
+                    <div class="stat-value" id="rejectedInvoices">0</div>
+                </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Quick Actions</div>
+                </div>
+                <div class="quick-actions">
+                    <button class="action-btn" onclick="showPage('newInvoicePage')">
+                        <div class="action-icon">➕</div>
+                        <div class="action-label">New Invoice</div>
+                    </button>
+                    <button class="action-btn" onclick="showPage('invoicesPage')">
+                        <div class="action-icon">📋</div>
+                        <div class="action-label">View All</div>
+                    </button>
+                    <button class="action-btn" onclick="showPage('productsPage')">
+                        <div class="action-icon">📦</div>
+                        <div class="action-label">Products</div>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Recent Invoices -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Recent Invoices</div>
+                    <a href="#" onclick="showPage('invoicesPage')" style="color: var(--primary); font-size: 14px; text-decoration: none;">View All →</a>
+                </div>
+                <div id="recentInvoicesList" class="invoice-list">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Invoices Page -->
+        <div id="invoicesPage" class="page">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">All Invoices</div>
+                </div>
+                <div id="allInvoicesList" class="invoice-list">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- New Invoice Page -->
+        <div id="newInvoicePage" class="page">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Create Invoice</div>
+                </div>
+                <form id="invoiceForm" onsubmit="submitInvoice(event)">
+                    <div class="form-group">
+                        <label class="form-label">Customer Name</label>
+                        <input type="text" class="form-input" id="customerName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Customer TIN</label>
+                        <input type="text" class="form-input" id="customerTin" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Product/Service</label>
+                        <select class="form-select" id="productSelect" required>
+                            <option value="">Select product...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-input" id="quantity" min="1" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Unit Price (UGX)</label>
+                        <input type="number" class="form-input" id="unitPrice" min="0" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Notes (Optional)</label>
+                        <textarea class="form-textarea" id="notes"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <span>Submit Invoice</span>
+                        <span>→</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Products Page -->
+        <div id="productsPage" class="page">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Products & Services</div>
+                </div>
+                <div id="productsList">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings Page -->
+        <div id="settingsPage" class="page">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Settings</div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 4px;">Company Info</div>
+                            <div style="font-size: 14px; color: var(--text-light);" id="companyName">Loading...</div>
+                        </div>
+                        <div style="font-size: 24px;">🏢</div>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 4px;">Offline Mode</div>
+                            <div style="font-size: 14px; color: var(--text-light);">Save invoices locally</div>
+                        </div>
+                        <div style="font-size: 24px;" id="offlineStatus">✓</div>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 4px;">Notifications</div>
+                            <div style="font-size: 14px; color: var(--text-light);">Push notifications</div>
+                        </div>
+                        <button onclick="requestNotificationPermission()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Enable</button>
+                    </div>
+                    <button onclick="logout()" class="btn btn-secondary btn-block" style="margin-top: 20px;">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" onclick="showPage('dashboardPage', this)">
+            <div class="nav-icon">🏠</div>
+            <div>Dashboard</div>
+        </button>
+        <button class="nav-item" onclick="showPage('invoicesPage', this)">
+            <div class="nav-icon">📋</div>
+            <div>Invoices</div>
+        </button>
+        <button class="nav-item" onclick="showPage('newInvoicePage', this)">
+            <div class="nav-icon">➕</div>
+            <div>New</div>
+        </button>
+        <button class="nav-item" onclick="showPage('productsPage', this)">
+            <div class="nav-icon">📦</div>
+            <div>Products</div>
+        </button>
+        <button class="nav-item" onclick="showPage('settingsPage', this)">
+            <div class="nav-icon">⚙️</div>
+            <div>Settings</div>
+        </button>
+    </nav>
+    
+    <!-- Floating Action Button -->
+    <button class="fab" onclick="showPage('newInvoicePage')">
+        ➕
+    </button>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+        <div id="toastIcon">ℹ️</div>
+        <div id="toastMessage">Notification</div>
+    </div>
+    
+    <!-- Install Prompt -->
+    <div id="installPrompt" class="install-prompt">
+        <div class="install-icon">📱</div>
+        <div class="install-text">
+            <div class="install-title">Install EFRIS App</div>
+            <div class="install-subtitle">Quick access from your home screen</div>
+        </div>
+        <div class="install-actions">
+            <button class="btn-install primary" onclick="installApp()">Install</button>
+            <button class="btn-install secondary" onclick="dismissInstallPrompt()">Later</button>
+        </div>
+    </div>
+    
+    <script>
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/service-worker.js')
+                    .then(registration => {
+                        console.log('SW registered:', registration);
+                    })
+                    .catch(err => {
+                        console.log('SW registration failed:', err);
+                    });
+            });
+        }
+        
+        // PWA Install Prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installPrompt').classList.add('show');
+        });
+        
+        function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('App installed');
+                    }
+                    deferredPrompt = null;
+                    document.getElementById('installPrompt').classList.remove('show');
+                });
+            }
+        }
+        
+        function dismissInstallPrompt() {
+            document.getElementById('installPrompt').classList.remove('show');
+        }
+        
+        // Online/Offline Detection
+        window.addEventListener('online', () => {
+            document.getElementById('offlineBanner').classList.remove('show');
+            document.getElementById('syncStatus').classList.remove('offline');
+            showToast('Back online! Syncing...', 'success');
+            syncOfflineData();
+        });
+        
+        window.addEventListener('offline', () => {
+            document.getElementById('offlineBanner').classList.add('show');
+            document.getElementById('syncStatus').classList.add('offline');
+            showToast('You are offline', 'warning');
+        });
+        
+        // Page Navigation
+        function showPage(pageId, navItem) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            // Show selected page
+            document.getElementById(pageId).classList.add('active');
+            
+            // Update bottom nav
+            if (navItem) {
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                navItem.classList.add('active');
+            }
+            
+            // Update header title
+            const titles = {
+                'dashboardPage': 'Dashboard',
+                'invoicesPage': 'Invoices',
+                'newInvoicePage': 'New Invoice',
+                'productsPage': 'Products',
+                'settingsPage': 'Settings'
+            };
+            document.getElementById('headerTitle').textContent = titles[pageId] || 'EFRIS';
+            
+            // Load page data
+            if (pageId === 'invoicesPage') {
+                loadAllInvoices();
+            } else if (pageId === 'productsPage') {
+                loadProducts();
+            }
+        }
+        
+        // Toast Notifications
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+            
+            toast.className = 'toast ' + type;
+            toastMessage.textContent = message;
+            
+            const icons = {
+                'success': '✓',
+                'error': '✗',
+                'warning': '⚠',
+                'info': 'ℹ'
+            };
+            toastIcon.textContent = icons[type] || 'ℹ';
+            
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        // API Calls
+        const API_BASE = window.location.origin;
+        let API_KEY = localStorage.getItem('efris_api_key') || '';
+        
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY,
+                        ...options.headers
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API call failed:', error);
+                if (!navigator.onLine) {
+                    showToast('Offline - saved locally', 'warning');
+                } else {
+                    showToast('Request failed', 'error');
+                }
+                throw error;
+            }
+        }
+        
+        // Load Dashboard Data
+        async function loadDashboard() {
+            try {
+                const stats = await apiCall('/api/invoices/stats');
+                document.getElementById('totalInvoices').textContent = stats.total || 0;
+                document.getElementById('approvedInvoices').textContent = stats.approved || 0;
+                document.getElementById('pendingInvoices').textContent = stats.pending || 0;
+                document.getElementById('rejectedInvoices').textContent = stats.rejected || 0;
+                
+                const recentInvoices = await apiCall('/api/invoices/recent?limit=5');
+                renderInvoiceList(recentInvoices, 'recentInvoicesList');
+            } catch (error) {
+                console.error('Failed to load dashboard:', error);
+            }
+        }
+        
+        // Load All Invoices
+        async function loadAllInvoices() {
+            try {
+                const invoices = await apiCall('/api/invoices');
+                renderInvoiceList(invoices, 'allInvoicesList');
+            } catch (error) {
+                console.error('Failed to load invoices:', error);
+            }
+        }
+        
+        // Render Invoice List
+        function renderInvoiceList(invoices, containerId) {
+            const container = document.getElementById(containerId);
+            
+            if (!invoices || invoices.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📄</div>
+                        <div class="empty-title">No invoices yet</div>
+                        <div class="empty-text">Create your first invoice to get started</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = invoices.map(inv => `
+                <div class="invoice-item" onclick="viewInvoice('${inv.id}')">
+                    <div class="invoice-icon ${inv.status}">📄</div>
+                    <div class="invoice-details">
+                        <div class="invoice-number">${inv.invoice_number || 'INV-' + inv.id}</div>
+                        <div class="invoice-meta">${inv.customer_name} • ${new Date(inv.created_at).toLocaleDateString()}</div>
+                        <div class="invoice-amount">UGX ${Number(inv.total_amount || 0).toLocaleString()}</div>
+                    </div>
+                    <div class="invoice-status ${inv.status}">${inv.status}</div>
+                </div>
+            `).join('');
+        }
+        
+        // Load Products
+        async function loadProducts() {
+            try {
+                const products = await apiCall('/api/products');
+                const container = document.getElementById('productsList');
+                const select = document.getElementById('productSelect');
+                
+                // Populate product select
+                select.innerHTML = '<option value="">Select product...</option>' +
+                    products.map(p => `<option value="${p.id}">${p.name} - UGX ${Number(p.price).toLocaleString()}</option>`).join('');
+                
+                // Render product list
+                container.innerHTML = products.map(p => `
+                    <div style="padding: 12px 0; border-bottom: 1px solid var(--border);">
+                        <div style="font-weight: 600; margin-bottom: 4px;">${p.name}</div>
+                        <div style="font-size: 14px; color: var(--text-light);">UGX ${Number(p.price).toLocaleString()}</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load products:', error);
+            }
+        }
+        
+        // Submit Invoice
+        async function submitInvoice(event) {
+            event.preventDefault();
+            
+            const formData = {
+                customer_name: document.getElementById('customerName').value,
+                customer_tin: document.getElementById('customerTin').value,
+                product_id: document.getElementById('productSelect').value,
+                quantity: document.getElementById('quantity').value,
+                unit_price: document.getElementById('unitPrice').value,
+                notes: document.getElementById('notes').value
+            };
+            
+            try {
+                showToast('Submitting invoice...', 'info');
+                await apiCall('/api/invoices/submit', {
+                    method: 'POST',
+                    body: JSON.stringify(formData)
+                });
+                
+                showToast('Invoice submitted successfully!', 'success');
+                document.getElementById('invoiceForm').reset();
+                showPage('dashboardPage');
+                loadDashboard();
+            } catch (error) {
+                if (!navigator.onLine) {
+                    saveOfflineInvoice(formData);
+                    showToast('Saved offline - will sync later', 'warning');
+                } else {
+                    showToast('Failed to submit invoice', 'error');
+                }
+            }
+        }
+        
+        // Offline Data Management
+        function saveOfflineInvoice(data) {
+            const offlineInvoices = JSON.parse(localStorage.getItem('offline_invoices') || '[]');
+            offlineInvoices.push({
+                id: Date.now(),
+                data: data,
+                timestamp: new Date().toISOString()
+            });
+            localStorage.setItem('offline_invoices', JSON.stringify(offlineInvoices));
+        }
+        
+        async function syncOfflineData() {
+            const offlineInvoices = JSON.parse(localStorage.getItem('offline_invoices') || '[]');
+            
+            if (offlineInvoices.length === 0) return;
+            
+            showToast(`Syncing ${offlineInvoices.length} offline invoice(s)...`, 'info');
+            
+            for (const invoice of offlineInvoices) {
+                try {
+                    await apiCall('/api/invoices/submit', {
+                        method: 'POST',
+                        body: JSON.stringify(invoice.data)
+                    });
+                } catch (error) {
+                    console.error('Failed to sync invoice:', error);
+                }
+            }
+            
+            localStorage.setItem('offline_invoices', '[]');
+            showToast('Sync complete!', 'success');
+            loadDashboard();
+        }
+        
+        // Notification Permission
+        async function requestNotificationPermission() {
+            if ('Notification' in window) {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    showToast('Notifications enabled!', 'success');
+                }
+            }
+        }
+        
+        // Logout
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                localStorage.removeItem('efris_api_key');
+                window.location.href = '/static/login.html';
+            }
+        }
+        
+        // View Invoice
+        function viewInvoice(id) {
+            showToast('Invoice details coming soon', 'info');
+        }
+        
+        // Initialize
+        window.addEventListener('load', () => {
+            // Check API key
+            if (!API_KEY) {
+                window.location.href = '/static/login.html';
+                return;
+            }
+            
+            loadDashboard();
+            loadProducts();
+            
+            // Check for offline invoices
+            const offlineInvoices = JSON.parse(localStorage.getItem('offline_invoices') || '[]');
+            if (offlineInvoices.length > 0 && navigator.onLine) {
+                syncOfflineData();
+            }
+        });
+        
+        // Pull to refresh simulation
+        let touchStartY = 0;
+        let isPulling = false;
+        
+        document.addEventListener('touchstart', (e) => {
+            if (window.scrollY === 0) {
+                touchStartY = e.touches[0].clientY;
+            }
+        });
+        
+        document.addEventListener('touchmove', (e) => {
+            if (window.scrollY === 0) {
+                const touchY = e.touches[0].clientY;
+                const pullDistance = touchY - touchStartY;
+                
+                if (pullDistance > 80 && !isPulling) {
+                    isPulling = true;
+                    document.getElementById('pullToRefresh').classList.add('show');
+                }
+            }
+        });
+        
+        document.addEventListener('touchend', () => {
+            if (isPulling) {
+                loadDashboard();
+                setTimeout(() => {
+                    document.getElementById('pullToRefresh').classList.remove('show');
+                    isPulling = false;
+                }, 1000);
+            }
+        });
+    </script>
+</body>
+</html>

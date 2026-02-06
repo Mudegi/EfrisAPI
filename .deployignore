@@ -1,0 +1,50 @@
+# Files to Remove After Deployment
+# This is a reference list - the deploy.yml script removes these
+
+# Test Infrastructure
+tests/
+run_tests.ps1
+run_tests.bat
+pytest.ini
+requirements-dev.txt
+
+# Test Documentation
+TESTING_GUIDE.md
+TESTING_QUICKREF.md
+TESTING_IMPLEMENTATION_COMPLETE.md
+
+# Development Documentation (Optional - keep if you want docs on server)
+MOBILE_OPTIMIZATION_GUIDE.md
+MOBILE_QUICKSTART.md
+ARCHITECTURE.md
+BEFORE_AFTER_SECURITY.md
+CHECKLIST.md
+COMPLETE_EXCISE_DISCOUNT_TAX.md
+COMPREHENSIVE_TAX_DISCOUNT_FINAL.md
+CRITICAL_IMPROVEMENTS_DONE.md
+DEPLOYMENT_CHECKLIST.md
+DEPLOYMENT_START_HERE.md
+DEVELOPER_HANDOFF_PACKAGE.md
+
+# Development Scripts
+debug_*.py
+analyze_*.py
+check_*.py
+diagnose_*.py
+extract_*.py
+fix_*.py
+generate_*.py
+migrate_*.py
+add_*.py
+create_*.py
+final_verification.py
+
+# CI/CD (GitHub Actions handles this, no need on server)
+.github/
+
+# Icon Generation
+generate_pwa_icons.py
+
+# Git Files
+.git/
+.gitignore

@@ -21,3 +21,25 @@ jobs:
           script: |
             cd /home/nafazplp/public_html/efrisintegration.nafacademy.com
             git pull origin main
+            
+            # Remove test files and dev dependencies from production
+            rm -rf tests/
+            rm -f run_tests.ps1 run_tests.bat pytest.ini
+            rm -f requirements-dev.txt
+            rm -f TESTING_*.md
+            
+            # Install/update ONLY production dependencies
+            pip3 install -r requirements.txt --user
+            
+            # Remove any accidentally committed sensitive files
+            rm -f .env.local .env.development
+            
+            # Run database migrations if they exist
+            if [ -f "run_migrations.py" ]; then
+              echo "Running database migrations..."
+              python3 run_migrations.py
+            fi
+            
+            # Restart application (adjust command as needed)
+            # pkill -f api_server.py || true
+            # nohup python3 api_server.py &

@@ -1,0 +1,91 @@
+# EFRIS API - .gitignore
+# Files and directories that should NOT be committed to Git
+
+# Environment Variables (Contains Secrets!)
+.env
+.env.local
+.env.production
+*.env
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+*.cover
+coverage.xml
+*.log
+
+# Certificates and Keys (NEVER commit these!)
+*.p12
+*.pfx
+*.pem
+*.key
+*.crt
+keys/
+certificates/
+
+# Temporary Files
+*.tmp
+*.bak
+*.backup
+temp/
+tmp/
+
+# OS Files
+Thumbs.db
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Node modules (if using any frontend build tools)
+node_modules/
+
+# Locust Results
+locust-*.html

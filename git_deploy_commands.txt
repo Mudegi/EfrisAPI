@@ -1,0 +1,22 @@
+﻿# ====================
+# Git Deployment Commands
+# ====================
+
+# Step 1: Add all new and modified files
+git add .
+
+# Step 2: Commit with descriptive message
+git commit -m "Production update: Settings management, unlimited companies, updated branding
+
+- Added system_settings table with PostgreSQL migration
+- Implemented admin settings management UI
+- Updated landing page branding (UG EFRIS INTEGRATION PLATFORM)
+- Removed company limits (unlimited per reseller)
+- Added Postman collection
+- Added favicon to fix 404 errors
+- Updated developer documentation
+- All verification tests passed"
+
+# Step 3: Push to remote repository
+git push origin main
+

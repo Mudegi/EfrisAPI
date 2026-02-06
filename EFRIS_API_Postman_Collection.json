@@ -1,0 +1,579 @@
+{
+  "info": {
+    "name": "EFRIS Integration API",
+    "description": "Complete API collection for EFRIS Multi-Tenant Integration\n\n**Getting Started:**\n1. Import this collection into Postman\n2. Set your API key in the collection variables\n3. Test the connection with the Health Check endpoint\n4. Start submitting invoices!\n\n**Base URL:** https://efrisintegration.nafacademy.com/api/external/efris\n\n**Authentication:** All requests require X-API-Key header",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://efrisintegration.nafacademy.com/api/external/efris",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "efris_your_api_key_here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Check if API is accessible and your API key is valid"
+          },
+          "response": []
+        }
+      ],
+      "description": "API health and authentication testing"
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {
+          "name": "Submit Invoice (Simple)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_number\": \"INV-2026-001\",\n  \"invoice_date\": \"2026-02-06\",\n  \"customer_name\": \"ABC Company Ltd\",\n  \"customer_tin\": \"1000000000\",\n  \"customer_phone\": \"0700123456\",\n  \"customer_email\": \"customer@abc.com\",\n  \"customer_address\": \"Kampala, Uganda\",\n  \"items\": [\n    {\n      \"description\": \"Laptop Computer\",\n      \"item_code\": \"LAP-001\",\n      \"quantity\": 1,\n      \"unit_price\": 2500000,\n      \"tax_rate\": 18,\n      \"discount\": 0\n    }\n  ],\n  \"payment_mode\": \"101\",\n  \"currency\": \"UGX\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/submit-invoice",
+              "host": ["{{base_url}}"],
+              "path": ["submit-invoice"]
+            },
+            "description": "Submit a simple invoice with one item to EFRIS"
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Invoice (Multiple Items)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_number\": \"INV-2026-002\",\n  \"invoice_date\": \"2026-02-06\",\n  \"customer_name\": \"XYZ Enterprises\",\n  \"customer_tin\": \"1000000001\",\n  \"customer_phone\": \"0750123456\",\n  \"customer_email\": \"contact@xyz.com\",\n  \"customer_address\": \"Entebbe, Uganda\",\n  \"items\": [\n    {\n      \"description\": \"Office Chair\",\n      \"item_code\": \"CHAIR-001\",\n      \"quantity\": 5,\n      \"unit_price\": 300000,\n      \"tax_rate\": 18,\n      \"discount\": 50000\n    },\n    {\n      \"description\": \"Desk\",\n      \"item_code\": \"DESK-001\",\n      \"quantity\": 3,\n      \"unit_price\": 800000,\n      \"tax_rate\": 18,\n      \"discount\": 0\n    },\n    {\n      \"description\": \"Monitor 24 inch\",\n      \"item_code\": \"MON-001\",\n      \"quantity\": 6,\n      \"unit_price\": 650000,\n      \"tax_rate\": 18,\n      \"discount\": 100000\n    }\n  ],\n  \"payment_mode\": \"101\",\n  \"currency\": \"UGX\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/submit-invoice",
+              "host": ["{{base_url}}"],
+              "path": ["submit-invoice"]
+            },
+            "description": "Submit invoice with multiple items and discounts"
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Invoice (With Excise Duty)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_number\": \"INV-2026-003\",\n  \"invoice_date\": \"2026-02-06\",\n  \"customer_name\": \"Beverage Distributor Ltd\",\n  \"customer_tin\": \"1000000002\",\n  \"customer_phone\": \"0760123456\",\n  \"customer_email\": \"sales@beverage.com\",\n  \"customer_address\": \"Jinja, Uganda\",\n  \"items\": [\n    {\n      \"description\": \"Beer - 500ml bottles\",\n      \"item_code\": \"BEE R-001\",\n      \"quantity\": 100,\n      \"unit_price\": 3000,\n      \"tax_rate\": 18,\n      \"excise_duty_code\": \"104\",\n      \"excise_rate\": 30,\n      \"discount\": 0\n    }\n  ],\n  \"payment_mode\": \"101\",\n  \"currency\": \"UGX\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/submit-invoice",
+              "host": ["{{base_url}}"],
+              "path": ["submit-invoice"]
+            },
+            "description": "Submit invoice for excisable goods (beer, spirits, etc.)"
+          },
+          "response": []
+        },
+        {
+          "name": "Query Invoice Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/query-invoice/INV-2026-001",
+              "host": ["{{base_url}}"],
+              "path": ["query-invoice", "INV-2026-001"]
+            },
+            "description": "Get the status of a previously submitted invoice"
+          },
+          "response": []
+        },
+        {
+          "name": "List Invoices (All)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["invoices"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Get list of all invoices with pagination"
+          },
+          "response": []
+        },
+        {
+          "name": "List Invoices (Date Range)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices?page=1&limit=20&start_date=2026-02-01&end_date=2026-02-28",
+              "host": ["{{base_url}}"],
+              "path": ["invoices"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "start_date",
+                  "value": "2026-02-01"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-02-28"
+                }
+              ]
+            },
+            "description": "Get invoices for a specific date range"
+          },
+          "response": []
+        },
+        {
+          "name": "List Invoices (By Status)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices?status=approved&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["invoices"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "approved"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Get invoices filtered by status (pending|approved|rejected)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Invoice submission and management endpoints"
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Register Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item_code\": \"PROD-001\",\n  \"name\": \"Office Chair - Ergonomic\",\n  \"barcode\": \"1234567890123\",\n  \"unit_price\": 300000,\n  \"unit_of_measure\": \"PCS\",\n  \"category_code\": \"1010101010104\",\n  \"tax_rate\": 18,\n  \"description\": \"Ergonomic office chair with lumbar support and adjustable height\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/register-product",
+              "host": ["{{base_url}}"],
+              "path": ["register-product"]
+            },
+            "description": "Register a new product with EFRIS"
+          },
+          "response": []
+        },
+        {
+          "name": "Register Product (With Excise)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item_code\": \"BEER-001\",\n  \"name\": \"Premium Beer 500ml\",\n  \"barcode\": \"2234567890123\",\n  \"unit_price\": 3000,\n  \"unit_of_measure\": \"BTL\",\n  \"category_code\": \"1010101010199\",\n  \"tax_rate\": 18,\n  \"excise_duty_code\": \"104\",\n  \"excise_rate\": 30,\n  \"description\": \"Premium lager beer 500ml bottle\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/register-product",
+              "host": ["{{base_url}}"],
+              "path": ["register-product"]
+            },
+            "description": "Register product with excise duty (beer, spirits, etc.)"
+          },
+          "response": []
+        },
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Get list of all registered products with pagination"
+          },
+          "response": []
+        },
+        {
+          "name": "Search Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products?search=chair&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "chair"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Search products by name or code"
+          },
+          "response": []
+        }
+      ],
+      "description": "Product registration and management endpoints"
+    },
+    {
+      "name": "Dashboard & Statistics",
+      "item": [
+        {
+          "name": "Get Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/dashboard/stats",
+              "host": ["{{base_url}}"],
+              "path": ["dashboard", "stats"]
+            },
+            "description": "Get dashboard statistics (total invoices, revenue, etc.)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Recent Activity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/dashboard/recent-activity?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["dashboard", "recent-activity"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get recent activity log"
+          },
+          "response": []
+        }
+      ],
+      "description": "Dashboard statistics and analytics"
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Subscribe to Webhooks",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://your-erp.com/webhooks/efris\",\n  \"events\": [\n    \"invoice.approved\",\n    \"invoice.rejected\",\n    \"product.registered\"\n  ],\n  \"secret\": \"your_webhook_secret_key\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/subscribe",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "subscribe"]
+            },
+            "description": "Subscribe to webhook events for real-time notifications"
+          },
+          "response": []
+        },
+        {
+          "name": "List Webhook Subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/webhooks/subscriptions",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "subscriptions"]
+            },
+            "description": "Get list of your webhook subscriptions"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Webhook Subscription",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/webhooks/subscriptions/:subscription_id",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "subscriptions", ":subscription_id"],
+              "variable": [
+                {
+                  "key": "subscription_id",
+                  "value": "uuid-here"
+                }
+              ]
+            },
+            "description": "Delete a webhook subscription"
+          },
+          "response": []
+        }
+      ],
+      "description": "Webhook subscription management"
+    },
+    {
+      "name": "Reference Data",
+      "item": [
+        {
+          "name": "Get Product Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reference/product-categories",
+              "host": ["{{base_url}}"],
+              "path": ["reference", "product-categories"]
+            },
+            "description": "Get list of EFRIS product categories with codes"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment Modes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reference/payment-modes",
+              "host": ["{{base_url}}"],
+              "path": ["reference", "payment-modes"]
+            },
+            "description": "Get list of payment mode codes"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Excise Duty Codes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reference/excise-codes",
+              "host": ["{{base_url}}"],
+              "path": ["reference", "excise-codes"]
+            },
+            "description": "Get list of excise duty codes and rates"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Units of Measure",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reference/units-of-measure",
+              "host": ["{{base_url}}"],
+              "path": ["reference", "units-of-measure"]
+            },
+            "description": "Get list of valid units of measure"
+          },
+          "response": []
+        }
+      ],
+      "description": "Reference data and lookup codes"
+    },
+    {
+      "name": "Error Examples",
+      "item": [
+        {
+          "name": "Missing Required Field",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_number\": \"INV-ERROR-001\",\n  \"invoice_date\": \"2026-02-06\",\n  \"items\": [\n    {\n      \"description\": \"Test Product\",\n      \"quantity\": 1,\n      \"unit_price\": 10000,\n      \"tax_rate\": 18\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/submit-invoice",
+              "host": ["{{base_url}}"],
+              "path": ["submit-invoice"]
+            },
+            "description": "Example of missing customer_name (should return validation error)"
+          },
+          "response": []
+        },
+        {
+          "name": "Invalid Date Format",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_number\": \"INV-ERROR-002\",\n  \"invoice_date\": \"06/02/2026\",\n  \"customer_name\": \"Test Customer\",\n  \"items\": [\n    {\n      \"description\": \"Test Product\",\n      \"quantity\": 1,\n      \"unit_price\": 10000,\n      \"tax_rate\": 18\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/submit-invoice",
+              "host": ["{{base_url}}"],
+              "path": ["submit-invoice"]
+            },
+            "description": "Example of invalid date format (should return validation error)"
+          },
+          "response": []
+        },
+        {
+          "name": "Invalid API Key",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "invalid_key_123",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Example of invalid API key (should return 401 Unauthorized)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Examples of common errors for testing error handling"
+    }
+  ]
+}

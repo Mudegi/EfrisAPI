@@ -63,6 +63,10 @@ class User(Base):
     subscription_ends = Column(DateTime(timezone=True))
     max_clients = Column(Integer, default=5)  # How many clients can reseller add
     
+    # Two-Factor Authentication (for owner/admin accounts)
+    totp_secret = Column(String(255), nullable=True)  # Base32-encoded TOTP secret
+    totp_enabled = Column(Boolean, default=False)  # Whether 2FA is enabled
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -96,6 +100,8 @@ class Company(Base):
     
     # QuickBooks Configuration (optional - if client uses QB)
     qb_realm_id = Column(String(50))
+    qb_client_id = Column(String(255))
+    qb_client_secret = Column(Text)
     qb_access_token = Column(Text)
     qb_refresh_token = Column(Text)
     qb_token_expires = Column(DateTime(timezone=True))
@@ -104,15 +110,31 @@ class Company(Base):
     
     # Xero Configuration (optional - if client uses Xero)
     xero_tenant_id = Column(String(100))
+    xero_client_id = Column(String(255))
+    xero_client_secret = Column(Text)
     xero_access_token = Column(Text)
     xero_refresh_token = Column(Text)
     xero_token_expires = Column(DateTime(timezone=True))
     
     # Zoho Books Configuration (optional)
+    zoho_org_id = Column(String(100))
     zoho_organization_id = Column(String(100))
+    zoho_client_id = Column(String(255))
+    zoho_client_secret = Column(Text)
     zoho_access_token = Column(Text)
     zoho_refresh_token = Column(Text)
     zoho_token_expires = Column(DateTime(timezone=True))
+    
+    # Sage Configuration (optional)
+    sage_company_id = Column(String(255))
+    sage_api_key = Column(Text)
+    sage_api_secret = Column(Text)
+    
+    # Odoo Configuration (optional)
+    odoo_url = Column(String(500))
+    odoo_db = Column(String(255))
+    odoo_username = Column(String(255))
+    odoo_password = Column(Text)
     
     # Custom ERP/API Configuration (optional)
     custom_api_url = Column(String(500))
@@ -129,6 +151,12 @@ class Company(Base):
     api_secret = Column(String(100))  # Optional signing secret
     api_enabled = Column(Boolean, default=True)
     api_last_used = Column(DateTime(timezone=True))
+    
+    # API Security Features
+    allowed_ips = Column(Text, nullable=True)  # JSON array of whitelisted IPs
+    api_rate_limit = Column(Integer, default=1000)  # Requests per day
+    api_calls_today = Column(Integer, default=0)  # Counter for rate limiting
+    api_last_reset = Column(DateTime(timezone=True))  # When counter was last reset
     
     # Status
     is_active = Column(Boolean, default=True)
@@ -488,3 +516,18 @@ class ActivityLog(Base):
     company = relationship("Company")
     user = relationship("User", foreign_keys=[user_id])
     reseller = relationship("User", foreign_keys=[reseller_id])
+
+
+class SystemSettings(Base):
+    """System-wide settings for landing page and app configuration"""
+    __tablename__ = "system_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    setting_key = Column(String(100), unique=True, nullable=False, index=True)
+    setting_value = Column(Text)
+    setting_type = Column(String(20), default='text')  # text, email, url, textarea, boolean, number, password
+    category = Column(String(50), default='general')  # contact, social, company, stats, features, pricing, email, system
+    description = Column(Text)
+    is_public = Column(Integer, default=0)  # 0 = private (admin only), 1 = public (can be shown on landing page)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
