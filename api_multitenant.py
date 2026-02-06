@@ -941,9 +941,13 @@ async def client_login_page():
 @app.get("/external-api-docs", response_class=HTMLResponse)
 async def external_api_documentation():
     """Serve the External API Documentation for Custom ERP Integration"""
+    import json
     try:
         with open("EXTERNAL_API_DOCUMENTATION.md", "r", encoding="utf-8") as f:
             markdown_content = f.read()
+        
+        # Properly escape markdown content for JavaScript
+        markdown_json = json.dumps(markdown_content)
         
         # Create nice HTML wrapper with markdown rendering
         html = f"""
@@ -1145,8 +1149,8 @@ async def external_api_documentation():
     </div>
     
     <script>
-        // Markdown content
-        const markdownContent = `{markdown_content.replace('`', '\\`')}`;
+        // Markdown content (properly escaped JSON)
+        const markdownContent = {markdown_json};
         
         // Configure marked options
         marked.setOptions({{
