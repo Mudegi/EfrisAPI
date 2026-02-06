@@ -34,4 +34,4 @@ Disallow: /reseller
 Disallow: /owner
 
 # Sitemap location
-Sitemap: https://yourdomain.com/sitemap.xml
+Sitemap: https://efrisintegration.nafacademy.com/sitemap.xml
