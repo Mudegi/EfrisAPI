@@ -314,12 +314,12 @@ Production-ready API for Uganda Revenue Authority (URA) EFRIS invoice submission
 4. **Monitor**: Track all submissions in real-time
 
 ### External API Documentation
-Visit `/external-api-docs` for Custom ERP integration guide.
+Visit [/external-api-docs](/external-api-docs) for Custom ERP integration guide.
 
 ### Support
-- 📧 Email: support@yourdomain.com
-- 📱 WhatsApp: +256 XXX XXX XXX
-- 📚 Docs: https://docs.yourdomain.com
+- 📧 Email: support@efrisintegration.nafacademy.com
+- 📱 WhatsApp: +256 700 000 000
+- 📚 Docs: https://efrisintegration.nafacademy.com/docs
     """,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -936,6 +936,251 @@ async def login_page():
 async def client_login_page():
     """Serve the client login page"""
     return FileResponse("static/client_login.html")
+
+
+@app.get("/external-api-docs", response_class=HTMLResponse)
+async def external_api_documentation():
+    """Serve the External API Documentation for Custom ERP Integration"""
+    try:
+        with open("EXTERNAL_API_DOCUMENTATION.md", "r", encoding="utf-8") as f:
+            markdown_content = f.read()
+        
+        # Create nice HTML wrapper with markdown rendering
+        html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EFRIS External API Documentation - Custom ERP Integration</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+    
+    <!-- Marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }}
+        
+        .container {{
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }}
+        
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }}
+        
+        .header h1 {{
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }}
+        
+        .header p {{
+            font-size: 1.2em;
+            opacity: 0.9;
+        }}
+        
+        .content {{
+            padding: 40px;
+        }}
+        
+        .back-button {{
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }}
+        
+        .back-button:hover {{
+            background: #5568d3;
+        }}
+        
+        #markdown-body {{
+            font-size: 16px;
+        }}
+        
+        #markdown-body h1, #markdown-body h2, #markdown-body h3 {{
+            color: #667eea;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }}
+        
+        #markdown-body h1 {{
+            font-size: 2em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }}
+        
+        #markdown-body h2 {{
+            font-size: 1.5em;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 8px;
+        }}
+        
+        #markdown-body h3 {{
+            font-size: 1.2em;
+        }}
+        
+        #markdown-body pre {{
+            background: #f6f8fa;
+            border-radius: 6px;
+            padding: 16px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }}
+        
+        #markdown-body code {{
+            background: #f6f8fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }}
+        
+        #markdown-body pre code {{
+            background: transparent;
+            padding: 0;
+        }}
+        
+        #markdown-body table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }}
+        
+        #markdown-body th, #markdown-body td {{
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }}
+        
+        #markdown-body th {{
+            background: #667eea;
+            color: white;
+        }}
+        
+        #markdown-body tr:nth-child(even) {{
+            background: #f9f9f9;
+        }}
+        
+        #markdown-body blockquote {{
+            border-left: 4px solid #667eea;
+            padding-left: 20px;
+            margin: 15px 0;
+            color: #666;
+            font-style: italic;
+        }}
+        
+        #markdown-body ul, #markdown-body ol {{
+            margin-left: 30px;
+            margin-bottom: 15px;
+        }}
+        
+        #markdown-body li {{
+            margin-bottom: 8px;
+        }}
+        
+        #markdown-body a {{
+            color: #667eea;
+            text-decoration: none;
+        }}
+        
+        #markdown-body a:hover {{
+            text-decoration: underline;
+        }}
+        
+        .footer {{
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #666;
+            border-top: 1px solid #ddd;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 EFRIS External API</h1>
+            <p>Complete Integration Guide for Custom ERP Systems</p>
+        </div>
+        
+        <div class="content">
+            <a href="/" class="back-button">← Back to Home</a>
+            <a href="/docs" class="back-button" style="background: #764ba2; margin-left: 10px;">View Interactive API Docs</a>
+            
+            <div id="markdown-body"></div>
+        </div>
+        
+        <div class="footer">
+            <p>© 2026 UG EFRIS Integration Platform | Need help? Contact support@efrisintegration.nafacademy.com</p>
+        </div>
+    </div>
+    
+    <script>
+        // Markdown content
+        const markdownContent = `{markdown_content.replace('`', '\\`')}`;
+        
+        // Configure marked options
+        marked.setOptions({{
+            breaks: true,
+            gfm: true,
+            headerIds: true
+        }});
+        
+        // Render markdown to HTML
+        document.getElementById('markdown-body').innerHTML = marked.parse(markdownContent);
+        
+        // Apply syntax highlighting to code blocks
+        document.querySelectorAll('pre code').forEach((block) => {{
+            hljs.highlightElement(block);
+        }});
+    </script>
+</body>
+</html>
+        """
+        return HTMLResponse(content=html)
+    except FileNotFoundError:
+        return HTMLResponse(content="""
+            <html>
+                <head><title>Documentation Not Found</title></head>
+                <body style="font-family: Arial; text-align: center; padding: 50px;">
+                    <h1>📚 External API Documentation</h1>
+                    <p>Documentation file not found. Please contact support.</p>
+                    <br>
+                    <a href="/" style="background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px;">
+                        ← Back to Home
+                    </a>
+                </body>
+            </html>
+        """)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
