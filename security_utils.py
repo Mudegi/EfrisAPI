@@ -4,6 +4,7 @@ Security Utilities for EFRIS Multi-Tenant Platform
 - IP Whitelisting for Custom ERP API
 - API Rate Limiting per client
 """
+from typing import Tuple
 import pyotp
 import qrcode
 import io
@@ -148,7 +149,7 @@ def reset_daily_counter_if_needed(company: Company, db: Session):
         db.commit()
 
 
-def check_rate_limit(company: Company, db: Session) -> tuple[bool, int, int]:
+def check_rate_limit(company: Company, db: Session) -> Tuple[bool, int, int]:
     """
     Check if company has exceeded rate limit
     Returns: (is_allowed, calls_remaining, limit)
