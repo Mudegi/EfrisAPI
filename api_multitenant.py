@@ -2401,8 +2401,7 @@ async def owner_add_client(
     db.commit()
     
     # Get the base URL for client login
-    from starlette.requests import Request
-    base_url = "http://127.0.0.1:8001"  # Update this to your actual domain in production
+    base_url = os.getenv("APP_BASE_URL", "https://efrisintegration.nafacademy.com")
     client_login_url = f"{base_url}/client/login"
     
     erp_message = f"\n\nERP: {erp_type.upper()}" if erp_type != "none" else "\n\nERP: Manual invoice entry"
@@ -2542,7 +2541,7 @@ async def update_client_erp(
     db.commit()
     
     # Prepare response
-    base_url = "http://127.0.0.1:8001"
+    base_url = os.getenv("APP_BASE_URL", "https://efrisintegration.nafacademy.com")
     response_data = {
         "success": True,
         "message": f"ERP configuration updated from {old_erp_type or 'none'} to {erp_type}",
@@ -2784,7 +2783,7 @@ async def approve_referral(
             detail=f"Failed to approve referral: {str(e)}"
         )
     
-    base_url = "http://127.0.0.1:8001"
+    base_url = os.getenv("APP_BASE_URL", "https://efrisintegration.nafacademy.com")
     client_login_url = f"{base_url}/client/login"
     
     # Include API credentials in response if Custom ERP selected

@@ -2276,7 +2276,7 @@
                     console.log('Success:', result);
                     
                     // Show success message with client login URL
-                    const loginUrl = result.client_login_url || 'http://127.0.0.1:8001/client/login';
+                    const loginUrl = result.client_login_url || 'https://efrisintegration.nafacademy.com/client/login';
                     const email = result.client_email;
                     const password = document.getElementById('add_password').value;
                     const environment = isTestMode ? '🧪 Test/Sandbox' : '🚀 Production';
