@@ -1613,7 +1613,7 @@
                                     <li>Manage ERP integrations</li>
                                     <li>Access full dashboard</li>
                                 </ul>
-                                <p style="margin-top: 15px;"><strong>Login URL:</strong> <a href="/dashboard" target="_blank" style="color: #3498db;">http://localhost:8001/dashboard</a></p>
+                                <p style="margin-top: 15px;"><strong>Login URL:</strong> <a href="/client/login" target="_blank" style="color: #3498db;">https://efrisintegration.nafacademy.com/client/login</a></p>
                                 <p><strong>Email:</strong> ${client.email}</p>
                             </div>
                             
@@ -1691,7 +1691,7 @@
                     
                     // Reload client details to show new credentials
                     document.querySelector('[style*=fixed]').remove();
-                    loadClients();
+                    loadAllClients();
                 } else {
                     const error = await response.json();
                     alert('Failed to regenerate credentials: ' + (error.detail || 'Unknown error'));
