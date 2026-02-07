@@ -23,8 +23,8 @@ X-API-Key: efris_your_api_key_here
 ## Base URL
 
 ```
-Production: https://yourdomain.com/api/external/efris
-Development: http://127.0.0.1:8001/api/external/efris
+Production: https://efrisintegration.nafacademy.com/api/external/efris
+Development: https://efrisintegration.nafacademy.com/api/external/efris
 ```
 
 ---
@@ -279,7 +279,7 @@ import requests
 import json
 
 API_KEY = "efris_your_api_key_here"
-BASE_URL = "http://127.0.0.1:8001/api/external/efris"
+BASE_URL = "https://efrisintegration.nafacademy.com/api/external/efris"
 
 def submit_invoice(invoice_data):
     """Submit invoice to EFRIS"""
@@ -337,7 +337,7 @@ result = submit_invoice(invoice)
 
 function submitInvoice($invoiceData) {
     $apiKey = "efris_your_api_key_here";
-    $baseUrl = "http://127.0.0.1:8001/api/external/efris";
+    $baseUrl = "https://efrisintegration.nafacademy.com/api/external/efris";
     
     $ch = curl_init($baseUrl . "/submit-invoice");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -393,7 +393,7 @@ $result = submitInvoice($invoice);
 const axios = require('axios');
 
 const API_KEY = 'efris_your_api_key_here';
-const BASE_URL = 'http://127.0.0.1:8001/api/external/efris';
+const BASE_URL = 'https://efrisintegration.nafacademy.com/api/external/efris';
 
 async function submitInvoice(invoiceData) {
     try {

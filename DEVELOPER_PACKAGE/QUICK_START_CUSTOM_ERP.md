@@ -8,7 +8,7 @@
 Your platform administrator will provide:
 ```
 API Key: efris_abc123xyz...
-API Endpoint: http://127.0.0.1:8001/api/external/efris
+API Endpoint: https://efrisintegration.nafacademy.com/api/external/efris
 ```
 
 #### Step 2: Add Buttons to Your ERP
@@ -42,7 +42,7 @@ Add EFRIS submission buttons to your forms:
 import requests
 
 API_KEY = "efris_your_api_key_here"
-BASE_URL = "http://127.0.0.1:8001/api/external/efris"
+BASE_URL = "https://efrisintegration.nafacademy.com/api/external/efris"
 
 # 1. SUBMIT INVOICE TO EFRIS
 def send_invoice_to_efris(invoice):
@@ -71,7 +71,7 @@ def send_invoice_to_efris(invoice):
 
 ```javascript
 const API_KEY = 'efris_your_api_key_here';
-const BASE_URL = 'http://127.0.0.1:8001/api/external/efris';
+const BASE_URL = 'https://efrisintegration.nafacademy.com/api/external/efris';
 
 // 1. SUBMIT INVOICE TO EFRIS
 async function sendInvoiceToEFRIS(invoice) {
@@ -789,7 +789,7 @@ sum(response_times) / len(response_times)
 ## 🆘 Support
 
 **API Issues:**
-- Check `/health` endpoint: `GET http://127.0.0.1:8001/health`
+- Check `/health` endpoint: `GET https://efrisintegration.nafacademy.com/health`
 - Email: support@platform.com
 
 **EFRIS Issues:**

@@ -7536,6 +7536,228 @@ async def external_list_invoices(
     }
 
 
+@app.get("/api/external/efris/excise-duty")
+async def external_get_excise_duty(
+    excise_code: Optional[str] = Query(None, description="Filter by specific excise duty code (e.g., LED190100)"),
+    excise_name: Optional[str] = Query(None, description="Filter by excise duty name (e.g., beer)"),
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    External API endpoint for custom ERP systems to fetch excise duty codes from EFRIS
+    
+    Authentication: X-API-Key header
+    
+    Query Parameters:
+    - excise_code (optional): Filter by specific excise duty code (e.g., LED190100)
+    - excise_name (optional): Filter by excise duty name (e.g., beer)
+    
+    Response:
+    {
+        "success": true,
+        "excise_codes": [
+            {
+                "code": "LED190100",
+                "name": "Beer",
+                "rate": "200",
+                "unit": "Litre",
+                "currency": "UGX",
+                "excise_rule": "2"
+            }
+        ],
+        "total": 1,
+        "last_updated": "2024-01-24T10:30:00"
+    }
+    """
+    try:
+        # Initialize EFRIS Manager
+        efris = EfrisManager(
+            tin=company.tin,
+            device_no=company.device_no,
+            cert_path=company.efris_cert_path,
+            cert_password=company.efris_cert_password,
+            is_test_mode=company.is_test_mode
+        )
+        
+        # Query excise duty from EFRIS (T125)
+        result = efris.query_excise_duty()
+        
+        # Extract excise list from response
+        excise_list = result.get('data', {}).get('decrypted_content', {}).get('exciseDutyList', [])
+        
+        if not excise_list:
+            return {
+                "success": True,
+                "excise_codes": [],
+                "total": 0,
+                "message": "No excise duty codes found"
+            }
+        
+        # Save to database and filter results
+        db.query(ExciseCode).filter(ExciseCode.company_id == company.id).delete()
+        
+        excise_codes = []
+        for duty in excise_list:
+            code = duty.get('exciseDutyCode')
+            if not code or duty.get('isLeafNode') != '1':
+                continue
+            
+            details_list = duty.get('exciseDutyDetailsList', [])
+            if not details_list:
+                continue
+            
+            # Get rate information
+            type_102_detail = next((d for d in details_list if d.get('type') == '102'), None)
+            type_101_detail = next((d for d in details_list if d.get('type') == '101'), None)
+            
+            rate = ''
+            unit = ''
+            currency = 'UGX'
+            excise_rule = '1'
+            
+            if type_102_detail:
+                rate = type_102_detail.get('rate', '0')
+                unit = type_102_detail.get('unit', '')
+                currency = 'UGX' if type_102_detail.get('currency') == '101' else 'USD'
+                excise_rule = '2'
+            elif type_101_detail:
+                rate = type_101_detail.get('rate', '0')
+                excise_rule = '1'
+                unit = '%'
+            
+            # Save to database
+            excise_record = ExciseCode(
+                company_id=company.id,
+                code=code,
+                name=duty.get('exciseDutyName', ''),
+                description=duty.get('exciseDutyName', ''),
+                rate=rate,
+                unit=unit,
+                currency=currency,
+                excise_rule=excise_rule
+            )
+            db.add(excise_record)
+            
+            # Apply filters
+            if excise_code and code != excise_code:
+                continue
+            if excise_name and excise_name.lower() not in duty.get('exciseDutyName', '').lower():
+                continue
+            
+            excise_codes.append({
+                "code": code,
+                "name": duty.get('exciseDutyName', ''),
+                "rate": rate,
+                "unit": unit,
+                "currency": currency,
+                "excise_rule": excise_rule
+            })
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "excise_codes": excise_codes,
+            "total": len(excise_codes),
+            "last_updated": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch excise duty codes: {str(e)}")
+
+
+@app.post("/api/external/efris/stock-decrease")
+async def external_stock_decrease(
+    stock_data: dict,
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    External API endpoint for custom ERP systems to decrease stock in EFRIS
+    
+    Authentication: X-API-Key header
+    
+    Request Body:
+    {
+        "goodsStockIn": {
+            "operationType": "102",
+            "adjustType": "102",
+            "remarks": "Damaged goods"
+        },
+        "goodsStockInItem": [
+            {
+                "goodsCode": "SKU-001",
+                "quantity": 10,
+                "unitPrice": 5000,
+                "remarks": "Water damage"
+            }
+        ]
+    }
+    
+    Response:
+    {
+        "success": true,
+        "stock_id": "internal_stock_id",
+        "message": "Stock decrease submitted successfully",
+        "efris_response": {...}
+    }
+    """
+    try:
+        # Validate required fields
+        if "goodsStockIn" not in stock_data or "goodsStockInItem" not in stock_data:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing required fields: goodsStockIn and goodsStockInItem"
+            )
+        
+        if not stock_data["goodsStockInItem"] or len(stock_data["goodsStockInItem"]) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Stock decrease must have at least one item"
+            )
+        
+        # Initialize EFRIS Manager
+        efris = EfrisManager(
+            tin=company.tin,
+            device_no=company.device_no,
+            cert_path=company.efris_cert_path,
+            cert_password=company.efris_cert_password,
+            is_test_mode=company.is_test_mode
+        )
+        
+        # Submit stock decrease to EFRIS (T132)
+        result = efris.stock_decrease(stock_data)
+        
+        # Log the stock decrease
+        stock_record = StockMovement(
+            company_id=company.id,
+            movement_type="decrease",
+            operation_type=stock_data["goodsStockIn"].get("operationType", "102"),
+            adjust_type=stock_data["goodsStockIn"].get("adjustType", "102"),
+            remarks=stock_data["goodsStockIn"].get("remarks", ""),
+            item_count=len(stock_data["goodsStockInItem"]),
+            status="submitted",
+            efris_response=result
+        )
+        db.add(stock_record)
+        db.commit()
+        
+        return {
+            "success": True,
+            "stock_id": stock_record.id,
+            "message": "Stock decrease submitted successfully",
+            "efris_response": result
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to decrease stock: {str(e)}"
+        )
+
+
 # ========== HEALTH CHECK ==========
 
 @app.get("/health")

@@ -60,7 +60,7 @@ print(f"API Key: {company.api_key}")
 
 **Test with cURL:**
 ```bash
-curl -X POST http://localhost:8001/api/external/efris/submit-invoice \
+curl -X POST https://efrisintegration.nafacademy.com/api/external/efris/submit-invoice \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY_HERE" \
   -d "{\"invoice_number\":\"TEST001\",\"invoice_date\":\"2024-01-24\",\"customer_name\":\"Test Customer\",\"items\":[{\"item_name\":\"Test Product\",\"quantity\":1,\"unit_price\":10000,\"total\":10000,\"tax_rate\":0.18,\"tax_amount\":1800}],\"total_amount\":10000,\"total_tax\":1800,\"currency\":\"UGX\"}"
@@ -122,7 +122,7 @@ Create `test_invoice.html`:
     
     <script>
         const API_KEY = 'YOUR_API_KEY_HERE';
-        const API_URL = 'http://localhost:8001/api/external/efris';
+        const API_URL = 'https://efrisintegration.nafacademy.com/api/external/efris';
         
         document.getElementById('invoiceForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -212,7 +212,7 @@ import requests
 app = Flask(__name__)
 
 # Your EFRIS backend config
-EFRIS_API_URL = "http://localhost:8001/api/external/efris"
+EFRIS_API_URL = "https://efrisintegration.nafacademy.com/api/external/efris"
 API_KEY = "YOUR_API_KEY_HERE"
 
 @app.route('/')
@@ -311,7 +311,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 API_KEY = "YOUR_API_KEY_HERE"
-API_URL = "http://localhost:8001/api/external/efris"
+API_URL = "https://efrisintegration.nafacademy.com/api/external/efris"
 
 def submit_invoice():
     """Submit invoice when button is clicked"""
@@ -511,7 +511,7 @@ python api_multitenant.py
 
 ## Quick Reference
 
-**API Base URL:** `http://localhost:8001/api/external/efris`
+**API Base URL:** `https://efrisintegration.nafacademy.com/api/external/efris`
 
 **Endpoints:**
 - POST `/submit-invoice` - Fiscalize invoice

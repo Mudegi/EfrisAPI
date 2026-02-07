@@ -301,7 +301,7 @@ def get_excise_codes():
     search = request.args.get('search', '')
     
     # Call backend EFRIS API
-    url = "http://localhost:8001/api/external/efris/excise-duty"
+    url = "https://efrisintegration.nafacademy.com/api/external/efris/excise-duty"
     params = {'token': 'test_token'}
     
     if search:
@@ -840,7 +840,7 @@ def record_stock_decrease():
         
         # Call EFRIS backend API
         response = requests.post(
-            'http://localhost:8001/api/external/efris/stock-decrease',
+            'https://efrisintegration.nafacademy.com/api/external/efris/stock-decrease',
             json=payload,
             headers={
                 'X-API-Key': os.getenv('EFRIS_API_KEY'),
@@ -888,14 +888,14 @@ def record_stock_decrease():
 ### Test Excise Duty Fetch
 
 ```bash
-curl -X GET "http://localhost:8001/api/external/efris/excise-duty?token=test_token" \
+curl -X GET "https://efrisintegration.nafacademy.com/api/external/efris/excise-duty?token=test_token" \
   -H "X-API-Key: your_api_key"
 ```
 
 ### Test Stock Decrease
 
 ```bash
-curl -X POST "http://localhost:8001/api/external/efris/stock-decrease" \
+curl -X POST "https://efrisintegration.nafacademy.com/api/external/efris/stock-decrease" \
   -H "X-API-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
