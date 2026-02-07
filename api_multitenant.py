@@ -1811,12 +1811,13 @@ async def get_all_clients(
             
             # Include API credentials for Custom ERP clients
             if company.erp_type == "custom":
+                base_url = os.getenv("APP_BASE_URL", "https://efrisintegration.nafacademy.com")
                 client_data["api_credentials"] = {
                     "api_key": company.api_key,
                     "api_secret": company.api_secret,
                     "api_enabled": company.api_enabled,
                     "api_last_used": company.api_last_used.isoformat() if company.api_last_used else None,
-                    "api_endpoint": "http://localhost:8001/api/external/efris"
+                    "api_endpoint": f"{base_url}/api/external/efris"
                 }
         
         result.append(client_data)
@@ -2896,12 +2897,13 @@ async def regenerate_api_key(
     db.commit()
     db.refresh(company)
     
+    base_url = os.getenv("APP_BASE_URL", "https://efrisintegration.nafacademy.com")
     return {
         "success": True,
         "message": "API credentials regenerated successfully",
         "api_key": company.api_key,
         "api_secret": company.api_secret,
-        "api_endpoint": "http://localhost:8001/api/external/efris",
+        "api_endpoint": f"{base_url}/api/external/efris",
         "warning": "Old credentials are now invalid. Update all ERP systems immediately."
     }
 
