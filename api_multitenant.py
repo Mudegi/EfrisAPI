@@ -2087,21 +2087,29 @@ async def suspend_client(
     if current_user.role not in ['owner', 'admin']:
         raise HTTPException(status_code=403, detail="Only platform owners can access this")
     
-    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
+    # Query client without role filter first to check if they exist
+    client = db.query(User).filter(User.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     
-    client.status = 'suspended'
-    client.is_active = False
+    if client.role != 'client':
+        raise HTTPException(status_code=400, detail=f"User is not a client (role: {client.role})")
     
-    # Also deactivate their company
-    company = db.query(Company).filter(Company.owner_id == client.id).first()
-    if company:
-        company.is_active = False
-    
-    db.commit()
-    
-    return {"success": True, "message": f"Client {client.email} suspended"}
+    try:
+        client.status = 'suspended'
+        client.is_active = False
+        
+        # Also deactivate their company
+        company = db.query(Company).filter(Company.owner_id == client.id).first()
+        if company:
+            company.is_active = False
+        
+        db.commit()
+        
+        return {"success": True, "message": f"Client {client.email} suspended"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to suspend client: {str(e)}")
 
 
 @app.post("/api/owner/activate-client/{client_id}")
@@ -2114,21 +2122,29 @@ async def activate_client(
     if current_user.role not in ['owner', 'admin']:
         raise HTTPException(status_code=403, detail="Only platform owners can access this")
     
-    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
+    # Query client without role filter first to check if they exist
+    client = db.query(User).filter(User.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     
-    client.status = 'active'
-    client.is_active = True
+    if client.role != 'client':
+        raise HTTPException(status_code=400, detail=f"User is not a client (role: {client.role})")
     
-    # Also activate their company
-    company = db.query(Company).filter(Company.owner_id == client.id).first()
-    if company:
-        company.is_active = True
-    
-    db.commit()
-    
-    return {"success": True, "message": f"Client {client.email} activated"}
+    try:
+        client.status = 'active'
+        client.is_active = True
+        
+        # Also activate their company
+        company = db.query(Company).filter(Company.owner_id == client.id).first()
+        if company:
+            company.is_active = True
+        
+        db.commit()
+        
+        return {"success": True, "message": f"Client {client.email} activated"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to activate client: {str(e)}")
 
 
 @app.delete("/api/owner/delete-client/{client_id}")
@@ -2141,51 +2157,59 @@ async def delete_client(
     if current_user.role not in ['owner', 'admin']:
         raise HTTPException(status_code=403, detail="Only platform owners can delete clients")
     
-    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
+    # Query client without role filter first to check if they exist
+    client = db.query(User).filter(User.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     
-    # Get their company
-    company = db.query(Company).filter(Company.owner_id == client.id).first()
+    if client.role != 'client':
+        raise HTTPException(status_code=400, detail=f"User is not a client (role: {client.role})")
     
-    # Store email for response
-    client_email = client.email
-    company_name = company.name if company else "Unknown"
-    
-    # Delete company users
-    if company:
-        db.query(CompanyUser).filter(CompanyUser.company_id == company.id).delete()
+    try:
+        # Get their company
+        company = db.query(Company).filter(Company.owner_id == client.id).first()
         
-        # Delete audit logs
-        db.query(AuditLog).filter(AuditLog.company_id == company.id).delete()
+        # Store email for response
+        client_email = client.email
+        company_name = company.name if company else "Unknown"
         
-        # Delete invoices
-        db.execute(text("DELETE FROM invoices WHERE company_id = :company_id"), {"company_id": company.id})
+        # Delete company users
+        if company:
+            db.query(CompanyUser).filter(CompanyUser.company_id == company.id).delete()
+            
+            # Delete audit logs
+            db.query(AuditLog).filter(AuditLog.company_id == company.id).delete()
+            
+            # Delete invoices
+            db.execute(text("DELETE FROM invoices WHERE company_id = :company_id"), {"company_id": company.id})
+            
+            # Delete products
+            db.execute(text("DELETE FROM products WHERE company_id = :company_id"), {"company_id": company.id})
+            
+            # Delete purchase orders
+            db.execute(text("DELETE FROM purchase_orders WHERE company_id = :company_id"), {"company_id": company.id})
+            
+            # Delete credit notes
+            db.execute(text("DELETE FROM credit_notes WHERE company_id = :company_id"), {"company_id": company.id})
+            
+            # Delete stock movements
+            db.execute(text("DELETE FROM stock_movements WHERE company_id = :company_id"), {"company_id": company.id})
+            
+            # Delete company
+            db.delete(company)
         
-        # Delete products
-        db.execute(text("DELETE FROM products WHERE company_id = :company_id"), {"company_id": company.id})
+        # Delete user
+        db.delete(client)
         
-        # Delete purchase orders
-        db.execute(text("DELETE FROM purchase_orders WHERE company_id = :company_id"), {"company_id": company.id})
+        db.commit()
         
-        # Delete credit notes
-        db.execute(text("DELETE FROM credit_notes WHERE company_id = :company_id"), {"company_id": company.id})
-        
-        # Delete stock movements
-        db.execute(text("DELETE FROM stock_movements WHERE company_id = :company_id"), {"company_id": company.id})
-        
-        # Delete company
-        db.delete(company)
-    
-    # Delete user
-    db.delete(client)
-    
-    db.commit()
-    
-    return {
-        "success": True, 
-        "message": f"Client {client_email} ({company_name}) and all associated data permanently deleted"
-    }
+        return {
+            "success": True, 
+            "message": f"Client {client_email} ({company_name}) and all associated data permanently deleted"
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete client: {str(e)}")
 
 
 @app.put("/api/owner/edit-client/{client_id}")
