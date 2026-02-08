@@ -7077,8 +7077,7 @@ async def external_submit_invoice(
             tin=company.tin,
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
-            cert_password=company.efris_cert_password,
-            is_test_mode=company.efris_test_mode
+            test_mode=company.efris_test_mode
         )
         
         # Build EFRIS T109 payload
@@ -7302,8 +7301,7 @@ async def external_register_product(
             tin=company.tin,
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
-            cert_password=company.efris_cert_password,
-            is_test_mode=company.efris_test_mode
+            test_mode=company.efris_test_mode
         )
         
         # Build T111 payload
@@ -7374,8 +7372,7 @@ async def external_submit_purchase_order(
             tin=company.tin,
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
-            cert_password=company.efris_cert_password,
-            is_test_mode=company.efris_test_mode
+            test_mode=company.efris_test_mode
         )
         
         # Build T130 payload
@@ -7500,8 +7497,7 @@ async def external_submit_credit_note(
             tin=company.tin,
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
-            cert_password=company.efris_cert_password,
-            is_test_mode=company.efris_test_mode
+            test_mode=company.efris_test_mode
         )
         
         # Build T109 payload for credit note (negative invoice)
@@ -7752,8 +7748,7 @@ async def external_get_excise_duty(
             tin=company.tin,
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
-            cert_password=company.efris_cert_password,
-            is_test_mode=company.efris_test_mode
+            test_mode=company.efris_test_mode
         )
         
         # Query excise duty from EFRIS (T125)
@@ -7899,8 +7894,7 @@ async def external_stock_decrease(
             tin=company.tin,
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
-            cert_password=company.efris_cert_password,
-            is_test_mode=company.efris_test_mode
+            test_mode=company.efris_test_mode
         )
         
         # Submit stock decrease to EFRIS (T132)
