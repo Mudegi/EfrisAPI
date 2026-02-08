@@ -359,7 +359,7 @@ class EfrisManager:
         # self.ensure_authenticated()
         content = json.dumps({"tin": self.tin}, separators=(',', ':'), sort_keys=True)
         payload = self._build_request_payload("T103", content, encrypt_code=1)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         print(f"[T103] Response status: {response.status_code}")
         print(f"[T103] Response headers: {response.headers}")
@@ -412,7 +412,7 @@ class EfrisManager:
         content = json.dumps(request_content, separators=(',', ':'), sort_keys=True)
         # T127 requires AES encryption (encryptCode=2)
         payload = self._build_request_payload("T127", content, encrypt_code=2)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -499,7 +499,7 @@ class EfrisManager:
         # Build payload with no encryption (encrypt_code=0 based on PDF)
         payload = self._build_request_payload("T115", plain_content, encrypt_code=2)
         
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         if response.status_code == 200:
             result = response.json()
             print(f"[T115] Response returnCode: {result.get('returnStateInfo', {}).get('returnCode')}")
@@ -580,7 +580,7 @@ class EfrisManager:
         print(f"[T130] Uploading {len(products)} products")
         print(f"[T130] Product data: {content[:500]}...")  # First 500 chars
         payload = self._build_request_payload("T130", content, encrypt_code=2)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -648,7 +648,7 @@ class EfrisManager:
         payload = self._build_request_payload("T131", content, encrypt_code=2)
         
         print(f"[T131] Sending request to EFRIS...")
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         print(f"[T131] Response status: {response.status_code}")
         
@@ -790,7 +790,7 @@ class EfrisManager:
         """
         content = json.dumps(invoice_data, separators=(',', ':'), sort_keys=True)
         payload = self._build_request_payload("T109", content, encrypt_code=2)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -894,7 +894,7 @@ class EfrisManager:
         """
         content = json.dumps(credit_note_data, separators=(',', ':'), sort_keys=True)
         payload = self._build_request_payload("T111", content, encrypt_code=2)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -937,7 +937,7 @@ class EfrisManager:
         print(f"[T106] Query params: {query_params}")
         print(f"[T106] Content to send: {content}")
         payload = self._build_request_payload("T106", content, encrypt_code=2)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -1006,7 +1006,7 @@ class EfrisManager:
         """
         content = json.dumps({"invoiceNo": invoice_no}, separators=(',', ':'), sort_keys=True)
         payload = self._build_request_payload("T108", content, encrypt_code=2)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -1050,7 +1050,7 @@ class EfrisManager:
         
         content = json.dumps(query_params, separators=(',', ':'), sort_keys=True)
         payload = self._build_request_payload("T112", content, encrypt_code=2)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -1093,7 +1093,7 @@ class EfrisManager:
         """
         content = json.dumps(stock_data, separators=(',', ':'), sort_keys=True)
         payload = self._build_request_payload("T132", content, encrypt_code=2)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -1115,7 +1115,7 @@ class EfrisManager:
         """Query taxpayer information by TIN or ninBrn using T119"""
         content = json.dumps({"tin": tin, "ninBrn": ninBrn}, separators=(',', ':'), sort_keys=True)
         payload = self._build_request_payload("T119", content, encrypt_code=1)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         if response.status_code == 200:
             return response.json()
         else:
@@ -1169,7 +1169,7 @@ class EfrisManager:
         # T125 requires AES encryption (encryptCode=2)
         payload = self._build_request_payload("T125", content, encrypt_code=2)
         
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -1248,7 +1248,7 @@ class EfrisManager:
         # Build payload with AES encryption (encrypt_code=2)
         payload = self._build_request_payload("T109", plain_content, encrypt_code=2)
         
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         if response.status_code == 200:
             return response.json()
         else:
@@ -1258,7 +1258,7 @@ class EfrisManager:
         """Get server time using T10 for time synchronization"""
         content = ""
         payload = self._build_request_payload("T10", content, encrypt_code=0)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         if response.status_code == 200:
             return response.json()
         else:
@@ -1277,7 +1277,7 @@ class EfrisManager:
         - data.signature: Server's signature
         """
         payload = self._build_handshake_payload("T101", "")
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         print(f"[T101] Response status: {response.status_code}")
         print(f"[T101] Response text (first 500 chars): {response.text[:500]}")
@@ -1317,7 +1317,7 @@ class EfrisManager:
         6. Store AES key with expiration timestamp for subsequent request encryption
         """
         payload = self._build_handshake_payload("T104", "")
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         if response.status_code != 200:
             raise Exception(f"Key exchange failed: {response.status_code} {response.text}")
         data = response.json()
@@ -1395,7 +1395,7 @@ class EfrisManager:
             raise Exception("T103 requires AES key from T104. Call T104 first.")
         
         payload = self._build_handshake_payload("T103", "")
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         if response.status_code != 200:
             raise Exception(f"Parameters fetch failed: {response.status_code} {response.text}")
         data = response.json()
@@ -1459,8 +1459,10 @@ class EfrisManager:
                 'grant_type': 'client_credentials',
                 'client_id': self.client_id,
                 'client_secret': self.client_secret
-            }
-        , timeout=self.request_timeout)
+            },
+            timeout=self.request_timeout,
+            verify=self.verify_ssl
+        )
         if response.status_code == 200:
             self.session.token = response.json()
         else:
@@ -1482,18 +1484,18 @@ class EfrisManager:
     def issue_receipt(self, receipt_data):
         if self.test_mode:
             payload = self._build_payload("T109", receipt_data, encrypt_code=0)  # Assume plain for now
-            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
             return self._handle_response(response)
         else:
             url = f'{self.base_url}receipt'
-            response = self.session.post(url, json=receipt_data, headers=self._get_headers(), timeout=self.request_timeout)
+            response = self.session.post(url, json=receipt_data, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
             return self._handle_response(response)
 
     def query_receipt(self, receipt_id):
         if self.test_mode:
             data = {"receiptId": receipt_id}
             payload = self._build_payload("T110", data, encrypt_code=0)  # Assuming T110 for query
-            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
             return self._handle_response(response)
         else:
             url = f'{self.base_url}receipt/{receipt_id}'
@@ -1504,7 +1506,7 @@ class EfrisManager:
         if self.test_mode:
             data = {"receiptId": receipt_id, **void_data}
             payload = self._build_payload("T110", data, encrypt_code=0)  # Assuming T110 for void
-            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
             return self._handle_response(response)
         else:
             url = f'{self.base_url}receipt/{receipt_id}/void'
@@ -1514,7 +1516,7 @@ class EfrisManager:
     def submit_sales_report(self, report_data):
         if self.test_mode:
             payload = self._build_payload("T131", report_data, encrypt_code=0)  # Assuming T131 for report
-            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
             return self._handle_response(response)
         else:
             url = f'{self.base_url}report/sales'
@@ -1557,7 +1559,7 @@ class EfrisManager:
         
         content = json.dumps(po_data, separators=(',', ':'), sort_keys=True)
         payload = self._build_request_payload("T130", content, encrypt_code=1)
-        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
@@ -1577,6 +1579,6 @@ class EfrisManager:
     def register_branch(self, branch_data):
         if self.test_mode:
             payload = self._build_payload("T139", branch_data, encrypt_code=0)  # Assuming T139 for branch
-            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout)
+            response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
             return self._handle_response(response)
 
