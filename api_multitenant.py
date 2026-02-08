@@ -7800,13 +7800,14 @@ async def external_get_excise_duty(
             # Save to database
             excise_record = ExciseCode(
                 company_id=company.id,
-                code=code,
-                name=duty.get('exciseDutyName', ''),
-                description=duty.get('exciseDutyName', ''),
-                rate=rate,
-                unit=unit,
-                currency=currency,
-                excise_rule=excise_rule
+                excise_code=code,
+                excise_name=duty.get('exciseDutyName', ''),
+                excise_rate=rate,
+                excise_unit=unit,
+                excise_currency=currency,
+                excise_rule=excise_rule,
+                rate_text=f"{rate} {unit}" if rate else "",
+                is_leaf_node=True
             )
             db.add(excise_record)
             
