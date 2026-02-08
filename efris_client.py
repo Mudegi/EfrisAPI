@@ -1499,7 +1499,7 @@ class EfrisManager:
             return self._handle_response(response)
         else:
             url = f'{self.base_url}receipt/{receipt_id}'
-            response = self.session.get(url, headers=self._get_headers(), timeout=self.request_timeout)
+            response = self.session.get(url, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
             return self._handle_response(response)
 
     def void_receipt(self, receipt_id, void_data):
@@ -1510,7 +1510,7 @@ class EfrisManager:
             return self._handle_response(response)
         else:
             url = f'{self.base_url}receipt/{receipt_id}/void'
-            response = self.session.put(url, json=void_data, headers=self._get_headers())
+            response = self.session.put(url, json=void_data, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
             return self._handle_response(response)
 
     def submit_sales_report(self, report_data):
