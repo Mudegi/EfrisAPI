@@ -13,6 +13,10 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 from cryptography.hazmat.backends import default_backend
+import urllib3
+
+# Disable SSL warnings for test environment
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 load_dotenv()
 
@@ -33,20 +37,24 @@ class EfrisManager:
             base_url = base_url or 'https://efristest.ura.go.ug/efrisws/ws/taapp/getInformation'
             self.base_url = base_url
             self.test_mode = True
+            self.verify_ssl = False  # Disable SSL verification for test server
             self.session = requests.Session()
+            self.session.verify = False  # Disable SSL verification for test environment
             self._load_certificate(cert_path or os.getenv('EFRIS_CERT_PATH'))
             self.registration_details = {}  # Initialize
-            print(f"[EFRIS] Initialized with TIN: {self.tin}, Device: {self.device_no}, Test Mode: YES, URL: {base_url}, Timeout: {self.request_timeout}s")
+            print(f"[EFRIS] Initialized with TIN: {self.tin}, Device: {self.device_no}, Test Mode: YES, URL: {base_url}, SSL Verify: NO, Timeout: {self.request_timeout}s")
             # self._perform_handshake()  # Commented out for now
         else:
             # Production EFRIS endpoint
             base_url = base_url or 'https://efris.ura.go.ug/efrisws/ws/taapp/getInformation'
             self.base_url = base_url
             self.test_mode = False
+            self.verify_ssl = True  # Enable SSL verification for production
             self.session = requests.Session()
+            self.session.verify = True  # Enable SSL verification for production environment
             self._load_certificate(cert_path or os.getenv('EFRIS_CERT_PATH'))
             self.registration_details = {}  # Initialize
-            print(f"[EFRIS] Initialized with TIN: {self.tin}, Device: {self.device_no}, Production Mode: YES, URL: {base_url}, Timeout: {self.request_timeout}s")
+            print(f"[EFRIS] Initialized with TIN: {self.tin}, Device: {self.device_no}, Production Mode: YES, URL: {base_url}, SSL Verify: YES, Timeout: {self.request_timeout}s")
         self.base_url = base_url
 
     def _load_certificate(self, cert_path):
