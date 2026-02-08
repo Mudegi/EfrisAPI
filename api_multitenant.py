@@ -2131,6 +2131,134 @@ async def activate_client(
     return {"success": True, "message": f"Client {client.email} activated"}
 
 
+@app.delete("/api/owner/delete-client/{client_id}")
+async def delete_client(
+    client_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a client and their company permanently"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can delete clients")
+    
+    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    # Get their company
+    company = db.query(Company).filter(Company.owner_id == client.id).first()
+    
+    # Store email for response
+    client_email = client.email
+    company_name = company.name if company else "Unknown"
+    
+    # Delete company users
+    if company:
+        db.query(CompanyUser).filter(CompanyUser.company_id == company.id).delete()
+        
+        # Delete audit logs
+        db.query(AuditLog).filter(AuditLog.company_id == company.id).delete()
+        
+        # Delete invoices
+        db.execute(text("DELETE FROM invoices WHERE company_id = :company_id"), {"company_id": company.id})
+        
+        # Delete products
+        db.execute(text("DELETE FROM products WHERE company_id = :company_id"), {"company_id": company.id})
+        
+        # Delete purchase orders
+        db.execute(text("DELETE FROM purchase_orders WHERE company_id = :company_id"), {"company_id": company.id})
+        
+        # Delete credit notes
+        db.execute(text("DELETE FROM credit_notes WHERE company_id = :company_id"), {"company_id": company.id})
+        
+        # Delete stock movements
+        db.execute(text("DELETE FROM stock_movements WHERE company_id = :company_id"), {"company_id": company.id})
+        
+        # Delete company
+        db.delete(company)
+    
+    # Delete user
+    db.delete(client)
+    
+    db.commit()
+    
+    return {
+        "success": True, 
+        "message": f"Client {client_email} ({company_name}) and all associated data permanently deleted"
+    }
+
+
+@app.put("/api/owner/edit-client/{client_id}")
+async def edit_client(
+    client_id: int,
+    email: str = Form(None),
+    full_name: str = Form(None),
+    phone: str = Form(None),
+    company_name: str = Form(None),
+    tin: str = Form(None),
+    device_no: str = Form(None),
+    efris_test_mode: bool = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Edit client details including EFRIS test/production mode"""
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="Only platform owners can edit clients")
+    
+    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    # Get their company
+    company = db.query(Company).filter(Company.owner_id == client.id).first()
+    
+    # Update user fields if provided
+    if email is not None:
+        # Check if email is already taken by another user
+        existing = db.query(User).filter(User.email == email, User.id != client_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use by another user")
+        client.email = email
+    
+    if full_name is not None:
+        client.full_name = full_name
+    
+    if phone is not None:
+        client.phone = phone
+    
+    # Update company fields if provided
+    if company:
+        if company_name is not None:
+            company.name = company_name
+        
+        if tin is not None:
+            company.tin = tin
+        
+        if device_no is not None:
+            company.device_no = device_no
+        
+        # Update EFRIS test mode toggle
+        if efris_test_mode is not None:
+            company.efris_test_mode = efris_test_mode
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Client {client.email} updated successfully",
+        "client": {
+            "id": client.id,
+            "email": client.email,
+            "full_name": client.full_name,
+            "phone": client.phone,
+            "company_name": company.name if company else None,
+            "tin": company.tin if company else None,
+            "device_no": company.device_no if company else None,
+            "efris_test_mode": company.efris_test_mode if company else None
+        }
+    }
+
+
 # ============================================================================
 # PAYMENT ENDPOINTS (Flutterwave Integration)
 # ============================================================================

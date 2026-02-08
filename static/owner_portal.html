@@ -1246,6 +1246,75 @@
         </div>
     </div>
 
+    <!-- Edit Client Modal -->
+    <div id="editClientModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; overflow-y: auto;">
+        <div style="background: white; max-width: 600px; margin: 30px auto; border-radius: 10px; padding: 30px; position: relative;">
+            <button onclick="closeEditClientModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+            <h2 style="margin-top: 0; color: #667eea;">✏️ Edit Client</h2>
+            
+            <div id="editClientAlert"></div>
+            
+            <form id="editClientForm" onsubmit="submitEditClient(event)">
+                <input type="hidden" id="edit_client_id">
+                
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="edit_email" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                </div>
+                
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="edit_full_name" style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                </div>
+                
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="text" id="edit_phone" style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                </div>
+                
+                <div class="form-group">
+                    <label>Company Name *</label>
+                    <input type="text" id="edit_company_name" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                </div>
+                
+                <div class="form-group">
+                    <label>TIN *</label>
+                    <input type="text" id="edit_tin" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                </div>
+                
+                <div class="form-group">
+                    <label>Device Number</label>
+                    <input type="text" id="edit_device_no" style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px;">
+                </div>
+                
+                <div class="form-group">
+                    <label style="font-weight: bold; color: #2d3748;">EFRIS Environment</label>
+                    <div style="background: #f7fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #48bb78;">
+                        <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                            <input type="radio" name="edit_efris_mode" value="production" id="edit_mode_production" style="margin-right: 10px;">
+                            <div>
+                                <strong>🚀 Production Environment</strong>
+                                <p style="font-size: 12px; color: #666; margin: 2px 0 0 0;">For real invoices. Uses: efris.ura.go.ug</p>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="radio" name="edit_efris_mode" value="test" id="edit_mode_test" style="margin-right: 10px;">
+                            <div>
+                                <strong>🧪 Test/Sandbox</strong>
+                                <p style="font-size: 12px; color: #666; margin: 2px 0 0 0;">Only for demo/testing. Uses: efristest.ura.go.ug</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">💾 Save Changes</button>
+                    <button type="button" class="btn" onclick="closeEditClientModal()" style="flex: 0.3; background: #6c757d; color: white;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {
@@ -1476,12 +1545,14 @@
                             <td><span class="badge badge-${c.status}">${c.status}</span></td>
                             <td>${new Date(c.created_at).toLocaleDateString()}</td>
                             <td>
-                                <button class="btn btn-primary btn-sm" onclick="viewClientDetails(${c.id})" style="margin-right: 5px;">View</button>
+                                <button class="btn btn-primary btn-sm" onclick="viewClientDetails(${c.id})" style="margin: 2px;">View</button>
+                                <button class="btn btn-sm" onclick="editClient(${c.id})" style="margin: 2px; background: #17a2b8; color: white;">Edit</button>
                                 ${c.status === 'active' ? 
-                                    `<button class="btn btn-warning btn-sm" onclick="suspendClient(${c.id}, '${c.email}')">Suspend</button>` :
+                                    `<button class="btn btn-warning btn-sm" onclick="suspendClient(${c.id}, '${c.email}')" style="margin: 2px;">Suspend</button>` :
                                     c.status === 'suspended' ?
-                                    `<button class="btn btn-success btn-sm" onclick="activateClient(${c.id}, '${c.email}')">Activate</button>` :
+                                    `<button class="btn btn-success btn-sm" onclick="activateClient(${c.id}, '${c.email}')" style="margin: 2px;">Unsuspend</button>` :
                                     ''}
+                                <button class="btn btn-danger btn-sm" onclick="deleteClient(${c.id}, '${c.email}', '${c.company_name}')" style="margin: 2px;">Delete</button>
                             </td>
                         </tr>
                     `).join('');
@@ -1873,7 +1944,7 @@
         }
 
         async function activateClient(clientId, email) {
-            if (!confirm(`Are you sure you want to ACTIVATE ${email}?\n\nThis will:\n- Restore their access to the platform\n- Enable all EFRIS operations\n- They can login again`)) {
+            if (!confirm(`Are you sure you want to UNSUSPEND (activate) ${email}?\n\nThis will:\n- Restore their access to the platform\n- Enable all EFRIS operations\n- They can login again`)) {
                 return;
             }
             
@@ -1884,16 +1955,134 @@
                 });
                 
                 if (response.ok) {
-                    alert('Client activated successfully');
+                    alert('Client unsuspended successfully');
                     loadClients();
                     loadStats();
                 } else {
                     const error = await response.json();
-                    alert(`Failed to activate client: ${error.detail}`);
+                    alert(`Failed to unsuspend client: ${error.detail}`);
                 }
             } catch (error) {
-                console.error('Failed to activate client:', error);
-                alert('Failed to activate client');
+                console.error('Failed to unsuspend client:', error);
+                alert('Failed to unsuspend client');
+            }
+        }
+
+        async function deleteClient(clientId, email, companyName) {
+            if (!confirm(`⚠️ DANGER: Delete ${email} (${companyName})?\n\nThis will PERMANENTLY delete:\n- Client account and company\n- All invoices, products, and stock data\n- All purchase orders and credit notes\n- All audit logs and activity\n\n❌ THIS CANNOT BE UNDONE!\n\nType the company name to confirm.`)) {
+                return;
+            }
+            
+            const confirmName = prompt(`Type the company name "${companyName}" to confirm deletion:`);
+            if (confirmName !== companyName) {
+                alert('Company name does not match. Deletion cancelled.');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/owner/delete-client/${clientId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    alert('Client permanently deleted');
+                    loadClients();
+                    loadStats();
+                } else {
+                    const error = await response.json();
+                    alert(`Failed to delete client: ${error.detail}`);
+                }
+            } catch (error) {
+                console.error('Failed to delete client:', error);
+                alert('Failed to delete client');
+            }
+        }
+
+        async function editClient(clientId) {
+            try {
+                const response = await fetch(`/api/owner/clients`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const clients = await response.json();
+                const client = clients.find(c => c.id === clientId);
+                
+                if (!client) {
+                    alert('Client not found');
+                    return;
+                }
+                
+                // Populate form
+                document.getElementById('edit_client_id').value = client.id;
+                document.getElementById('edit_email').value = client.email || '';
+                document.getElementById('edit_full_name').value = client.full_name || '';
+                document.getElementById('edit_phone').value = client.phone || '';
+                document.getElementById('edit_company_name').value = client.company_name || '';
+                document.getElementById('edit_tin').value = client.tin || '';
+                document.getElementById('edit_device_no').value = client.device_no || '';
+                
+                // Set EFRIS mode radio button
+                if (client.efris_test_mode) {
+                    document.getElementById('edit_mode_test').checked = true;
+                } else {
+                    document.getElementById('edit_mode_production').checked = true;
+                }
+                
+                // Show modal
+                document.getElementById('editClientModal').style.display = 'block';
+            } catch (error) {
+                console.error('Failed to load client details:', error);
+                alert('Failed to load client details');
+            }
+        }
+
+        function closeEditClientModal() {
+            document.getElementById('editClientModal').style.display = 'none';
+            document.getElementById('editClientAlert').innerHTML = '';
+        }
+
+        async function submitEditClient(e) {
+            e.preventDefault();
+            
+            const clientId = document.getElementById('edit_client_id').value;
+            const formData = new FormData();
+            formData.append('email', document.getElementById('edit_email').value);
+            formData.append('full_name', document.getElementById('edit_full_name').value);
+            formData.append('phone', document.getElementById('edit_phone').value);
+            formData.append('company_name', document.getElementById('edit_company_name').value);
+            formData.append('tin', document.getElementById('edit_tin').value);
+            formData.append('device_no', document.getElementById('edit_device_no').value);
+            
+            const isTestMode = document.getElementById('edit_mode_test').checked;
+            formData.append('efris_test_mode', isTestMode);
+            
+            try {
+                const response = await fetch(`/api/owner/edit-client/${clientId}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`Client updated successfully!\n\nEFRIS Mode: ${isTestMode ? 'Test/Sandbox 🧪' : 'Production 🚀'}`);
+                    closeEditClientModal();
+                    loadClients();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('editClientAlert').innerHTML = `
+                        <div style="padding: 15px; background: #fee; border-left: 4px solid #e53e3e; border-radius: 5px; margin-bottom: 15px;">
+                            ❌ ${error.detail}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to update client:', error);
+                document.getElementById('editClientAlert').innerHTML = `
+                    <div style="padding: 15px; background: #fee; border-left: 4px solid #e53e3e; border-radius: 5px; margin-bottom: 15px;">
+                        ❌ Failed to update client. Please try again.
+                    </div>
+                `;
             }
         }
 
