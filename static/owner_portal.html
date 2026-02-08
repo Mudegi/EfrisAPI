@@ -2019,10 +2019,10 @@
                 document.getElementById('edit_phone').value = client.phone || '';
                 document.getElementById('edit_company_name').value = client.company_name || '';
                 document.getElementById('edit_tin').value = client.tin || '';
-                document.getElementById('edit_device_no').value = client.device_no || '';
+                document.getElementById('edit_device_no').value = client.company?.device_no || '';
                 
-                // Set EFRIS mode radio button
-                if (client.efris_test_mode) {
+                // Set EFRIS mode radio button - efris_test_mode is in company object
+                if (client.company?.efris_test_mode) {
                     document.getElementById('edit_mode_test').checked = true;
                 } else {
                     document.getElementById('edit_mode_production').checked = true;
@@ -2054,7 +2054,7 @@
             formData.append('device_no', document.getElementById('edit_device_no').value);
             
             const isTestMode = document.getElementById('edit_mode_test').checked;
-            formData.append('efris_test_mode', isTestMode);
+            formData.append('efris_test_mode', isTestMode ? 'true' : 'false');
             
             try {
                 const response = await fetch(`/api/owner/edit-client/${clientId}`, {

@@ -1340,16 +1340,37 @@ class EfrisManager:
         self.server_sign = content_json['sign']  # Server signature value
         
         # Step 3: Base64 decode the passowrdDes (RSA-encrypted)
-        password_des_encrypted = base64.b64decode(password_des_b64)
+        try:
+            password_des_encrypted = base64.b64decode(password_des_b64)
+        except Exception as e:
+            print(f"[T104 ERROR] Failed to base64 decode passowrdDes")
+            print(f"[T104 ERROR] passowrdDes value: {password_des_b64[:100]}...")
+            print(f"[T104 ERROR] Length: {len(password_des_b64)}")
+            print(f"[T104 ERROR] Error: {e}")
+            raise Exception(f"Failed to base64 decode passowrdDes from T104 response: {str(e)}")
         
         # Step 4: RSA decrypt using private key to get intermediate Base64-encoded AES key
-        aes_key_b64_str = self.private_key.decrypt(
-            password_des_encrypted,
-            padding.PKCS1v15()
-        ).decode('utf-8')
+        try:
+            aes_key_b64_str = self.private_key.decrypt(
+                password_des_encrypted,
+                padding.PKCS1v15()
+            ).decode('utf-8')
+        except Exception as e:
+            print(f"[T104 ERROR] Failed to RSA decrypt passowrdDes")
+            print(f"[T104 ERROR] Encrypted length: {len(password_des_encrypted)}")
+            print(f"[T104 ERROR] Error: {e}")
+            raise Exception(f"Failed to RSA decrypt passowrdDes: {str(e)}")
         
         # Step 5: Base64 decode the decrypted value to get the actual AES key
-        self.aes_key = base64.b64decode(aes_key_b64_str)
+        try:
+            self.aes_key = base64.b64decode(aes_key_b64_str)
+        except Exception as e:
+            print(f"[T104 ERROR] Failed to base64 decode AES key")
+            print(f"[T104 ERROR] AES key b64 string: {aes_key_b64_str[:100]}...")
+            print(f"[T104 ERROR] Length: {len(aes_key_b64_str)}")
+            print(f"[T104 ERROR] Has invalid chars: {not all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in aes_key_b64_str)}")
+            print(f"[T104 ERROR] Error: {e}")
+            raise Exception(f"Failed to base64 decode AES key: Invalid padding bytes. The decrypted AES key string may be corrupted.")
         
         # Step 6: Set expiration time for the AES key
         self.aes_key_expires_at = datetime.now() + timedelta(hours=self.key_expiry_hours)

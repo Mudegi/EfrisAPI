@@ -56,7 +56,7 @@ X-API-Key: your_api_key_here
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `item_code` | string | ✅ Yes | Unique product identifier (SKU) |
+| `item_code` | string | ✅ Yes | Unique product identifier  |
 | `item_name` | string | ✅ Yes | Product/service name |
 | `unit_price` | number | ✅ Yes | Unit price in UGX |
 | `commodity_code` | string | ✅ Yes | UNSPC commodity category code |

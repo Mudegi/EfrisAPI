@@ -1794,6 +1794,8 @@ async def get_all_clients(
             "email": client.email,
             "company_name": company.name if company else "N/A",
             "tin": company.tin if company else "N/A",
+            "device_no": company.device_no if company else "N/A",
+            "efris_test_mode": company.efris_test_mode if company else False,
             "status": client.status,
             "reseller_name": reseller.full_name if reseller else "Direct",
             "created_at": client.created_at.isoformat()
@@ -2246,7 +2248,7 @@ async def edit_client(
     company_name: str = Form(None),
     tin: str = Form(None),
     device_no: str = Form(None),
-    efris_test_mode: bool = Form(None),
+    efris_test_mode: str = Form(None),  # Changed to str to handle "true"/"false" strings
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -2286,9 +2288,9 @@ async def edit_client(
         if device_no is not None:
             company.device_no = device_no
         
-        # Update EFRIS test mode toggle
+        # Update EFRIS test mode toggle - convert string to boolean
         if efris_test_mode is not None:
-            company.efris_test_mode = efris_test_mode
+            company.efris_test_mode = efris_test_mode.lower() in ['true', '1', 'yes']
     
     db.commit()
     
@@ -7327,6 +7329,13 @@ async def external_register_product(
         
         result = efris.upload_goods(t130_payload)
         
+        # Log the full response for debugging
+        print(f"[REGISTER-PRODUCT] EFRIS returned: {result}")
+        
+        # Check if result is a string (error case)
+        if isinstance(result, str):
+            raise HTTPException(status_code=500, detail=f"EFRIS communication error: {result}")
+        
         if result.get("returnStateInfo", {}).get("returnCode") == "00":
             return {
                 "success": True,
@@ -7336,7 +7345,8 @@ async def external_register_product(
             }
         else:
             error_msg = result.get("returnStateInfo", {}).get("returnMessage", "Unknown error")
-            raise HTTPException(status_code=400, detail=error_msg)
+            error_code = result.get("returnStateInfo", {}).get("returnCode", "Unknown")
+            raise HTTPException(status_code=400, detail=f"EFRIS error {error_code}: {error_msg}")
             
     except HTTPException:
         raise
