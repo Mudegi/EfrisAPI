@@ -6901,7 +6901,7 @@ async def external_submit_invoice(
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
             cert_password=company.efris_cert_password,
-            is_test_mode=company.is_test_mode
+            is_test_mode=company.efris_test_mode
         )
         
         # Build EFRIS T109 payload
@@ -7126,7 +7126,7 @@ async def external_register_product(
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
             cert_password=company.efris_cert_password,
-            is_test_mode=company.is_test_mode
+            is_test_mode=company.efris_test_mode
         )
         
         # Build T111 payload
@@ -7198,7 +7198,7 @@ async def external_submit_purchase_order(
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
             cert_password=company.efris_cert_password,
-            is_test_mode=company.is_test_mode
+            is_test_mode=company.efris_test_mode
         )
         
         # Build T130 payload
@@ -7324,7 +7324,7 @@ async def external_submit_credit_note(
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
             cert_password=company.efris_cert_password,
-            is_test_mode=company.is_test_mode
+            is_test_mode=company.efris_test_mode
         )
         
         # Build T109 payload for credit note (negative invoice)
@@ -7576,7 +7576,7 @@ async def external_get_excise_duty(
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
             cert_password=company.efris_cert_password,
-            is_test_mode=company.is_test_mode
+            is_test_mode=company.efris_test_mode
         )
         
         # Query excise duty from EFRIS (T125)
@@ -7723,7 +7723,7 @@ async def external_stock_decrease(
             device_no=company.device_no,
             cert_path=company.efris_cert_path,
             cert_password=company.efris_cert_password,
-            is_test_mode=company.is_test_mode
+            is_test_mode=company.efris_test_mode
         )
         
         # Submit stock decrease to EFRIS (T132)
