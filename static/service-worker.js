@@ -1,5 +1,5 @@
 // EFRIS PWA Service Worker
-const CACHE_NAME = 'efris-v1.0.0';
+const CACHE_NAME = 'efris-v1.0.1';
 const OFFLINE_URL = '/static/offline.html';
 
 // Assets to cache on install
