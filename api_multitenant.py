@@ -2173,12 +2173,31 @@ async def delete_client(
         client_email = client.email
         company_name = company.name if company else "Unknown"
         
+        # Delete client referrals that reference this client or their company
+        if company:
+            db.execute(text("DELETE FROM client_referrals WHERE created_company_id = :company_id OR created_client_id = :client_id"), 
+                      {"company_id": company.id, "client_id": client.id})
+        else:
+            db.execute(text("DELETE FROM client_referrals WHERE created_client_id = :client_id"), 
+                      {"client_id": client.id})
+        
+        # Delete audit logs for this user (regardless of company)
+        db.query(AuditLog).filter(AuditLog.user_id == client.id).delete()
+        
+        # Delete activity logs for this user (regardless of company)
+        db.execute(text("DELETE FROM activity_logs WHERE user_id = :user_id OR reseller_id = :user_id"), 
+                  {"user_id": client.id})
+        
         # Delete company users
         if company:
             db.query(CompanyUser).filter(CompanyUser.company_id == company.id).delete()
             
-            # Delete audit logs
+            # Delete audit logs for this company
             db.query(AuditLog).filter(AuditLog.company_id == company.id).delete()
+            
+            # Delete activity logs for this company
+            db.execute(text("DELETE FROM activity_logs WHERE company_id = :company_id"), 
+                      {"company_id": company.id})
             
             # Delete invoices
             db.execute(text("DELETE FROM invoices WHERE company_id = :company_id"), {"company_id": company.id})
@@ -2189,11 +2208,17 @@ async def delete_client(
             # Delete purchase orders
             db.execute(text("DELETE FROM purchase_orders WHERE company_id = :company_id"), {"company_id": company.id})
             
-            # Delete credit notes
-            db.execute(text("DELETE FROM credit_notes WHERE company_id = :company_id"), {"company_id": company.id})
+            # Delete credit memos
+            db.execute(text("DELETE FROM credit_memos WHERE company_id = :company_id"), {"company_id": company.id})
             
-            # Delete stock movements
-            db.execute(text("DELETE FROM stock_movements WHERE company_id = :company_id"), {"company_id": company.id})
+            # Delete EFRIS invoices
+            db.execute(text("DELETE FROM efris_invoices WHERE company_id = :company_id"), {"company_id": company.id})
+            
+            # Delete EFRIS goods
+            db.execute(text("DELETE FROM efris_goods WHERE company_id = :company_id"), {"company_id": company.id})
+            
+            # Delete excise codes
+            db.execute(text("DELETE FROM excise_codes WHERE company_id = :company_id"), {"company_id": company.id})
             
             # Delete company
             db.delete(company)

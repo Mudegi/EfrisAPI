@@ -1907,7 +1907,7 @@
                     // Close modals and reload
                     document.getElementById('editErpModal').remove();
                     document.querySelector('[style*=fixed]')?.remove(); // Close client details modal
-                    loadClients();
+                    loadAllClients();
                 } else {
                     const error = await response.json();
                     document.getElementById('editErpAlert').innerHTML = `<div class="alert alert-danger">${error.detail || 'Failed to update ERP configuration'}</div>`;
@@ -1931,7 +1931,7 @@
                 
                 if (response.ok) {
                     alert('Client suspended successfully');
-                    loadClients();
+                    loadAllClients();
                     loadStats();
                 } else {
                     const error = await response.json();
@@ -1956,7 +1956,7 @@
                 
                 if (response.ok) {
                     alert('Client unsuspended successfully');
-                    loadClients();
+                    loadAllClients();
                     loadStats();
                 } else {
                     const error = await response.json();
@@ -1987,7 +1987,7 @@
                 
                 if (response.ok) {
                     alert('Client permanently deleted');
-                    loadClients();
+                    loadAllClients();
                     loadStats();
                 } else {
                     const error = await response.json();
@@ -2067,7 +2067,7 @@
                     const result = await response.json();
                     alert(`Client updated successfully!\n\nEFRIS Mode: ${isTestMode ? 'Test/Sandbox 🧪' : 'Production 🚀'}`);
                     closeEditClientModal();
-                    loadClients();
+                    loadAllClients();
                 } else {
                     const error = await response.json();
                     document.getElementById('editClientAlert').innerHTML = `
