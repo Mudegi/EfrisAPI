@@ -7304,22 +7304,28 @@ async def external_register_product(
             test_mode=company.efris_test_mode
         )
         
-        # Build T111 payload
-        t111_payload = {
+        # Build T130 payload (single product in list format)
+        t130_payload = [{
+            "operationType": "101",  # 101=Add, 102=Update
             "goodsName": product_data["item_name"],
             "goodsCode": product_data["item_code"],
             "measureUnit": product_data.get("unit_of_measure", "102"),
             "unitPrice": str(product_data["unit_price"]),
-            "currency": "UGX",
+            "currency": "101",  # 101=UGX
             "commodityCategoryId": product_data["commodity_code"],
             "haveExciseTax": product_data.get("have_excise_tax", "102"),
             "stockPrewarning": str(product_data.get("stock_quantity", 0)),
-            "pieceUnit": product_data.get("unit_of_measure", "102"),
-            "operationType": "101",  # Add/Update
-            "remarks": product_data.get("description", "")
-        }
+            "pieceMeasureUnit": product_data.get("unit_of_measure", "102"),
+            "havePieceUnit": "102",  # Default to No
+            "pieceUnitPrice": str(product_data["unit_price"]),
+            "packageScaledValue": "1",
+            "pieceScaledValue": "1",
+            "exciseDutyCode": product_data.get("excise_duty_code", "") if product_data.get("have_excise_tax") == "101" else "",
+            "description": product_data.get("description", ""),
+            "goodsTypeCode": "101"  # 101=Goods, 102=Fuel (default to Goods)
+        }]
         
-        result = efris.upload_product(t111_payload)
+        result = efris.upload_goods(t130_payload)
         
         if result.get("returnStateInfo", {}).get("returnCode") == "00":
             return {
