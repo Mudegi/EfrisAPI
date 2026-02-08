@@ -1520,7 +1520,7 @@ class EfrisManager:
             return self._handle_response(response)
         else:
             url = f'{self.base_url}report/sales'
-            response = self.session.post(url, json=report_data, headers=self._get_headers(), timeout=self.request_timeout)
+            response = self.session.post(url, json=report_data, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
             return self._handle_response(response)
 
     def send_purchase_order(self, po_data):
