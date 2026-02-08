@@ -7801,7 +7801,7 @@ async def external_get_excise_duty(
             excise_record = ExciseCode(
                 company_id=company.id,
                 excise_code=code,
-                excise_name=duty.get('exciseDutyName', ''),
+                excise_name=duty.get('goodService', ''),
                 excise_rate=rate,
                 excise_unit=unit,
                 excise_currency=currency,
@@ -7814,12 +7814,12 @@ async def external_get_excise_duty(
             # Apply filters
             if excise_code and code != excise_code:
                 continue
-            if excise_name and excise_name.lower() not in duty.get('exciseDutyName', '').lower():
+            if excise_name and excise_name.lower() not in duty.get('goodService', '').lower():
                 continue
             
             excise_codes.append({
                 "code": code,
-                "name": duty.get('exciseDutyName', ''),
+                "name": duty.get('goodService', ''),
                 "rate": rate,
                 "unit": unit,
                 "currency": currency,
