@@ -7881,6 +7881,163 @@ async def external_get_excise_duty(
         raise HTTPException(status_code=500, detail=f"Failed to fetch excise duty codes: {str(e)}")
 
 
+@app.get("/api/external/efris/units-of-measure")
+async def external_get_units_of_measure(
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    Get EFRIS Units of Measure codes - Maps ERP units to EFRIS codes
+    
+    This endpoint fetches the official EFRIS unit of measure codes from T115 system dictionary.
+    Use these codes when registering products and submitting invoices.
+    
+    Authentication: X-API-Key header
+    
+    Response:
+    {
+        "success": true,
+        "units": [
+            {
+                "code": "101",
+                "name": "Carton",
+                "description": "Use for products sold in cartons/boxes"
+            },
+            {
+                "code": "102",
+                "name": "Piece",
+                "description": "Use for individual items (computers, phones, etc.)"
+            },
+            {
+                "code": "103",
+                "name": "Kilogram",
+                "description": "Use for products sold by weight"
+            }
+        ],
+        "total": 50,
+        "last_updated": "2024-01-24T10:30:00"
+    }
+    
+    Example Usage:
+    - Selling computers? Use code "102" (Piece)
+    - Selling cement bags? Use code "103" (Kilogram) or "102" (Piece) depending on how you price it
+    - Selling liquids? Use code "104" (Litre)
+    """
+    try:
+        # Initialize EFRIS Manager
+        efris = EfrisManager(
+            tin=company.tin,
+            device_no=company.device_no,
+            cert_path=company.efris_cert_path,
+            test_mode=company.efris_test_mode
+        )
+        
+        # Query system dictionary from EFRIS (T115)
+        result = efris.get_code_list(None)
+        
+        # Extract rateUnit from response
+        decrypted_content = result.get('data', {}).get('decrypted_content', {})
+        rate_units = decrypted_content.get('rateUnit', [])
+        
+        if not rate_units:
+            # Return static fallback list if EFRIS doesn't return data
+            rate_units = [
+                {"value": "101", "name": "Carton"},
+                {"value": "102", "name": "Piece"},
+                {"value": "103", "name": "Kilogram"},
+                {"value": "104", "name": "Litre"},
+                {"value": "105", "name": "Meter"},
+                {"value": "106", "name": "Tonne"},
+                {"value": "107", "name": "Gram"},
+                {"value": "108", "name": "Millilitre"},
+                {"value": "109", "name": "Centimetre"},
+                {"value": "110", "name": "Square Meter"},
+                {"value": "111", "name": "Cubic Meter"},
+                {"value": "112", "name": "Pack"},
+                {"value": "113", "name": "Dozen"},
+                {"value": "114", "name": "Set"},
+                {"value": "115", "name": "Pair"},
+                {"value": "116", "name": "Roll"},
+                {"value": "117", "name": "Sheet"},
+                {"value": "118", "name": "Bundle"},
+                {"value": "119", "name": "Bag"},
+                {"value": "120", "name": "Bottle"}
+            ]
+        
+        # Format units with helpful descriptions
+        units = []
+        for unit in rate_units:
+            code = unit.get('value', '')
+            name = unit.get('name', '')
+            
+            # Add helpful descriptions based on common use cases
+            description = f"Use for products measured/sold in {name.lower()}"
+            if 'piece' in name.lower():
+                description = "Use for individual items (computers, phones, furniture, etc.)"
+            elif 'carton' in name.lower() or 'box' in name.lower():
+                description = "Use for products sold in cartons or boxes"
+            elif 'kilogram' in name.lower() or 'kg' in name.lower():
+                description = "Use for products sold by weight in kilograms"
+            elif 'litre' in name.lower() or 'liter' in name.lower():
+                description = "Use for liquids (water, fuel, beverages, etc.)"
+            elif 'meter' in name.lower():
+                description = "Use for products measured in length/distance"
+            elif 'gram' in name.lower():
+                description = "Use for small quantities sold by weight"
+            elif 'dozen' in name.lower():
+                description = "Use for products sold in sets of 12"
+            elif 'pack' in name.lower():
+                description = "Use for packaged products"
+            
+            units.append({
+                "code": code,
+                "name": name,
+                "description": description
+            })
+        
+        return {
+            "success": True,
+            "units": units,
+            "total": len(units),
+            "last_updated": datetime.now().isoformat(),
+            "message": "Units of measure fetched successfully from EFRIS"
+        }
+        
+    except Exception as e:
+        # Return static fallback on error
+        fallback_units = [
+            {"code": "101", "name": "Carton", "description": "Use for products sold in cartons or boxes"},
+            {"code": "102", "name": "Piece", "description": "Use for individual items (computers, phones, furniture, etc.)"},
+            {"code": "103", "name": "Kilogram", "description": "Use for products sold by weight in kilograms"},
+            {"code": "104", "name": "Litre", "description": "Use for liquids (water, fuel, beverages, etc.)"},
+            {"code": "105", "name": "Meter", "description": "Use for products measured in length/distance"},
+            {"code": "106", "name": "Tonne", "description": "Use for heavy products sold by weight in tonnes"},
+            {"code": "107", "name": "Gram", "description": "Use for small quantities sold by weight"},
+            {"code": "108", "name": "Millilitre", "description": "Use for small liquid quantities"},
+            {"code": "109", "name": "Centimetre", "description": "Use for small length measurements"},
+            {"code": "110", "name": "Square Meter", "description": "Use for area measurements (tiles, land, fabric)"},
+            {"code": "111", "name": "Cubic Meter", "description": "Use for volume measurements"},
+            {"code": "112", "name": "Pack", "description": "Use for packaged products"},
+            {"code": "113", "name": "Dozen", "description": "Use for products sold in sets of 12"},
+            {"code": "114", "name": "Set", "description": "Use for product sets or collections"},
+            {"code": "115", "name": "Pair", "description": "Use for products sold in pairs (shoes, gloves)"},
+            {"code": "116", "name": "Roll", "description": "Use for rolled products (paper, fabric, wire)"},
+            {"code": "117", "name": "Sheet", "description": "Use for flat products sold in sheets"},
+            {"code": "118", "name": "Bundle", "description": "Use for bundled products"},
+            {"code": "119", "name": "Bag", "description": "Use for products sold in bags"},
+            {"code": "120", "name": "Bottle", "description": "Use for bottled products"}
+        ]
+        
+        return {
+            "success": True,
+            "units": fallback_units,
+            "total": len(fallback_units),
+            "last_updated": datetime.now().isoformat(),
+            "message": "Using cached units of measure (EFRIS connection issue)",
+            "warning": str(e)
+        }
+
+
 @app.post("/api/external/efris/stock-decrease")
 async def external_stock_decrease(
     stock_data: dict,

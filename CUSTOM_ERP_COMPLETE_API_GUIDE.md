@@ -115,11 +115,25 @@ Before you can add products to invoices, you must register them with EFRIS first
 | `description` | No | Product description | `"Portland cement"` |
 
 ### Common Unit of Measure Codes
-- `101` = Box
-- `102` = Pieces (default)
-- `103` = Kg
-- `104` = Litre
+
+**IMPORTANT:** Get the complete list from `GET /api/external/efris/units-of-measure`
+
+**Quick Reference (Most Common):**
+- `101` = Carton/Box
+- `102` = Piece (computers, phones, individual items)
+- `103` = Kilogram
+- `104` = Litre (water, fuel, beverages)
 - `105` = Meter
+- `106` = Tonne
+- `107` = Gram
+- `112` = Pack
+- `113` = Dozen
+- `115` = Pair (shoes, gloves)
+
+**⚠️ Common Mistake:**
+- Don't assume codes! Code "102" is **Piece**, not litre
+- Always verify codes using the `units-of-measure` endpoint
+- Wrong codes cause EFRIS validation errors
 
 ### Response
 
@@ -642,6 +656,189 @@ Issue credit notes for returned goods or invoice corrections.
 
 ## Query Endpoints
 
+### Get Units of Measure (CRITICAL)
+
+**Endpoint:** `GET /api/external/efris/units-of-measure`
+
+**This is the most important reference endpoint** - it maps your ERP units to EFRIS codes.
+
+**Common Mistake:** Sending wrong unit codes causes EFRIS to misinterpret product types. For example:
+- ❌ Code "102" = **Piece** (not litres!)
+- ✅ Use "102" for computers, phones, furniture
+- ✅ Use "104" for liquids (water, fuel, beverages)
+
+**Request:**
+```python
+response = requests.get(
+    f"{BASE_URL}/api/external/efris/units-of-measure",
+    headers=headers
+)
+units = response.json()
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "units": [
+        {
+            "code": "101",
+            "name": "Carton",
+            "description": "Use for products sold in cartons or boxes"
+        },
+        {
+            "code": "102",
+            "name": "Piece",
+            "description": "Use for individual items (computers, phones, furniture, etc.)"
+        },
+        {
+            "code": "103",
+            "name": "Kilogram",
+            "description": "Use for products sold by weight in kilograms"
+        },
+        {
+            "code": "104",
+            "name": "Litre",
+            "description": "Use for liquids (water, fuel, beverages, etc.)"
+        },
+        {
+            "code": "105",
+            "name": "Meter",
+            "description": "Use for products measured in length/distance"
+        },
+        {
+            "code": "106",
+            "name": "Tonne",
+            "description": "Use for heavy products sold by weight in tonnes"
+        },
+        {
+            "code": "107",
+            "name": "Gram",
+            "description": "Use for small quantities sold by weight"
+        },
+        {
+            "code": "108",
+            "name": "Millilitre",
+            "description": "Use for small liquid quantities"
+        },
+        {
+            "code": "109",
+            "name": "Centimetre",
+            "description": "Use for small length measurements"
+        },
+        {
+            "code": "110",
+            "name": "Square Meter",
+            "description": "Use for area measurements (tiles, land, fabric)"
+        },
+        {
+            "code": "111",
+            "name": "Cubic Meter",
+            "description": "Use for volume measurements"
+        },
+        {
+            "code": "112",
+            "name": "Pack",
+            "description": "Use for packaged products"
+        },
+        {
+            "code": "113",
+            "name": "Dozen",
+            "description": "Use for products sold in sets of 12"
+        },
+        {
+            "code": "114",
+            "name": "Set",
+            "description": "Use for product sets or collections"
+        },
+        {
+            "code": "115",
+            "name": "Pair",
+            "description": "Use for products sold in pairs (shoes, gloves)"
+        },
+        {
+            "code": "116",
+            "name": "Roll",
+            "description": "Use for rolled products (paper, fabric, wire)"
+        },
+        {
+            "code": "117",
+            "name": "Sheet",
+            "description": "Use for flat products sold in sheets"
+        },
+        {
+            "code": "118",
+            "name": "Bundle",
+            "description": "Use for bundled products"
+        },
+        {
+            "code": "119",
+            "name": "Bag",
+            "description": "Use for products sold in bags"
+        },
+        {
+            "code": "120",
+            "name": "Bottle",
+            "description": "Use for bottled products"
+        }
+    ],
+    "total": 20,
+    "last_updated": "2024-01-24T10:30:00"
+}
+```
+
+**Quick Reference:**
+
+| Product Type | Correct Code | Code Name |
+|--------------|--------------|-----------|
+| Computers | 102 | Piece |
+| Phones | 102 | Piece |
+| Furniture | 102 | Piece |
+| Cement (50kg bags) | 103 | Kilogram |
+| Water/Beverages | 104 | Litre |
+| Fuel | 104 | Litre |
+| Tiles | 110 | Square Meter |
+| Fabric by length | 105 | Meter |
+| Shoes | 115 | Pair |
+| Boxes of items | 101 | Carton |
+
+**Complete Example:**
+```python
+# Get units from EFRIS
+response = requests.get(
+    f"{BASE_URL}/api/external/efris/units-of-measure",
+    headers=headers
+)
+
+units_data = response.json()
+
+# Create a mapping for your ERP
+unit_mapping = {
+    'pcs': '102',      # Pieces
+    'each': '102',     # Each/Piece
+    'kg': '103',       # Kilogram
+    'litre': '104',    # Litre
+    'meter': '105',    # Meter
+    'carton': '101',   # Carton
+    'pair': '115',     # Pair
+    'dozen': '113'     # Dozen
+}
+
+# When registering a product, map your ERP unit to EFRIS code
+erp_unit = 'pcs'  # Your ERP uses 'pcs' for pieces
+efris_unit_code = unit_mapping.get(erp_unit, '102')  # Default to Piece
+
+product_data = {
+    "item_code": "LAPTOP-001",
+    "item_name": "Dell Laptop",
+    "unit_price": 2500000,
+    "commodity_code": "1010101",
+    "commodity_name": "Computers",
+    "unit_of_measure": efris_unit_code,  # Use "102" for pieces
+    "have_excise_tax": "102"
+}
+```
+
 ### Get Excise Duty Codes
 
 **Endpoint:** `GET /api/external/efris/excise-duty`
@@ -720,6 +917,31 @@ invoices = response.json()
 ## Troubleshooting
 
 ### Common Errors
+
+#### Error: Wrong Unit of Measure / Product Validation Failed
+
+**Problem:** Product is being registered with wrong unit code - e.g., computers as "litres"
+
+**Solution:**
+```python
+# ALWAYS fetch units first
+response = requests.get(f"{BASE_URL}/api/external/efris/units-of-measure", headers=headers)
+units = response.json()['units']
+
+# Find correct code for your product type
+for unit in units:
+    print(f"{unit['code']} = {unit['name']} - {unit['description']}")
+
+# Use correct code:
+# Computers → code "102" (Piece)
+# Liquids → code "104" (Litre)
+# By weight → code "103" (Kilogram)
+```
+
+Common mistakes:
+- ❌ Using "102" thinking it means "litres" (it means **Piece**)
+- ❌ Hardcoding unit codes without checking EFRIS codes
+- ✅ Always use the `units-of-measure` endpoint to verify codes
 
 #### Error 2122: "Item not registered"
 
@@ -821,15 +1043,41 @@ headers = {
     "Content-Type": "application/json"
 }
 
+# Step 0: Get Units of Measure (CRITICAL FIRST STEP)
+print("0. Fetching EFRIS units of measure...")
+response = requests.get(f"{BASE_URL}/api/external/efris/units-of-measure", headers=headers)
+units_data = response.json()
+
+# Create mapping for your ERP
+unit_mapping = {}
+for unit in units_data.get('units', []):
+    code = unit['code']
+    name = unit['name'].lower()
+    unit_mapping[name] = code
+    # Add common aliases
+    if 'piece' in name:
+        unit_mapping['pcs'] = code
+        unit_mapping['each'] = code
+    elif 'kilogram' in name:
+        unit_mapping['kg'] = code
+    elif 'litre' in name:
+        unit_mapping['liter'] = code
+        unit_mapping['l'] = code
+
+print(f"   Loaded {len(unit_mapping)} unit mappings")
+
 # Step 1: Register Product
-print("1. Registering product...")
+print("\n1. Registering product...")
+erp_unit = 'pcs'  # Your ERP uses 'pcs' for pieces
+efris_unit = unit_mapping.get(erp_unit, '102')  # Get EFRIS code or default to Piece
+
 product = {
     "item_code": "CEMENT-001",
     "item_name": "Cement 50kg Bag",
     "unit_price": 35000,
     "commodity_code": "1010524",
     "commodity_name": "Portland cement",
-    "unit_of_measure": "102",
+    "unit_of_measure": efris_unit,  # Correct EFRIS code
     "stock_quantity": 100
 }
 response = requests.post(f"{BASE_URL}/api/external/efris/register-product", headers=headers, json=product)
