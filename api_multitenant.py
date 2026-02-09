@@ -7270,7 +7270,7 @@ async def external_register_product(
     db: Session = Depends(get_db)
 ):
     """
-    Register a product/item with EFRIS (T111)
+    Register a product/item with EFRIS (T130)
     
     Request Body:
     {
@@ -7279,11 +7279,18 @@ async def external_register_product(
         "unit_price": 5000,
         "commodity_code": "1010101",
         "commodity_name": "General Goods",
-        "unit_of_measure": "102",  // 102=Pieces
-        "have_excise_tax": "102",  // 102=No
+        "unit_of_measure": "102",  // 102=Pieces, 101=Box, etc. (see EFRIS codes)
+        "have_excise_tax": "102",  // 101=Yes, 102=No (default: 102)
+        "excise_duty_code": "",  // Required ONLY if have_excise_tax="101"
         "stock_quantity": 100,
-        "description": "Product description"
+        "description": "Product description",
+        "goods_type_code": "101"  // 101=Goods, 102=Fuel (default: 101)
     }
+    
+    IMPORTANT - Excise Duty:
+    - If have_excise_tax="101" (YES), you MUST provide excise_duty_code
+    - If have_excise_tax="102" (NO), do NOT include excise_duty_code
+    - Get excise codes from /api/external/efris/excise-duty endpoint
     
     Response:
     {
@@ -7306,26 +7313,34 @@ async def external_register_product(
             test_mode=company.efris_test_mode
         )
         
+        # Determine if item has excise tax
+        have_excise = product_data.get("have_excise_tax", "102")
+        measure_unit = product_data.get("unit_of_measure", "102")
+        
         # Build T130 payload (single product in list format)
         t130_payload = [{
             "operationType": "101",  # 101=Add, 102=Update
             "goodsName": product_data["item_name"],
             "goodsCode": product_data["item_code"],
-            "measureUnit": product_data.get("unit_of_measure", "102"),
+            "measureUnit": measure_unit,
             "unitPrice": str(product_data["unit_price"]),
             "currency": "101",  # 101=UGX
             "commodityCategoryId": product_data["commodity_code"],
-            "haveExciseTax": product_data.get("have_excise_tax", "102"),
+            "haveExciseTax": have_excise,
             "stockPrewarning": str(product_data.get("stock_quantity", 0)),
-            "pieceMeasureUnit": product_data.get("unit_of_measure", "102"),
-            "havePieceUnit": "102",  # Default to No
+            # CRITICAL: havePieceUnit is '102' (NO), pieceMeasureUnit MUST be empty per EFRIS error 645
+            "havePieceUnit": "102",  # 102=No piece unit
+            "pieceMeasureUnit": "",  # MUST be empty when havePieceUnit=102
             "pieceUnitPrice": str(product_data["unit_price"]),
             "packageScaledValue": "1",
             "pieceScaledValue": "1",
-            "exciseDutyCode": product_data.get("excise_duty_code", "") if product_data.get("have_excise_tax") == "101" else "",
             "description": product_data.get("description", ""),
-            "goodsTypeCode": "101"  # 101=Goods, 102=Fuel (default to Goods)
+            "goodsTypeCode": product_data.get("goods_type_code", "101")  # 101=Goods, 102=Fuel
         }]
+        
+        # Add excise duty code ONLY if item has excise tax
+        if have_excise == "101" and product_data.get("excise_duty_code"):
+            t130_payload[0]["exciseDutyCode"] = product_data["excise_duty_code"]
         
         result = efris.upload_goods(t130_payload)
         
