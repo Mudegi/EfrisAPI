@@ -7017,39 +7017,27 @@ async def external_submit_invoice(
     db: Session = Depends(get_db)
 ):
     """
-    External API endpoint for custom ERP systems to submit invoices to EFRIS
+    Submit invoice to EFRIS - Simple Tax Inclusive Format
     
-    Authentication: X-API-Key header
+    Custom ERP invoices are TAX INCLUSIVE - all prices include tax
+    No complicated tax calculations - EFRIS handles it
     
     Request Body:
     {
-        "invoice_number": "INV-2024-001",
+        "invoice_number": "INV-001",
         "invoice_date": "2024-01-24",
         "customer_name": "ABC Company Ltd",
-        "customer_tin": "1234567890",
-        "buyer_type": "0",  // 0=Business, 1=Individual
-        "buyer_phone": "+256700000000",
-        "buyer_email": "abc@example.com",
+        "customer_tin": "1234567890",  // Optional
         "items": [
             {
                 "item_name": "Product A",
+                "item_code": "PROD-001",  // Must be registered first
                 "quantity": 10,
-                "unit_price": 5000,
-                "total": 50000,
-                "tax_rate": 0.18,
-                "tax_amount": 9000,
-                "discount": 0,
-                "discount_amount": 0,
-                "excise_duty": 0,
-                "unit_of_measure": "102"  // Optional
+                "unit_price": 5900,  // Tax inclusive price
+                "tax_rate": 18,  // Tax rate as percentage (18 for 18% VAT)
+                "discount": 0  // Optional discount amount
             }
-        ],
-        "total_amount": 50000,
-        "total_tax": 9000,
-        "total_discount": 0,
-        "total_excise": 0,
-        "currency": "UGX",
-        "reference_number": "REF-001"  // Optional
+        ]
     }
     
     Response:
@@ -7057,16 +7045,12 @@ async def external_submit_invoice(
         "success": true,
         "fdn": "1234567890123456",
         "verification_code": "ABC123",
-        "qr_code": "base64_qr_code_here",
-        "efris_invoice_id": "internal_id",
-        "invoice_number": "INV-2024-001",
-        "fiscalized_at": "2024-01-24T10:30:00",
-        "message": "Invoice fiscalized successfully"
+        "invoice_number": "INV-001"
     }
     """
     try:
         # Validate required fields
-        required_fields = ["invoice_number", "invoice_date", "customer_name", "items", "total_amount", "currency"]
+        required_fields = ["invoice_number", "invoice_date", "customer_name", "items"]
         for field in required_fields:
             if field not in invoice_data:
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
@@ -7082,14 +7066,69 @@ async def external_submit_invoice(
             test_mode=company.efris_test_mode
         )
         
-        # Build EFRIS T109 payload
+        # Build EFRIS T109 payload - Simple tax inclusive format
+        goods_details = []
+        total_net = 0
+        total_tax = 0
+        total_gross = 0
+        
+        for idx, item in enumerate(invoice_data["items"], 1):
+            qty = float(item.get("quantity", 1))
+            unit_price = float(item.get("unit_price", 0))
+            tax_rate_pct = float(item.get("tax_rate", 18))  # Default 18%
+            discount = float(item.get("discount", 0))
+            
+            # Tax inclusive calculation
+            total_with_tax = (qty * unit_price) - discount
+            tax_rate_decimal = tax_rate_pct / 100
+            net_amount = total_with_tax / (1 + tax_rate_decimal)
+            tax_amount = total_with_tax - net_amount
+            
+            goods_details.append({
+                "item": item.get("item_name", ""),
+                "itemCode": item.get("item_code", ""),
+                "qty": str(qty),
+                "unitOfMeasure": item.get("unit_of_measure", "102"),
+                "unitPrice": str(round(unit_price, 2)),
+                "total": str(round(total_with_tax, 2)),
+                "taxRate": str(tax_rate_pct) if tax_rate_pct > 0 else "-",
+                "tax": str(round(tax_amount, 2)),
+                "discountTotal": str(round(discount, 2)) if discount > 0 else "0",
+                "discountTaxRate": "0",
+                "orderNumber": str(idx),
+                "discountFlag": "2",
+                "deemedFlag": "2",
+                "exciseFlag": "2",
+                "categoryId": "",
+                "categoryName": "",
+                "goodsCategoryId": item.get("commodity_code", ""),
+                "goodsCategoryName": "",
+                "exciseRate": "",
+                "exciseRule": "",
+                "exciseTax": "",
+                "pack": "",
+                "stick": "",
+                "exciseUnit": "",
+                "exciseCurrency": "",
+                "exciseRateName": ""
+            })
+            
+            total_net += net_amount
+            total_tax += tax_amount
+            total_gross += total_with_tax
+        
         efris_payload = {
             "oriInvoiceId": "",
             "invoiceNo": invoice_data["invoice_number"],
-            "invoiceDate": invoice_data["invoice_date"],
-            "invoiceType": "1",  # Normal invoice
-            "invoiceKind": "1",  # General
-            "dataSource": "106",  # Custom system
+            "antifakeCode": "",
+            "deviceNo": company.device_no,
+            "isCheckBatchNo": "0",
+            "isInsurance": "0",
+            "invoiceType": "1",
+            "invoiceKind": "1",
+            "dataSource": "106",
+            "invoiceIndustryCode": "101",
+            "isBatch": "0",
             "buyerDetails": {
                 "buyerTin": invoice_data.get("customer_tin", ""),
                 "buyerNinBrn": "",
@@ -7097,96 +7136,64 @@ async def external_submit_invoice(
                 "buyerLegalName": invoice_data["customer_name"],
                 "buyerBusinessName": invoice_data["customer_name"],
                 "buyerAddress": invoice_data.get("customer_address", ""),
-                "buyerEmail": invoice_data.get("buyer_email", ""),
-                "buyerMobilePhone": invoice_data.get("buyer_phone", ""),
+                "buyerEmail": invoice_data.get("customer_email", ""),
+                "buyerMobilePhone": invoice_data.get("customer_phone", ""),
                 "buyerLinePhone": "",
                 "buyerPlaceOfBusi": "",
-                "buyerType": invoice_data.get("buyer_type", "1"),
+                "buyerType": "1",
                 "buyerCitizenship": "1",
                 "buyerSector": "1",
                 "buyerReferenceNo": ""
             },
-            "goodsDetails": [],
+            "basicInformation": {
+                "invoiceNo": invoice_data["invoice_number"],
+                "antifakeCode": "",
+                "deviceNo": company.device_no,
+                "isCheckBatchNo": "0",
+                "isInsurance": "0",
+                "invoiceType": "1",
+                "invoiceKind": "1",
+                "dataSource": "106",
+                "invoiceIndustryCode": "101",
+                "isBatch": "0"
+            },
+            "sellerDetails": {
+                "tin": company.tin,
+                "ninBrn": "",
+                "legalName": company.name,
+                "businessName": company.name,
+                "address": company.address or "",
+                "emailAddress": company.email or "",
+                "mobilePhone": company.phone or "",
+                "linePhone": "",
+                "placeOfBusi": "",
+                "referenceNo": ""
+            },
+            "goodsDetails": goods_details,
             "taxDetails": [],
             "summary": {
-                "netAmount": invoice_data["total_amount"],
-                "taxAmount": invoice_data.get("total_tax", 0),
-                "grossAmount": invoice_data["total_amount"] + invoice_data.get("total_tax", 0),
-                "itemCount": len(invoice_data["items"]),
+                "netAmount": str(round(total_net, 2)),
+                "taxAmount": str(round(total_tax, 2)),
+                "grossAmount": str(round(total_gross, 2)),
+                "itemCount": str(len(invoice_data["items"])),
                 "modeCode": "0",
-                "remarks": invoice_data.get("reference_number", ""),
+                "remarks": invoice_data.get("remarks", ""),
                 "qrCode": ""
             },
-            "payWay": "101",  # Cash
+            "payWay": [{"paymentMode": "101", "paymentAmount": str(round(total_gross, 2)), "orderNumber": ""}],
             "extend": {
                 "reason": "",
                 "reasonCode": ""
-            }
+            },
+            "importServicesSeller": {},
+            "airlineGoodsDetails": []
         }
-        
-        # Process items
-        tax_categories = {}
-        for item in invoice_data["items"]:
-            # Add to goods details
-            efris_payload["goodsDetails"].append({
-                "item": item.get("item_name", ""),
-                "itemCode": item.get("item_code", ""),
-                "qty": str(item.get("quantity", 1)),
-                "unitOfMeasure": item.get("unit_of_measure", "102"),
-                "unitPrice": str(item.get("unit_price", 0)),
-                "total": str(item.get("total", 0)),
-                "taxRate": str(item.get("tax_rate", 0.18) * 100) if item.get("tax_rate") else "-",
-                "tax": str(item.get("tax_amount", 0)),
-                "discountTotal": str(item.get("discount_amount", 0)),
-                "discountTaxRate": str(item.get("discount", 0)),
-                "orderNumber": str(invoice_data["items"].index(item) + 1),
-                "discountFlag": "2" if item.get("discount_amount", 0) > 0 else "0",
-                "deemedFlag": "2",
-                "exciseFlag": "2" if item.get("excise_duty", 0) > 0 else "0",
-                "categoryId": "",
-                "categoryName": "",
-                "goodsCategoryId": item.get("commodity_code", "1010101"),
-                "goodsCategoryName": item.get("commodity_name", "General"),
-                "exciseRate": str(item.get("excise_duty", 0)),
-                "exciseRule": "1",
-                "exciseTax": str(item.get("excise_amount", 0)),
-                "pack": "1",
-                "stick": "1",
-                "exciseUnit": item.get("excise_unit", "101"),
-                "exciseCurrency": "UGX",
-                "exciseRateName": ""
-            })
-            
-            # Group by tax rate for tax details
-            tax_rate_str = str(item.get("tax_rate", 0.18) * 100) if item.get("tax_rate") else "-"
-            if tax_rate_str not in tax_categories:
-                tax_categories[tax_rate_str] = {
-                    "netAmount": 0,
-                    "taxAmount": 0,
-                    "grossAmount": 0
-                }
-            tax_categories[tax_rate_str]["netAmount"] += item.get("total", 0)
-            tax_categories[tax_rate_str]["taxAmount"] += item.get("tax_amount", 0)
-            tax_categories[tax_rate_str]["grossAmount"] += item.get("total", 0) + item.get("tax_amount", 0)
-        
-        # Add tax details
-        for tax_rate, amounts in tax_categories.items():
-            efris_payload["taxDetails"].append({
-                "taxCategoryCode": tax_rate,
-                "netAmount": str(amounts["netAmount"]),
-                "taxRate": tax_rate,
-                "taxAmount": str(amounts["taxAmount"]),
-                "grossAmount": str(amounts["grossAmount"]),
-                "exciseUnit": "",
-                "exciseCurrency": "",
-                "taxRateName": f"{tax_rate}%-VAT" if tax_rate != "-" else "No Tax"
-            })
         
         # Submit to EFRIS (T109)
         result = efris.upload_invoice(efris_payload)
         
         if result.get("returnStateInfo", {}).get("returnCode") == "00":
-            # Success - extract FDN and other details
+            # Success - extract FDN and verification code
             data = result.get("data", {})
             fdn = data.get("basicInformation", {}).get("invoiceNo", "")
             verification_code = data.get("basicInformation", {}).get("antifakeCode", "")
@@ -7199,12 +7206,12 @@ async def external_submit_invoice(
                 invoice_date=datetime.strptime(invoice_data["invoice_date"], "%Y-%m-%d").date(),
                 customer_name=invoice_data["customer_name"],
                 customer_tin=invoice_data.get("customer_tin", ""),
-                buyer_type=invoice_data.get("buyer_type", "1"),
-                total_amount=invoice_data["total_amount"],
-                total_tax=invoice_data.get("total_tax", 0),
-                total_excise=invoice_data.get("total_excise", 0),
-                total_discount=invoice_data.get("total_discount", 0),
-                currency=invoice_data.get("currency", "UGX"),
+                buyer_type="1",
+                total_amount=round(total_gross, 2),
+                total_tax=round(total_tax, 2),
+                total_excise=0,
+                total_discount=sum(float(item.get("discount", 0)) for item in invoice_data["items"]),
+                currency="UGX",
                 status="success",
                 fdn=fdn,
                 efris_invoice_id=data.get("basicInformation", {}).get("invoiceId", ""),
