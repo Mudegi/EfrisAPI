@@ -451,7 +451,7 @@
                 
                 <div class="demo-card">
                     <h4>T115: Units of Measure ⭐ NEW</h4>
-                    <p><strong>CRITICAL:</strong> Get official EFRIS unit codes. Code 102=Piece (NOT litres!)</p>
+                    <p>Get official EFRIS unit of measure codes from system dictionary (T115)</p>
                     <button class="test-button" onclick="testT115()">Test Units Query</button>
                 </div>
                 
@@ -984,13 +984,12 @@
                 
                 let message = '';
                 if (data.status === 'success') {
-                    message = `✅ SUCCESS T115 Units of Measure Retrieved!\n\n`;
-                    message += `⚠️ IMPORTANT: ${data.important_note}\n\n`;
+                    message = `✅ SUCCESS T115 Units of Measure Retrieved from EFRIS!\n\n`;
                     message += `📊 Total Units: ${data.total}\n\n`;
-                    message += `Common Units:\n`;
-                    const commonUnits = data.units.slice(0, 10);
-                    commonUnits.forEach(unit => {
-                        message += `  ${unit.code} = ${unit.name} - ${unit.description}\n`;
+                    message += `Sample Units:\n`;
+                    const sampleUnits = data.units.slice(0, 15);
+                    sampleUnits.forEach(unit => {
+                        message += `  ${unit.code} = ${unit.name}\n`;
                     });
                     message += `\nFull Response:\n${JSON.stringify(data, null, 2)}`;
                 } else {

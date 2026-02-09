@@ -779,43 +779,25 @@ async def public_test_t115():
         # Get system dictionary including units of measure
         result = efris.get_code_list(None)
         
-        # Extract and format units of measure
+        # Extract units of measure from EFRIS response
         decrypted_content = result.get('data', {}).get('decrypted_content', {})
         rate_units = decrypted_content.get('rateUnit', [])
         
-        # Add helpful descriptions
-        units_with_descriptions = []
+        # Format units (just code and name from EFRIS)
+        units = []
         for unit in rate_units:
-            code = unit.get('value', '')
-            name = unit.get('name', '')
-            
-            # Add helpful descriptions
-            description = f"Use for products measured/sold in {name.lower()}"
-            if 'piece' in name.lower():
-                description = "Use for individual items (computers, phones, furniture, etc.)"
-            elif 'carton' in name.lower() or 'box' in name.lower():
-                description = "Use for products sold in cartons or boxes"
-            elif 'kilogram' in name.lower() or 'kg' in name.lower():
-                description = "Use for products sold by weight in kilograms"
-            elif 'litre' in name.lower() or 'liter' in name.lower():
-                description = "Use for liquids (water, fuel, beverages, etc.)"
-            elif 'meter' in name.lower():
-                description = "Use for products measured in length/distance"
-            
-            units_with_descriptions.append({
-                "code": code,
-                "name": name,
-                "description": description
+            units.append({
+                "code": unit.get('value', ''),
+                "name": unit.get('name', '')
             })
         
         return {
             "status": "success",
             "interface": "T115",
             "description": "System dictionary - Units of Measure codes from EFRIS",
-            "important_note": "Code '102' = Piece (NOT litres!). Always verify codes before using.",
-            "units": units_with_descriptions,
-            "total": len(units_with_descriptions),
-            "raw_data": result
+            "units": units,
+            "total": len(units),
+            "full_response": result
         }
     except Exception as e:
         error_msg = str(e)
@@ -833,16 +815,16 @@ async def public_test_t115():
             "message": "Using cached/fallback unit codes (EFRIS connection failed)",
             "error": error_msg,
             "units": [
-                {"code": "101", "name": "Carton", "description": "Use for products sold in cartons or boxes"},
-                {"code": "102", "name": "Piece", "description": "Use for individual items (computers, phones, furniture, etc.)"},
-                {"code": "103", "name": "Kilogram", "description": "Use for products sold by weight in kilograms"},
-                {"code": "104", "name": "Litre", "description": "Use for liquids (water, fuel, beverages, etc.)"},
-                {"code": "105", "name": "Meter", "description": "Use for products measured in length/distance"},
-                {"code": "106", "name": "Tonne", "description": "Use for heavy products sold by weight in tonnes"},
-                {"code": "107", "name": "Gram", "description": "Use for small quantities sold by weight"},
-                {"code": "112", "name": "Pack", "description": "Use for packaged products"},
-                {"code": "113", "name": "Dozen", "description": "Use for products sold in sets of 12"},
-                {"code": "115", "name": "Pair", "description": "Use for products sold in pairs (shoes, gloves)"}
+                {"code": "101", "name": "Carton"},
+                {"code": "102", "name": "Piece"},
+                {"code": "103", "name": "Kilogram"},
+                {"code": "104", "name": "Litre"},
+                {"code": "105", "name": "Meter"},
+                {"code": "106", "name": "Tonne"},
+                {"code": "107", "name": "Gram"},
+                {"code": "112", "name": "Pack"},
+                {"code": "113", "name": "Dozen"},
+                {"code": "115", "name": "Pair"}
             ]
         }
 
@@ -8054,35 +8036,12 @@ async def external_get_units_of_measure(
                 {"value": "120", "name": "Bottle"}
             ]
         
-        # Format units with helpful descriptions
+        # Return units as received from EFRIS (code and name only)
         units = []
         for unit in rate_units:
-            code = unit.get('value', '')
-            name = unit.get('name', '')
-            
-            # Add helpful descriptions based on common use cases
-            description = f"Use for products measured/sold in {name.lower()}"
-            if 'piece' in name.lower():
-                description = "Use for individual items (computers, phones, furniture, etc.)"
-            elif 'carton' in name.lower() or 'box' in name.lower():
-                description = "Use for products sold in cartons or boxes"
-            elif 'kilogram' in name.lower() or 'kg' in name.lower():
-                description = "Use for products sold by weight in kilograms"
-            elif 'litre' in name.lower() or 'liter' in name.lower():
-                description = "Use for liquids (water, fuel, beverages, etc.)"
-            elif 'meter' in name.lower():
-                description = "Use for products measured in length/distance"
-            elif 'gram' in name.lower():
-                description = "Use for small quantities sold by weight"
-            elif 'dozen' in name.lower():
-                description = "Use for products sold in sets of 12"
-            elif 'pack' in name.lower():
-                description = "Use for packaged products"
-            
             units.append({
-                "code": code,
-                "name": name,
-                "description": description
+                "code": unit.get('value', ''),
+                "name": unit.get('name', '')
             })
         
         return {
@@ -8096,26 +8055,26 @@ async def external_get_units_of_measure(
     except Exception as e:
         # Return static fallback on error
         fallback_units = [
-            {"code": "101", "name": "Carton", "description": "Use for products sold in cartons or boxes"},
-            {"code": "102", "name": "Piece", "description": "Use for individual items (computers, phones, furniture, etc.)"},
-            {"code": "103", "name": "Kilogram", "description": "Use for products sold by weight in kilograms"},
-            {"code": "104", "name": "Litre", "description": "Use for liquids (water, fuel, beverages, etc.)"},
-            {"code": "105", "name": "Meter", "description": "Use for products measured in length/distance"},
-            {"code": "106", "name": "Tonne", "description": "Use for heavy products sold by weight in tonnes"},
-            {"code": "107", "name": "Gram", "description": "Use for small quantities sold by weight"},
-            {"code": "108", "name": "Millilitre", "description": "Use for small liquid quantities"},
-            {"code": "109", "name": "Centimetre", "description": "Use for small length measurements"},
-            {"code": "110", "name": "Square Meter", "description": "Use for area measurements (tiles, land, fabric)"},
-            {"code": "111", "name": "Cubic Meter", "description": "Use for volume measurements"},
-            {"code": "112", "name": "Pack", "description": "Use for packaged products"},
-            {"code": "113", "name": "Dozen", "description": "Use for products sold in sets of 12"},
-            {"code": "114", "name": "Set", "description": "Use for product sets or collections"},
-            {"code": "115", "name": "Pair", "description": "Use for products sold in pairs (shoes, gloves)"},
-            {"code": "116", "name": "Roll", "description": "Use for rolled products (paper, fabric, wire)"},
-            {"code": "117", "name": "Sheet", "description": "Use for flat products sold in sheets"},
-            {"code": "118", "name": "Bundle", "description": "Use for bundled products"},
-            {"code": "119", "name": "Bag", "description": "Use for products sold in bags"},
-            {"code": "120", "name": "Bottle", "description": "Use for bottled products"}
+            {"code": "101", "name": "Carton"},
+            {"code": "102", "name": "Piece"},
+            {"code": "103", "name": "Kilogram"},
+            {"code": "104", "name": "Litre"},
+            {"code": "105", "name": "Meter"},
+            {"code": "106", "name": "Tonne"},
+            {"code": "107", "name": "Gram"},
+            {"code": "108", "name": "Millilitre"},
+            {"code": "109", "name": "Centimetre"},
+            {"code": "110", "name": "Square Meter"},
+            {"code": "111", "name": "Cubic Meter"},
+            {"code": "112", "name": "Pack"},
+            {"code": "113", "name": "Dozen"},
+            {"code": "114", "name": "Set"},
+            {"code": "115", "name": "Pair"},
+            {"code": "116", "name": "Roll"},
+            {"code": "117", "name": "Sheet"},
+            {"code": "118", "name": "Bundle"},
+            {"code": "119", "name": "Bag"},
+            {"code": "120", "name": "Bottle"}
         ]
         
         return {
