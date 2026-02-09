@@ -7317,7 +7317,7 @@ async def external_register_product(
         have_excise = product_data.get("have_excise_tax", "102")
         measure_unit = product_data.get("unit_of_measure", "102")
         
-        # Build T130 payload (single product in list format)
+        # Build T130 payload - MATCHES QuickBooks working format exactly
         t130_payload = [{
             "operationType": "101",  # 101=Add, 102=Update
             "goodsName": product_data["item_name"],
@@ -7327,18 +7327,19 @@ async def external_register_product(
             "currency": "101",  # 101=UGX
             "commodityCategoryId": product_data["commodity_code"],
             "haveExciseTax": have_excise,
-            "stockPrewarning": str(product_data.get("stock_quantity", 0)),
-            # CRITICAL EFRIS Validation Rules for havePieceUnit='102':
-            # Error 645: pieceMeasureUnit must be empty!
-            # Error 646: pieceUnitPrice must be empty!
-            "havePieceUnit": "102",  # 102=No piece unit
-            "pieceMeasureUnit": "",  # MUST be empty when havePieceUnit=102
-            "pieceUnitPrice": "",  # MUST be empty when havePieceUnit=102
-            "packageScaledValue": "1",
-            "pieceScaledValue": "1",
+            "goodsTypeCode": product_data.get("goods_type_code", "101"),  # 101=Goods, 102=Fuel
             "description": product_data.get("description", ""),
-            "goodsTypeCode": product_data.get("goods_type_code", "101")  # 101=Goods, 102=Fuel
+            # Match QuickBooks working format
+            "havePieceUnit": "101",  # Same as QuickBooks
+            "pieceMeasureUnit": measure_unit,  # Same as QuickBooks
+            "pieceUnitPrice": str(product_data["unit_price"]),  # Same as QuickBooks
+            "packageScaledValue": "1",
+            "pieceScaledValue": "1"
         }]
+        
+        # Add stockPrewarning if provided
+        if "stock_quantity" in product_data:
+            t130_payload[0]["stockPrewarning"] = str(product_data["stock_quantity"])
         
         # Add excise duty code ONLY if item has excise tax
         if have_excise == "101" and product_data.get("excise_duty_code"):
