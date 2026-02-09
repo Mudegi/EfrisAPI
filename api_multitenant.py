@@ -757,6 +757,96 @@ async def public_test_t125():
         }
 
 
+@app.get("/api/public/efris/test/t115")
+async def public_test_t115():
+    """Public Demo: T115 Query Units of Measure - READ ONLY
+    
+    Fetches official EFRIS unit of measure codes from system dictionary.
+    This is CRITICAL for registering products with correct unit codes.
+    
+    Example: Code "102" = Piece (NOT litres!)
+    
+    Calls real EFRIS server. Shows error if server is unavailable.
+    """
+    try:
+        efris = EfrisManager(
+            tin="1014409555",
+            device_no="1014409555_02",
+            cert_path="keys/wandera.pfx",
+            test_mode=True
+        )
+        
+        # Get system dictionary including units of measure
+        result = efris.get_code_list(None)
+        
+        # Extract and format units of measure
+        decrypted_content = result.get('data', {}).get('decrypted_content', {})
+        rate_units = decrypted_content.get('rateUnit', [])
+        
+        # Add helpful descriptions
+        units_with_descriptions = []
+        for unit in rate_units:
+            code = unit.get('value', '')
+            name = unit.get('name', '')
+            
+            # Add helpful descriptions
+            description = f"Use for products measured/sold in {name.lower()}"
+            if 'piece' in name.lower():
+                description = "Use for individual items (computers, phones, furniture, etc.)"
+            elif 'carton' in name.lower() or 'box' in name.lower():
+                description = "Use for products sold in cartons or boxes"
+            elif 'kilogram' in name.lower() or 'kg' in name.lower():
+                description = "Use for products sold by weight in kilograms"
+            elif 'litre' in name.lower() or 'liter' in name.lower():
+                description = "Use for liquids (water, fuel, beverages, etc.)"
+            elif 'meter' in name.lower():
+                description = "Use for products measured in length/distance"
+            
+            units_with_descriptions.append({
+                "code": code,
+                "name": name,
+                "description": description
+            })
+        
+        return {
+            "status": "success",
+            "interface": "T115",
+            "description": "System dictionary - Units of Measure codes from EFRIS",
+            "important_note": "Code '102' = Piece (NOT litres!). Always verify codes before using.",
+            "units": units_with_descriptions,
+            "total": len(units_with_descriptions),
+            "raw_data": result
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "HTML" in error_msg or "<!DOCTYPE" in error_msg:
+            return {
+                "status": "error",
+                "interface": "T115",
+                "message": "EFRIS server is currently unavailable. The test server may be down for maintenance.",
+                "details": "Server returned HTML error page instead of JSON response"
+            }
+        # Return fallback static data on error
+        return {
+            "status": "warning",
+            "interface": "T115",
+            "message": "Using cached/fallback unit codes (EFRIS connection failed)",
+            "error": error_msg,
+            "units": [
+                {"code": "101", "name": "Carton", "description": "Use for products sold in cartons or boxes"},
+                {"code": "102", "name": "Piece", "description": "Use for individual items (computers, phones, furniture, etc.)"},
+                {"code": "103", "name": "Kilogram", "description": "Use for products sold by weight in kilograms"},
+                {"code": "104", "name": "Litre", "description": "Use for liquids (water, fuel, beverages, etc.)"},
+                {"code": "105", "name": "Meter", "description": "Use for products measured in length/distance"},
+                {"code": "106", "name": "Tonne", "description": "Use for heavy products sold by weight in tonnes"},
+                {"code": "107", "name": "Gram", "description": "Use for small quantities sold by weight"},
+                {"code": "112", "name": "Pack", "description": "Use for packaged products"},
+                {"code": "113", "name": "Dozen", "description": "Use for products sold in sets of 12"},
+                {"code": "115", "name": "Pair", "description": "Use for products sold in pairs (shoes, gloves)"}
+            ]
+        }
+
+
 @app.get("/api/public/efris/test/t106")
 async def public_test_t106():
     """Public Demo: T106 Query Taxpayer by TIN - READ ONLY

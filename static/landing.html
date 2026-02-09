@@ -450,6 +450,12 @@
                 </div>
                 
                 <div class="demo-card">
+                    <h4>T115: Units of Measure ⭐ NEW</h4>
+                    <p><strong>CRITICAL:</strong> Get official EFRIS unit codes. Code 102=Piece (NOT litres!)</p>
+                    <button class="test-button" onclick="testT115()">Test Units Query</button>
+                </div>
+                
+                <div class="demo-card">
                     <h4>T106: Query Taxpayer</h4>
                     <p>Look up taxpayer information by TIN number from URA database</p>
                     <button class="test-button" onclick="testT106()">Test TIN Lookup</button>
@@ -965,6 +971,33 @@
                 const response = await fetch(`${API_BASE}/api/public/efris/test/t125`);
                 const data = await response.json();
                 showResponse(`SUCCESS T125 Excise Codes Retrieved!\n\n${JSON.stringify(data, null, 2)}`);
+            } catch (error) {
+                showResponse(`Error: ${error.message}`, true);
+            }
+        }
+
+        async function testT115() {
+            showLoading();
+            try {
+                const response = await fetch(`${API_BASE}/api/public/efris/test/t115`);
+                const data = await response.json();
+                
+                let message = '';
+                if (data.status === 'success') {
+                    message = `✅ SUCCESS T115 Units of Measure Retrieved!\n\n`;
+                    message += `⚠️ IMPORTANT: ${data.important_note}\n\n`;
+                    message += `📊 Total Units: ${data.total}\n\n`;
+                    message += `Common Units:\n`;
+                    const commonUnits = data.units.slice(0, 10);
+                    commonUnits.forEach(unit => {
+                        message += `  ${unit.code} = ${unit.name} - ${unit.description}\n`;
+                    });
+                    message += `\nFull Response:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    message = `⚠️ ${data.message}\n\n${JSON.stringify(data, null, 2)}`;
+                }
+                
+                showResponse(message);
             } catch (error) {
                 showResponse(`Error: ${error.message}`, true);
             }
