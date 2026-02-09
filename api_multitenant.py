@@ -7964,6 +7964,76 @@ async def external_stock_decrease(
         )
 
 
+@app.post("/api/external/efris/stock-increase")
+async def external_stock_increase(
+    stock_data: dict,
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    Increase stock in EFRIS (T131) - Matches QuickBooks Format
+    
+    Request Body:
+    {
+        "goodsStockIn": {
+            "operationType": "101",  # 101=Increase
+            "supplierTin": "1234567890",
+            "supplierName": "Supplier Ltd",
+            "stockInType": "102",  # 101=Import, 102=Local Purchase, 103=Manufacture, 104=Opening Stock
+            "stockInDate": "2026-02-09",
+            "remarks": "Stock replenishment"
+        },
+        "goodsStockInItem": [
+            {
+                "goodsCode": "PROD-001",
+                "quantity": "100",
+                "unitPrice": "5000",
+                "measureUnit": "102",
+                "remarks": "Stock replenishment"
+            }
+        ]
+    }
+    """
+    try:
+        # Validate required fields - same as QuickBooks
+        if "goodsStockIn" not in stock_data or "goodsStockInItem" not in stock_data:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing required fields: goodsStockIn and goodsStockInItem"
+            )
+        
+        if not stock_data["goodsStockInItem"] or len(stock_data["goodsStockInItem"]) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Stock increase must have at least one item"
+            )
+        
+        # Initialize EFRIS Manager - same as QuickBooks
+        efris = EfrisManager(
+            tin=company.tin,
+            device_no=company.device_no,
+            cert_path=company.efris_cert_path,
+            test_mode=company.efris_test_mode
+        )
+        
+        # Pass directly to manager - same as QuickBooks does
+        result = efris.stock_increase(stock_data)
+        
+        return {
+            "success": True,
+            "message": "Stock increase submitted successfully",
+            "efris_response": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to increase stock: {str(e)}"
+        )
+
+
 # ========== HEALTH CHECK ==========
 
 @app.get("/health")
