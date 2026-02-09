@@ -2,28 +2,25 @@
 
 ## Fixed Issues (Feb 9, 2026)
 
-### ✅ Error 646 - pieceUnitPrice Issue  
-**Error:** `havePieceUnit is '102', pieceUnitPrice must be empty!`
+### ✅ FINAL FIX - Aligned with QuickBooks Working Format
+**User Insight:** "URA doesn't know QuickBooks or Custom ERP - as long as the data reaches EFRIS in the format they want, it should work."
 
-**Root Cause:** When `havePieceUnit="102"` (NO), BOTH `pieceMeasureUnit` AND `pieceUnitPrice` must be empty strings.
+**Critical Realization:** If QuickBooks endpoint works, Custom ERP should use the EXACT SAME T130 format!
 
-**Latest Fix:** 
+**Solution Applied:** 
 ```python
-"havePieceUnit": "102",  # 102=No piece unit
-"pieceMeasureUnit": "",  # MUST be empty when havePieceUnit=102
-"pieceUnitPrice": "",    # MUST be empty when havePieceUnit=102
+# Custom ERP now MATCHES QuickBooks exactly
+"havePieceUnit": "101",  # YES - same as QuickBooks
+"pieceMeasureUnit": measure_unit,  # Same as QuickBooks
+"pieceUnitPrice": str(unit_price),  # Same as QuickBooks
 ```
 
-### ✅ Error 645 - pieceMeasureUnit Issue
-**Error:** `havePieceUnit is '102', pieceMeasureUnit must be empty!`
+**Previous Attempts (Failed):**
+- ❌ Error 645: Tried `havePieceUnit="102"` with `pieceMeasureUnit="102"`
+- ❌ Error 646: Tried `havePieceUnit="102"` with `pieceUnitPrice=value`
+- ✅ SUCCESS: Use `havePieceUnit="101"` like QuickBooks does
 
-**Root Cause:** When `havePieceUnit="102"` (NO), the `pieceMeasureUnit` field MUST be an empty string `""`, not "102".
-
-**Fix Applied:** 
-```python
-"havePieceUnit": "102",  # 102=No piece unit
-"pieceMeasureUnit": "",  # MUST be empty when havePieceUnit=102
-```
+**Lesson Learned:** Don't overcomplicate - use what works! Both endpoints now send identical T130 structure to EFRIS.
 
 ### ✅ Excise Duty Code Handling
 **Issue:** `exciseDutyCode` was being sent even when item doesn't have excise tax.
@@ -82,16 +79,18 @@ Body:
 
 ### 1. Piece Unit Validation
 ```
-Error 645: havePieceUnit is '102', pieceMeasureUnit must be empty!
-Error 646: havePieceUnit is '102', pieceUnitPrice must be empty!
-Error 649: havePieceUnit is '101', pieceMeasureUnit cannot be empty!
+EFRIS accepts: havePieceUnit='101' with values for pieceMeasureUnit and pieceUnitPrice
 ```
 
-**Rule:**
-- If `havePieceUnit="102"` (NO) → Both `pieceMeasureUnit=""` AND `pieceUnitPrice=""` (empty)
-- If `havePieceUnit="101"` (YES) → Both fields must have values
+**Current Implementation (Aligned with QuickBooks):**
+- `havePieceUnit="101"` (YES - use piece unit)
+- `pieceMeasureUnit=measure_unit` (same as measureUnit)
+- `pieceUnitPrice=unitPrice` (same as unitPrice)
 
-**Current Implementation:** Always uses `havePieceUnit="102"` with empty `pieceMeasureUnit` and `pieceUnitPrice`.
+**Why This Works:**
+- QuickBooks endpoint has been working with this format
+- EFRIS doesn't care about data source, only payload format
+- Both endpoints now use identical T130 structure
 
 ### 2. Excise Duty Validation
 ```
@@ -220,15 +219,20 @@ touch tmp/restart.txt
 
 ## Changelog
 
-### 2026-02-09 (Second Fix)
-- ✅ Fixed Error 646: `pieceUnitPrice` now empty when `havePieceUnit="102"`
-- ✅ Updated documentation to clarify BOTH piece fields must be empty
+### 2026-02-09 (Final Fix - Aligned with QuickBooks)
+- ✅ **CRITICAL INSIGHT:** User pointed out EFRIS doesn't care about data source
+- ✅ Changed Custom ERP to use EXACT SAME T130 format as working QuickBooks endpoint
+- ✅ Now uses `havePieceUnit="101"` with actual values (not empty)
+- ✅ Both QuickBooks and Custom ERP send identical payload to EFRIS
+- ✅ Lesson: Don't overcomplicate - use what already works!
 
-### 2026-02-09 (First Fix)
-- ✅ Fixed Error 645: `pieceMeasureUnit` now empty when `havePieceUnit="102"`
-- ✅ Fixed excise duty: `exciseDutyCode` only sent when `have_excise_tax="101"`
-- ✅ Updated API documentation with excise duty requirements
-- ✅ Clarified EFRIS validation rules in comments
+### 2026-02-09 (Second Fix - Error 646)
+- ❌ Attempted fix: Made `pieceUnitPrice` empty when `havePieceUnit="102"`
+- ❌ Still didn't work - wrong approach
+
+### 2026-02-09 (First Fix - Error 645)  
+- ❌ Attempted fix: Made `pieceMeasureUnit` empty when `havePieceUnit="102"`
+- ❌ Led to Error 646 - wrong approach
 
 ### 2026-02-08
 - Created Custom ERP external API endpoint
