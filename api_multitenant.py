@@ -7328,10 +7328,12 @@ async def external_register_product(
             "commodityCategoryId": product_data["commodity_code"],
             "haveExciseTax": have_excise,
             "stockPrewarning": str(product_data.get("stock_quantity", 0)),
-            # CRITICAL: havePieceUnit is '102' (NO), pieceMeasureUnit MUST be empty per EFRIS error 645
+            # CRITICAL EFRIS Validation Rules for havePieceUnit='102':
+            # Error 645: pieceMeasureUnit must be empty!
+            # Error 646: pieceUnitPrice must be empty!
             "havePieceUnit": "102",  # 102=No piece unit
             "pieceMeasureUnit": "",  # MUST be empty when havePieceUnit=102
-            "pieceUnitPrice": str(product_data["unit_price"]),
+            "pieceUnitPrice": "",  # MUST be empty when havePieceUnit=102
             "packageScaledValue": "1",
             "pieceScaledValue": "1",
             "description": product_data.get("description", ""),
