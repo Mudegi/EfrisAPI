@@ -139,1331 +139,7 @@ errorMsg 	errorMsg 	N 	Unlimite d 	Error 	Msg exception 	of 	offline 	invoice
 ReturnCode description 
 Interface Code 	ReturnCode  	Description 
 ALL 	99 	Unknow error 
-	00 	SUCCESS 
-	01 	Interface coding error 
-	02 	White box encryption failed 
-	03 	White box decryption failed 
-	04 	Read white box error 
-	05 	AppID error 
-	06 	The outer message is empty 
-	07 	GlobalInfo content cannot be empty 
-	08 	Data content cannot be empty 
-	09 	ReturnStateInfo content cannot be empty 
-	10 	DataDescription content cannot be empty 
-	11 	InterfaceCode cannot be empty 
-	12 	UserName cannot be empty 
-	13 	TaxpayerID cannot be empty 
-	14 	DeviceMAC cannot be empty 
-	15 	Unpacking data error 
-	16 	AppID cannot be empty 
-	17 	Version cannot be empty 
-	18 	DataExchangeId cannot be empty 
-	19 	RequestCode cannot be empty 
-	20 	RequestTime cannot be empty 
-	21 	ResponseCode cannot be empty 
-	22 	Currency cannot be empty 
-	23 	Tax rate acquisition error 
-	24 	The version cannot be longer than 15 characters 
-	25 	DataExchangeId cannot be greater than 32 characters! 
-	26 	RequestCode error 
-	27 	ResponseCode error 
-	28 	The difference between RequestTime and the current time is greater than ten minutes! 
-	29 	DeviceMAC cannot be greater than 25 characters 
-
-	30 	AppID error 
-	31 	RequestTime time format error 
-	32 	Version is too low, please upgrade version 
-	33 	Version error 
-	34 	Longitude cannot be empty 
-	35 	Longitude cannot be greater than 60 characters 
-	36 	Latitude cannot be empty 
-	37 	Longitude cannot be greater than 60 characters 
-	38 	Signature value is invalid! 
-	39 	Signature value can not be empty! 
-	40 	Insufficient permissions! 
-	41 	Item does not exist！ 
-	42 	Please register for e-Invoicing first! 
-	43 	Outer packet json format is invalid! 
-	44 	Taxpayer branch has been removed! 
-	45 	Partial failure! 
-	46 	database error! 
-	100 	Taxpayer does not exist 
-	101 	Taxpayer status is abnormal 
-	102 	Taxpayer branch status abnormal 
-T133 	47 	The current version does not support incremental upgrade. 
-T110、T113、
-T114 	300 	The original invoice number does not exist 
-	301 	The original invoice number has not been completed 
-	303 	Update failed 
-	304 	According to the original invoice number, the result is null 
-	305 	Invoice approval failed 
-	306 	Credit note(s) have already been issued against this invoice. Please cancel the existing credit note(s) to proceed.! 
-	307 	Get process template is empty 
-	308 	Approval failed 
-	309 	Items cannot be empty 
-	310 	The date cannot be voided 
-	311 	BusinessKey does not exist 
-	312 	Cannot apply for credit note/ debit note, the fiscal document has exceeded the allowable application days. 
-
-	313 	The application has been voided! 
-	314 	The application cannot be voided for initiated sub process, please contact URA. 
-	315 	Successfully Operated 
-	316 	Seller does not have taxpayer account 
-	317 	A debit note has already been issued against this invoice. Please cancel the existing debit note to proceed! 
-	318 	The debit note has a cancellation request in process, please don't apply repeatedly. 
-	319 	The credit note has been cancelled, please don't apply repeatedly. 
-ALL 	400 	Device does not exist 
-	401 	Device key does not exist 
-	402 	Device key expired 
-	403 	Device status is abnormal 
-A101 	501 	get captcha error！ 
-	502 	Verification code is not correct！ 
-	503 	Check ORCode error！ 
-	504 	The invoice does not exist. 
-	505 	Report code does not exist！ 
-	506 	The invoice did not participate in this lottery 
-	507 	The invoice does not exist for lottery 
-	508 	The invoice information entered is incorrect 
-	509 	Invoice verification times exceeds the limit 
-T130 	600 	GoodsCode cannot be empty 
-	601 	GoodsCode cannot be greater than 50! 
-	602 	goodsCode already exists 
-	603 	GoodsName cannot be empty 
-	604 	GoodsName cannot be greater than 200! 
-	605 	Measureunit cannot be empty 
-	606 	measureUnit:Invalid field value 
-	607 	unitPrice cannot be empty! 
-	608 	unitPrice The integer character length cannot exceed 12! 
-	609 	unitPrice:Cannot be positive 
-	610 	unitPrice:Cannot be equal to 0 
-	611 	unitPrice:Cannot be negative 
-	612 	currency:Cannot be empty 
-
-	613 	currency:Invalid field value 
-	614 	commodityCategoryId:Cannot be empty 
-	615 	commodityCategoryId:Byte length cannot be greater than 18! 
-	616 	commodityCategoryId: invalid field value! 
-	617 	commodityCategoryId: commodity category has been deleted! 
-	618 	commodityCategoryId: commodity category has been disabled! 
-	619 	commodityCategoryId: commodity category is not a leaf node! 
-	620 	haveExciseTax:Cannot be empty 
-	621 	haveExciseTax: invalid field value! 
-	622 	haveExciseTax is 101 havePieceUnit cannot be empty! 
-	623 	havePieceUnit: invalid field value! 
-	624 	description:Byte length cannot be greater than 1024! 
-	625 	stockPrewarning cannot be empty! 
-	626 	stockPrewarning The integer character length cannot exceed 12! 
-	627 	stockPrewarning:Cannot be positive 
-	628 	stockPrewarning:Cannot be equal to 0 
-	629 	stockPrewarning:Cannot be negative 
-	630 	pieceUnitPrice cannot be empty! 
-	631 	pieceUnitPrice The integer character length cannot exceed 12! 
-	632 	pieceUnitPrice:Cannot be positive 
-	633 	pieceUnitPrice:Cannot be equal to 0 
-	634 	pieceUnitPrice:Cannot be negative 
-	635 	packageScaledValue cannot be empty! 
-	636 	packageScaledValue The integer character length cannot exceed 12! 
-	637 	packageScaledValue:Cannot be positive 
-	638 	packageScaledValue:Cannot be equal to 0 
-	639 	packageScaledValue:Cannot be negative 
-	645 	havePieceUnit is '102', pieceMeasureUnit must be empty! 
-	646 	havePieceUnit is '102', pieceUnitPrice must be empty! 
-	647 	havePieceUnit is '102', packageScaledValue must be 
-
-		empty! 
-	648 	havePieceUnit is '102', pieceScaledValue must be empty! 
-	649 	havePieceUnit is 101 pieceMeasureUnit cannot be empty 
-	650 	 measureUnit:Invalid field value 
-	651 	pieceScaledValue cannot be empty! 
-	652 	pieceScaledValue The integer character length cannot exceed 12! 
-	653 	pieceScaledValue:Cannot be positive 
-	654 	pieceScaledValue:Cannot be equal to 0 
-	655 	pieceScaledValue:Cannot be negative 
-T131、T139 	656 	commodityGoodsId cannot be empty! 
-	657 	commodityGoodsId The integer character length cannot exceed 18! 
-	658 	commodityGoodsId or goodsCode does not exist! 
-	659 	quantity cannot be empty! 
-	660 	quantity The integer character length cannot exceed 12! 
-	661 	quantity:Cannot be positive 
-	662 	quantity:Cannot be equal to 0 
-	663 	quantity:Cannot be negative 
-T131 	664 	unitPrice cannot be empty! 
-	665 	unitPrice The integer character length cannot exceed 12! 
-	666 	unitPrice:Cannot be positive 
-	667 	 unitPrice:Cannot be equal to 0 
-	668 	unitPrice:Cannot be negative 
-	669 	remarks:Byte length cannot be greater than 1024! 
-T130 	670 	haveExciseTax is '102', exciseDutyCode must be empty! 
-	671 	exciseDutyCode: 	haveExciseTax 	is 	'101', exciseDutyCode cannot be empty! 
-	672 	exciseDutyCode: invalid field value! 
-	673 	exciseDutyCode: exciseDutyCode has been deleted! 
-	674 	exciseDutyCode: exciseDutyCode is not a leaf node! 
-	675 	exciseDutyCode: exciseDutyCode is not effective! 
-	676 	haveExciseTax is '101', excise duty has unit of measurement, 'havePieceUnit' must be  '101'! 
-	677 	measureUnit is equal pieceMeasureUnit, 
-
-		packageScaledValue must be equal to '1'! 
-	678 	measureUnit is equal pieceMeasureUnit, pieceScaledValue must be equal to '1'! 
-	679 	haveExciseTax is '101', excise duty has unit of measurement, 'pieceMeasureUnit' must be equals to excise duty measure unit! 
-	680 	currency: invalid field value! 
-	681 	If current taxpayer does not have a Local Excise Duty, haveExciseTax must be '102'! 
-	682 	This product is a 'service' product, cannot operate inventory! 
-	683 	operationType: invalid field value! 
-	684 	product does not exist! 
-T109 	1040 	Invoice number already exists 
-	1100 	sellerDetails-->tin:cannot be empty! 
-	1101 	sellerDetails-->tin:The byte length cannot be less than 10 and cannot be greater than20! 
-	1102 	sellerDetails-->tin:The inner tin must be the same as the tin in the outer packet! 
-	1103 	sellerDetails-->ninBrn:cannot be empty! 
-	1104 	sellerDetails-->ninBrn:Byte length cannot be greater than 20! 
-	1105 	sellerDetails-->legalName:cannot be empty! 
-	1106 	sellerDetails-->legalName:Byte length cannot be greater than 256! 
-	1107 	sellerDetails-->businessName:cannot be empty! 
-	1108 	sellerDetails-->businessName:Byte length cannot be greater than 256! 
-	1109 	sellerDetails-->address:cannot be empty! 
-	1110 	sellerDetails-->address:Byte length cannot be greater than 500! 
-	1111 	sellerDetails-->mobilePhone:cannot be empty! 
-	1112 	sellerDetails-->mobilePhone:Byte length cannot be greater than 30! 
-	1113 	sellerDetails-->linePhone:cannot be empty! 
-	1114 	sellerDetails-->linePhone:Byte length cannot be greater than 30! 
-	1115 	sellerDetails-->emailAddress:cannot be empty! 
-	1116 	sellerDetails-->emailAddress:The byte length cannot be less than 6 and cannot be greater than50! 
-
-	1117 	sellerDetails-->emailAddress:Must be an email address 
-	1118 	sellerDetails-->placeOfBusiness:cannot be empty! 
-	1119 	sellerDetails-->placeOfBusiness:Byte length cannot be greater than 500! 
-	1120 	sellerDetails-->referenceNo:cannot be empty! 
-	1121 	sellerDetails-->referenceNo:Byte length cannot be greater than 50! 
-	1122 	basicInformation-->invoiceNo:cannot be empty! 
-	1123 	basicInformation-->invoiceNo:Byte length cannot be greater than 20! 
-	1124 	basicInformation-->antifakeCode:cannot be empty! 
-	1125 	basicInformation-->antifakeCode:The byte length cannot be less than 0 and cannot be greater than20! 
-	1126 	basicInformation-->antifakeCode:Cannot be greater than -1! 
-	1127 	basicInformation-->deviceNo:The inner packet deviceNo must be the same as the deviceNo packet in the outer packet! 
-	1129 	basicInformation-->issuedDate:cannot be empty! 
-	1130 	basicInformation-->issuedDate:The time format must beyyyy-MM-dd HH:mm:ss! 
-	1131 	basicInformation-->operator:cannot be empty! 
-	1132 	basicInformation-->operator:Byte length cannot be greater than 150! 
-	1133 	basicInformation-->currency:cannot be empty! 
-	1134 	basicInformation-->currency:Byte length cannot be greater than 10! 
-	1135 	basicInformation-->invoiceType:Invalid 	field value! 
-	1136 	basicInformation-->oriInvoiceId:If 'invoiceType : 4', this field cannot be empty! 
-	1137 	basicInformation-->oriInvoiceId:cannot be empty! 
-	1138 	basicInformation-->oriInvoiceId:Byte length cannot be greater than 20! 
-	1139 	basicInformation-->invoiceKind:Invalid 	field value! 
-	1140 	basicInformation-->dataSource:Invalid field value! 
-	1141 	basicInformation-->payWay:Invalid field value! 
-	1142 	buyerDetails-->buyerTin:cannot be empty! 
-	1143 	buyerDetails-->buyerTin:The byte length cannot be 
-
-		less than 10 and cannot be greater than20! 
-	1144 	buyerDetails-->buyerNinBRn:cannot be empty! 
-	1145 	buyerDetails-->buyerNinBRn:Byte length cannot be greater than 20! 
-	1146 	buyerDetails-->buyerPassportNum:cannot be empty! 
-	1147 	buyerDetails-->buyerPassportNum:Byte length cannot be greater than 20! 
-	1148 	buyerDetails-->buyerLegalName:cannot be empty! 
-	1149 	buyerDetails-->buyerLegalName:Byte length cannot be greater than 256! 
-	1150 	buyerDetails-->buyerBusinessName:cannot be empty! 
-	1151 	buyerDetails-->buyerBusinessName:Byte 	length cannot be greater than 256! 
-	1152 	buyerDetails-->buyerAddress:cannot be empty! 
-	1153 	buyerDetails-->buyerAddress:Byte length cannot be greater than 500! 
-	1154 	buyerDetails-->buyerEmail:cannot be empty! 
-	1155 	buyerDetails-->buyerEmail:The byte length cannot be less than 6 and cannot be greater than50! 
-	1156 	buyerDetails-->buyerEmail:Must be an email address 
-	1157 	buyerDetails-->buyerMobilePhone:cannot be empty! 
-	1158 	buyerDetails-->buyerMobilePhone:Byte length cannot be greater than 30! 
-	1159 	buyerDetails-->buyerLinePhone:cannot be empty! 
-	1160 	buyerDetails-->buyerLinePhone:Byte length cannot be greater than 30! 
-	1161 	buyerDetails-->buyerPlaceOfBusi:cannot be empty! 
-	1162 	buyerDetails-->buyerPlaceOfBusi:Byte length cannot be greater than 500! 
-	1163 	buyerDetails-->buyerType:Invalid field value! 
-	1164 	buyerDetails-->buyerCitizenship:cannot be empty! 
-	1165 	buyerDetails-->buyerCitizenship:Byte length cannot be greater than 128! 
-	1166 	buyerDetails-->buyerSector:cannot be empty! 
-	1167 	buyerDetails-->buyerSector:Byte length cannot be greater than 200! 
-	1168 	buyerDetails-->buyerReferenceNo:cannot be empty! 
-	1169 	buyerDetails-->buyerReferenceNo:Byte length cannot be greater than 50! 
-	1170 	goodsDetails-->deemedFlag:Invalid field value! 
-	1171 	goodsDetails-->discountFlag:Invalid field value! 
-
-	1172 	goodsDetails-->discountFlag:The first product line cannot be a discount line, and 'discountFlag' cannot be '0'! 
-	1173 	goodsDetails-->discountFlag: Discount Flag 1 item must be followed by a corresponding Discount Flag 0 detailing the discount details! 
-	1174 	goodsDetails-->discountFlag:The last line can not be discounted line 
-	1175 	goodsDetails-->item:cannot be empty! 
-	1176 	goodsDetails-->item:Byte length cannot be greater than 200! 
-	1177 	goodsDetails-->item:if the 'deemedFlag' is '1', item + space + "(Deemed)"! 
-	1178 	goodsDetails-->item:if 'Discount' is '0', item + space + "(Discount)"! If 'discountFlag' is '0' and 'deemedFlag' is '1' ,item + Space + "(Deemed)" + Space + "(Discount)" 
-	1179 	goodsDetails-->itemCode:cannot be empty! 
-	1180 	goodsDetails-->itemCode:Byte length cannot be greater than 50! 
-	1181 	goodsDetails-->qty:Discount line is the 'qty' must be empty 
-	1182 	goodsDetails-->qty:cannot be empty! 
-	1183 	goodsDetails-->qtyThe integer character length cannot exceed 12, and the decimal character length cannot exceed 8! 
-	1184 	goodsDetails-->qty:Cannot be positive 
-	1185 	goodsDetails-->qty:Cannot be equal to 0 
-	1186 	goodsDetails-->qty:Cannot be negative 
-	1187 	goodsDetails-->unitPrice:If the merchandise line is a discount line, the 'unitPrice' must be empty! 
-	1188 	goodsDetails-->unitPrice:cannot be empty! 
-	1189 	goodsDetails-->unitPrice:The integer character length cannot exceed 12, and the decimal character length cannot exceed 8! 
-	1190 	goodsDetails-->unitPrice:Cannot be positive 
-	1191 	goodsDetails-->unitPrice:Cannot be equal to 0 
-	1192 	goodsDetails-->unitPrice:Cannot be negative 
-	1193 	goodsDetails-->total:unitPrice:If the merchandise line is a discount line, the 'total' must be empty 
-	1194 	goodsDetails-->total:cannot be empty! 
-
-	1195 	goodsDetails-->total:The integer character length cannot exceed 12, and the decimal character length cannot exceed 2! 
-	1196 	goodsDetails-->total:Cannot be positive 
-	1197 	goodsDetails-->total:Cannot be equal to 0 
-	1198 	goodsDetails-->total:Cannot be negative 
-	1199 	goodsDetails-->tax:Discount line is the 'tax' must be empty 
-	1200 	goodsDetails-->tax:cannot be empty! 
-	1201 	goodsDetails-->tax:The integer character length cannot exceed 12, and the decimal character length cannot exceed 2! 
-	1202 	goodsDetails-->tax:Cannot be positive 
-	1203 	goodsDetails-->tax:Cannot be equal to 0 
-	1204 	goodsDetails-->tax:Cannot be negative 
-	1205 	goodsDetails-->discountTotal:'discountFlag' is '0' or '2', therefore 'discountTotal' must be empty! 
-	1206 	goodsDetails-->total:Must be the same as the discountTotal value of the discounted row! 
-	1208 	goodsDetails-->unitOfMeasure:Invalid field value! 
-	1209 	goodsDetails-->taxRate:cannot be empty! 
-	1210 	goodsDetails-->taxRateThe integer character length cannot exceed 1, and the decimal character length cannot exceed 4! 
-	1211 	goodsDetails-->taxRate:Cannot be positive 
-	1212 	goodsDetails-->taxRate:Cannot be equal to 0 
-	1213 	goodsDetails-->taxRate:Cannot be negative 
-	1214 	goodsDetails-->discountTaxRate:cannot be empty! 
-	1215 	goodsDetails-->discountTaxRate:The integer character length cannot exceed 2, and the decimal character length cannot exceed 12! 
-	1216 	goodsDetails-->discountTaxRate:Cannot be positive 
-	1217 	goodsDetails-->discountTaxRate:Cannot be equal to 
-0 
-	1218 	goodsDetails-->discountTaxRate:Cannot be negative 
-	1219 	goodsDetails-->orderNumber:Must start from zero and add one each time 
-	1220 	goodsDetails-->exciseFlag:Invalid field value! 
-	1221 	goodsDetails-->categoryId:If 'exciseFlag' is '1', it cannot be empty! 
-	1222 	goodsDetails-->categoryId:cannot be empty! 
-
-	1223 	goodsDetails-->categoryId:Byte length cannot be greater than 18! 
-	1224 	goodsDetails-->categoryName:If 'exciseFlag' is '1', it cannot be empty! 
-	1225 	goodsDetails-->categoryName:cannot be empty! 
-	1226 	goodsDetails-->categoryName:Byte length cannot be greater than 1024! 
-	1227 	goodsDetails-->goodsCategoryId:cannot be empty! 
-	1228 	goodsDetails-->goodsCategoryId:Byte length cannot be greater than 18! 
-	1229 	goodsDetails-->goodsCategoryName:cannot be empty! 
-	1230 	goodsDetails-->goodsCategoryName:Byte 	length cannot be greater than 100! 
-	1231 	goodsDetails-->exciseRate:If 'exciseFlag' is '1', it cannot be empty! 
-	1232 	goodsDetails-->exciseRate:If 'exciseFlag' is '2', it must be empty! 
-	1233 	goodsDetails-->exciseRate:cannot be empty! 
-	1234 	goodsDetails-->exciseRate:Byte length cannot be greater than 21! 
-	1235 	goodsDetails-->exciseRule:If 'exciseFlag' is '1', it cannot be empty! 
-	1236 	goodsDetails-->exciseRule:Invalid field value! 
-	1237 	goodsDetails-->exciseTax:If 'exciseFlag' is '1', it cannot be empty! 
-	1238 	goodsDetails-->exciseTax:cannot be empty! 
-	1239 	goodsDetails-->exciseTax:The integer character length cannot exceed 12, and the decimal character length cannot exceed 4! 
-	1240 	goodsDetails-->exciseTax:Cannot be positive 
-	1241 	goodsDetails-->exciseTax:Cannot be equal to 0 
-	1242 	goodsDetails-->exciseTax:Cannot be negative 
-	1243 	goodsDetails-->pack:If 'exciseRule' is '2', it cannot be empty! 
-	1244 	goodsDetails-->pack:cannot be empty! 
-	1245 	goodsDetails-->pack:The integer character length cannot exceed 12, and the decimal character length cannot exceed 8! 
-	1246 	goodsDetails-->pack:Cannot be positive 
-	1247 	goodsDetails-->pack:Cannot be equal to 0 
-	1248 	goodsDetails-->pack:Cannot be negative 
-
-	1249 	goodsDetails-->stick:If 'exciseRule' is '2', it cannot be empty! 
-	1250 	goodsDetails-->stick:cannot be empty! 
-	1251 	goodsDetails-->stick:The integer character length cannot exceed 12, and the decimal character length cannot exceed 8! 
-	1252 	goodsDetails-->stick:Cannot be positive 
-	1253 	goodsDetails-->stick:Cannot be equal to 0 
-	1254 	goodsDetails-->stick:Cannot be negative 
-	1255 	goodsDetails-->exciseUnit:If 'exciseRule' is '2', it cannot be empty! 
-	1256 	goodsDetails-->exciseUnit:Invalid field value! 
-	1257 	goodsDetails-->exciseCurrency:If 'exciseRule' is '2', it cannot be empty! 
-	1258 	goodsDetails-->exciseCurrency:cannot be empty! 
-	1259 	goodsDetails-->exciseCurrency:Byte length cannot be greater than 10! 
-	1260 	taxDetails-->taxCategory:cannot be empty! 
-	1261 	taxDetails-->taxCategory:Byte length cannot be greater than 100! 
-T109、T110 	1262 	taxDetails-->netAmount:cannot be empty! 
-	1263 	taxDetails-->netAmountThe integer character length cannot exceed 16, and the decimal character length cannot exceed 4! 
-	1264 	taxDetails-->netAmount:Cannot be positive 
-	1265 	taxDetails-->netAmount:Cannot be equal to 0 
-	1266 	taxDetails-->netAmount:Cannot be negative 
-T109 	1267 	goodsDetails-->qty:Required if discountFlag is 1 or 2! 
-	1268 	goodsDetails-->unitPrice:Required if discountFlag is 1 or 2! 
-T109、T110 	1269 	taxDetails-->taxAmount:cannot be empty! 
-	1270 	taxDetails-->taxAmountThe integer character length cannot exceed 16, and the decimal character length cannot exceed 4! 
-	1271 	taxDetails-->taxAmount:Cannot be positive 
-	1272 	taxDetails-->taxAmount:Cannot be equal to 0 
-	1273 	taxDetails-->taxAmount:Cannot be negative 
-	1274 	taxDetails-->grossAmount:cannot be empty! 
-	1275 	taxDetails-->grossAmountThe integer character length cannot exceed 16, and the decimal character 
-
-		length cannot exceed 4! 
-	1276 	taxDetails-->grossAmount:Cannot be positive 
-	1277 	taxDetails-->grossAmount:Cannot be equal to 0 
-	1278 	taxDetails-->grossAmount:Cannot be negative 
-	1279 	taxDetails-->exciseUnit:cannot be empty! 
-	1280 	taxDetails-->exciseUnit:Byte length cannot be greater than 3! 
-	1284 	taxDetails-->exciseCurrency:cannot be empty! 
-	1285 	taxDetails-->exciseCurrency:Byte length cannot be greater than 10! 
-	1289 	summary-->netAmount:cannot be empty! 
-	1290 	summary-->netAmount:The integer character length cannot exceed 16,and the decimal character length cannot exceed 4! 
-	1291 	summary-->netAmount:Cannot be positive 
-	1292 	summary-->netAmount:Cannot be equal to 0 
-	1293 	summary-->netAmount:Cannot be negative 
-	1294 	summary-->taxAmount:cannot be empty! 
-	1295 	summary-->taxAmount:The integer character length cannot exceed 16,and the decimal character length cannot exceed 4! 
-	1296 	summary-->taxAmount:Cannot be positive 
-	1297 	summary-->taxAmount:Cannot be equal to 0 
-	1298 	summary-->taxAmount:Cannot be negative 
-	1299 	summary-->grossAmount:cannot be empty! 
-	1300 	summary-->grossAmount:The integer character length cannot exceed 16,and the decimal character length cannot exceed 4! 
-	1301 	summary-->grossAmount:Cannot be positive 
-	1302 	summary-->grossAmount:Cannot be equal to 0 
-	1303 	summary-->grossAmount:Cannot be negative 
-	1304 	summary-->itemCount:Must match the Number of all product lines in goodsDetail-number of discount lines! 
-	1305 	goodsDetails:The number of product lines cannot exceed XX! 
-	1306 	summary-->modeCode:Invalid field value! 
-	1307 	summary-->remarks:cannot be empty! 
-	1308 	summary-->remarks:Byte length cannot be greater than 500! 
-T109 	1310 	summary-->qrCode:cannot be empty! 
-
-	1311 	summary-->qrCode:Byte length cannot be greater than 500! 
-	1312 	extend-->reason:cannot be empty! 
-	1313 	extend-->reason:Byte length cannot be greater than 1024! 
-	1314 	extend-->reasonCode:cannot be empty! 
-	1315 	extend-->reasonCode:Byte length cannot be greater than 3! 
-	1316 	goodsDetails-->total:Multiply the quantity by the product of the unit price, and keep two decimals after the decimal point (prior to a discarded fraction (i.e., truncates))! 
-	1317 	taxDetails-->grossAmount:calculation error! 
-	1318 	goodsDetails-->goodsCategoryId:Invalid 	field value! 
-	1319 	goodsDetails-->'goodsCategoryId':Dose not match 
-'goodsCategoryId' 
-	1320 	basicInformation-->invoiceNo:summary-->modeCode is 0, 'deviceNo' Can not be empty! 
-	1321 	basicInformation-->antiFakeCode:summary-
-->modeCode is 0, 'antiFakeCode' Can not be empty! 
-	1322 	basicInformation-->qrCode:summary-->modeCode is 0, 'qrCode' Can not be empty! 
-	1323 	basicInformation-->invoiceNo:summary-->modeCode is 1, ' invoiceNo ' Must be empty! 
-	1324 	basicInformation-->antiFakeCode:summary-
-->modeCode is 1, 'antiFakeCode' Must be empty! 
-	1325 	basicInformation-->qrCode:summary-->modeCode is 1, 'qrCode' Must be empty! 
-	1326 	basicInformation-->invoiceKind:You have not registered VAT or VAT is not effective, please issue receipt! 
-	1327 	goodsDetails-->categoryId:Invalid field value! 
-	1328 	goodsDetails-->categoryName:Does 	not 	match 'categoryId'! 
-	1329 	goodsDetails-->goodsCategoryId:Has been deleted! 
-	1330 	goodsDetails-->goodsCategoryId:Has been disabled! 
-	1331 	goodsDetails-->goodsCategoryId:Not a leaf node! 
-	1332 	goodsDetails-->taxRate:The tax rate for this product is not tax-exempt! 
-	1333 	goodsDetails-->taxRate:This product is not in tax-
-
-		exempt period! 
-	1334 	goodsDetails-->taxRate:The tax rate for this product is not tax-zero! 
-	1335 	goodsDetails-->taxRate:This product is not in taxzero period! 
-	1336 	goodsDetails-->taxRate:Invalid field value! 
-	1337 	goodsDetails-->categoryId:Has been deleted! 
-	1338 	goodsDetails-->categoryId:Not a leaf node! 
-	1339 	goodsDetails-->categoryId:Not effective! 
-	1340 	goodsDetails-->exciseRate:This product excise tax cannot be Nil! 
-	1341 	goodsDetails-->exciseRate:Invalid field value! 
-T109、T110 	1342 	taxDetails-->:'netAmount' plus 'taxAmount' must equal 'grossAmount'! 
-	1343 	summary-->netAmount:calculation mistake! 
-	1344 	summary-->taxAmount:Must be equal to the sum of all taxAmount's in taxDetails! 
-	1345 	summary-->grossAmount:Must be equal to the sum of all grossAmount's except 'taxCategory' is'Excise Duty' in taxDetails! 
-T109 	1346 	goodsDetails-->exciseTax:when exciseFlag is '1' and discountFlag is '0' Must be negative or '0'! 
-	1347 	goodsDetails-->exciseTax:When exciseFlag is '1' and  discountFlag is '1' or '2'  Must be positive or '0'! 
-T110 	1400 	The original invoice does not exist! 
-	1401 	Credit note for the original invoice has been issued! 
-	1402 	Debit note for the original invoice has been issued! 
-	1403 	oriInvoiceId must match oriInvoiceNo 
-T109、T110 	1404 	reasonCode:Invalid field value! 
-	1405 	Other reason can not be empty! 
-	1406 	reason:cannot be empty! 
-	1407 	reason:Byte length cannot be greater than 1024! 
-	1408 	applicationTime:cannot be empty! 
-	1409 	applicationTime:The time format must be:yyyy-MM-dd HH:mm:ss! 
-	1410 	invoiceApplyCategoryCode:Invalid field value! 
-	1411 	currency:Must be the same as the original invoice! 
-	1412 	contactName:cannot be empty! 
-
-	1413 	contactName:Byte length cannot be greater than 200! 
-	1414 	contactMobileNum:cannot be empty! 
-	1415 	contactMobileNum:Byte length cannot be greater than 30! 
-	1416 	contactEmail:cannot be empty! 
-	1417 	contactEmail:The byte length cannot be less than 6 and cannot be greater than 50! 
-	1418 	contactEmail:Must be an email address 
-	1419 	remark:cannot be empty! 
-	1420 	remark:Byte length cannot be greater than 500! 
-	1421 	sellersReferenceNo:cannot be empty! 
-	1422 	sellersReferenceNo:Byte length cannot be greater than 50! 
-T110 	1423 	goodsDetails-->orderNumber:cannot be empty! 
-	1424 	goodsDetails-->orderNumber:Must be numeric and the byte length cannot be greater than 4! 
-	1425 	goodsDetails-->orderNumber:Cannot be greater than 
--1 
-	1426 	goodsDetails-->orderNumber:Does not exist in the original invoice! 
-	1427 	goodsDetails-->item:Must be the same as the original invoice! 
-	1428 	goodsDetails-->itemCode:Must be the same as the original invoice! 
-	1429 	goodsDetails-->qty:cannot be empty! 
-	1430 	goodsDetails-->qty:The integer character length cannot exceed 12, and the decimal character length cannot exceed 8! 
-	1431 	goodsDetails-->qty:Cannot be positive! 
-	1432 	goodsDetails-->qty:Cannot be equal to 0! 
-	1433 	goodsDetails-->qty:Cannot be negative! 
-	1434 	goodsDetails-->qty:Cannot be greater than the remaining value of the corresponding commodity line on original invoice! 
-	1435 	goodsDetails-->unitOfMeasure:Must be the same as the original invoice! 
-T109、T110 	1437 	taxDetails-->taxRate:cannot be empty! 
-	1438 	taxDetails-->taxRate:The integer character length cannot exceed 12, and the decimal character length cannot exceed 8! 
-	1439 	taxDetails-->taxRate:Cannot be positive! 
-
-	1440 	taxDetails-->taxRate:Cannot be equal to 0! 
-	1441 	taxDetails-->taxRate:Cannot be negative! 
-T110 	1443 	goodsDetails-->taxRate:Must be the same as the original invoice! 
-	1444 	goodsDetails-->tax:cannot be empty! 
-	1445 	goodsDetails-->tax:The integer character length cannot exceed 12, and the decimal character length cannot exceed 2! 
-	1446 	goodsDetails-->tax:Cannot be positive! 
-	1447 	goodsDetails-->tax:Cannot be equal to 0! 
-	1448 	goodsDetails-->tax:Cannot be negative! 
-	1449 	goodsDetails-->tax:Cannot be larger than the corresponding commodity line of the original invoice! 
-	1450 	goodsDetails-->total:cannot be empty! 
-	1451 	goodsDetails-->total:The integer character length cannot exceed 12, and the decimal character length cannot exceed 2! 
-	1452 	goodsDetails-->total:Cannot be positive! 
-	1453 	goodsDetails-->total:Cannot be equal to 0! 
-	1454 	goodsDetails-->total:Cannot be negative! 
-	1455 	goodsDetails-->unitPrice:cannot be empty! 
-	1456 	goodsDetails-->unitPrice:The integer character length cannot exceed 12, and the decimal character length cannot exceed 8! 
-	1457 	goodsDetails-->unitPrice:Cannot be positive! 
-	1458 	goodsDetails-->unitPrice:Cannot be equal to 0! 
-	1459 	goodsDetails-->unitPrice:Cannot be negative! 
-	1460 	goodsDetails-->total:Cannot be greater than the remaining amount of the corresponding commodity line on original invoice! 
-	1461 	goodsDetails-->deemedFlag:Must be the same as the original invoice! 
-	1462 	goodsDetails-->exciseFlag:Must be the same as the original invoice! 
-	1463 	goodsDetails-->categoryId:Must be the same as the original invoice! 
-	1464 	goodsDetails-->goodsCategoryId:Must be the same as the original invoice! 
-	1465 	goodsDetails-->goodsCategoryName:Must be the same as the original invoice! 
-
-	1466 	goodsDetails-->exciseRate:Must be the same as the original invoice! 
-	1467 	goodsDetails-->exciseRule:Must be the same as the original invoice! 
-	1468 	goodsDetails-->exciseTax:cannot be empty! 
-	1469 	goodsDetails-->exciseTax:The integer character length cannot exceed 12, and the decimal character length cannot exceed 2! 
-	1470 	goodsDetails-->exciseTax:Cannot be positive! 
-	1471 	goodsDetails-->exciseTax:Cannot be equal to 0! 
-	1472 	goodsDetails-->exciseTax:Cannot be negative! 
-	1473 	goodsDetails-->pack:Must be the same as the original invoice! 
-	1474 	goodsDetails-->stick:Must be the same as the original invoice! 
-	1475 	goodsDetails-->exciseUnit:Must be the same as the original invoice! 
-	1476 	goodsDetails-->exciseCurrency:Must be the same as the original invoice! 
-	1477 	goodsDetails-->exciseRateName:Must be the same as the original invoice! 
-T109 	1478 	taxDetails-->taxRateName:cannot be empty! 
-	1479 	taxDetails-->taxRateName:Byte length cannot be greater than 100! 
-	1480 	Credit Note request is illegal! 
-T106、T107、
-T108、T111、
-T114、T117、
-T122、T131 	1500 	invoiceNo:cannot be empty! 
-	1501 	invoiceNo:Byte length cannot be greater than 20! 
-T106、T107 	1502 	deviceNo:cannot be empty! 
-	1503 	deviceNo:Byte length cannot be greater than 20! 
-T106、T110、
-T111 	1504 	oriInvoiceNo:cannot be empty! 
-	1505 	oriInvoiceNo:Byte length cannot be greater than 20! 
-T106、T107 	1506 	buyerTin:cannot be empty! 
-	1507 	buyerTin:Byte length cannot be greater than 20! 
-	1508 	buyerNinBrn:cannot be empty! 
-	1509 	buyerNinBrn:Byte length cannot be greater than 20! 
-	1510 	buyerLegalName:cannot be empty! 
-	1511 	buyerLegalName:Byte length cannot be greater than 256! 
-	1512 	combineKeywords:cannot be empty! 
-
-	1513 	combineKeywords:Byte length cannot be greater than 20! 
-T106、T107、
-T117 	1514 	invoiceType:Invalid field value! 
-T106 	1515 	isInvalid:Invalid field value! 
-	1516 	isRefund:Invalid field value! 
-T106、T107、
-T111 	1517 	startDate:cannot be empty! 
-	1518 	startDate:The time format must beyyyy-MM-dd HH:mm:ss! 
-	1519 	endDate:cannot be empty! 
-	1520 	endDate:The time format must beyyyy-MM-dd HH:mm:ss! 
-ALL 	1521 	pageNo:cannot be empty! 
-	1522 	pageNo:The byte length cannot be less than 0 and cannot be greater than 20! 
-	1523 	pageNo:Cannot be greater than -1! 
-	1524 	pageSize:cannot be empty! 
-	1525 	pageSize:The byte length cannot be less than 0 and cannot be greater than 3! 
-	1526 	pageSize:Cannot be greater than 100! 
-T111、T113 	1550 	referenceNo:cannot be empty! 
-	1551 	referenceNo:Byte length cannot be greater than 20! 
-T113 	1552 	approveStatus:Invalid field value! 
-T111 	1553 	queryType:Invalid field value! 
-	1554 	invoiceApplyCategoryCode:Invalid field value! 
-T112 	1555 	id:cannot be empty! 
-	1556 	id:Byte length cannot be greater than 20! 
-T113 	1557 	remark:cannot be empty! 
-	1558 	remark:Byte length cannot be greater than 1024! 
-	1559 	taskId:cannot be empty! 
-T114 	1560 	taskId:Byte length cannot be greater than 20! 
-	1561 	invoiceNo:Invoice does not exist! 
-	1562 	oriInvoiceId:'oriInvoiceId' and 'invoiceNo' do not match! 
-	1563 	invoiceApplyCategoryCode:Invalid field value, this document is debit note! 
-	1564 	invoiceApplyCategoryCode:Invalid field value, this document is credit note! 
-	1565 	reason:cannot be empty! 
-	1566 	reason:Byte length cannot be greater than 1024! 
-	1567 	reasonCode:Invalid field value! 
-	1568 	reason:If 'reasonCode' is '103', it cannot be 
-
-		empty! 
-T117 	1569 	The size of the collection cannot be larger than ? ! 
-T118 	1570 	id:cannot be empty! 
-	1571 	id:Byte length cannot be greater than 20! 
-T119 	1572 	'tin' and 'ninBrn' cannot be empty at the same time! 
-	1573 	tin:cannot be empty! 
-	1574 	tin:Byte length cannot be greater than 20! 
-	1575 	ninBrn:cannot be empty! 
-	1576 	ninBrn:Byte length cannot be greater than 20! 
-T120、T121 	1577 	businessKey:cannot be empty! 
-	1578 	businessKey:Byte length cannot be greater than 20! 
-T120 	1579 	referenceNo:cannot be empty! 
-	1580 	referenceNo:Byte length cannot be greater than 20! 
-	1581 	currency:cannot be empty! 
-	1582 	currency:Byte length cannot be greater than 3! 
-T109 	1600 	Inventory shortage 
-T129 	1610 	invoiceContent:cannot be empty! 
-	1611 	invoiceSignature:cannot be empty! 
-	1612 	Invoice upload quantity cannot be greater than xx 
-	1613 	Batch upload has problematic invoices, please check inner 'invoiceReturnCode' and 
-'invoiceReturnMessage'! 
-C101 	2000 	basicInformation-->sadNumber:cannot be empty! 
-	2001 	basicInformation-->sadNumber:Byte length cannot be greater than 20! 
-	2002 	basicInformation-->sadDate:cannot be empty! 
-	2003 	basicInformation-->sadDate:The time format must beyyyy-MM-dd HH:mm:ss! 
-	2004 	basicInformation-->cpcCode:cannot be empty! 
-	2005 	basicInformation-->cpcCode:Byte length cannot be greater than 16! 
-	2006 	basicInformation-->cpcDescription:cannot be empty! 
-	2007 	basicInformation-->cpcDescription:Byte 	length cannot be greater than 256! 
-	2008 	basicInformation-->wareHouseNumber:cannot 	be empty! 
-	2009 	basicInformation-->wareHouseNumber:Byte 	length cannot be greater than 16! 
-	2010 	basicInformation-->wareHouseName:cannot be empty! 
-	2011 		basicInformation-->wareHouseName:Byte 	length 
-
-		cannot be greater than 256! 
-	2012 	goodsDetails-->hsCode:cannot be empty! 
-	2013 	goodsDetails-->hsCode:Byte length cannot be greater than 16! 
-	2014 	goodsDetails-->hsCode:Invalid field value! 
-	2015 	basicInformation-->sadNumber:SAD Number already exists! 
-C102 	2016 	tin:cannot be empty! 
-	2017 	tin:Byte length cannot be greater than 20! 
-	2018 	ninBrn:cannot be empty! 
-	2019 	ninBrn:Byte length cannot be greater than 100! 
-	2020 	taxpayerName:cannot be empty! 
-	2021 	taxpayerName:Byte length cannot be greater than 256! 
-	2022 	invoiceNo:cannot be empty! 
-	2023 	invoiceNo:Byte length cannot be greater than 20! 
-	2024 	sadNumber:cannot be empty! 
-	2025 	sadNumber:Byte length cannot be greater than 20! 
-	2026 	destinationCountry:cannot be empty! 
-	2027 	destinationCountry:Byte length cannot be greater than 256! 
-	2028 	originCountry:cannot be empty! 
-	2029 	originCountry:Byte length cannot be greater than 256! 
-	2030 	sadNumber:SAD Number already exists! 
-	2031 	invoiceNo:Invoice does not exist! 
-	2032 	invoiceNo:Invoice has been exported! 
-	2033 	tin:The invoice was not issued by this tin 
-	3136 	exitStationOffice:cannot be empty! 
-	3137 	exitStationOffice:Byte length cannot be greater than 100! 
-	3138 	exitOfficer:cannot be empty! 
-	3139 	exitOfficer:Byte length cannot be greater than 100! 
-	3140 	exitDate:cannot be empty! 
-	3141 	exitDate:The time format must be yyyy-MM-dd HH:mm:ss! 
-	3144 	exportSadItems:cannot be empty! 
-	3145 	hsCode:cannot be empty! 
-	3146 	hsCode:Byte length cannot be greater than 50! 
-	3147 	invoiceItemId:cannot be empty! 
-	3148 	invoiceItemId:Byte length cannot be greater than 
-
-		18! 
-	3149 	exportedQuantity cannot be empty! 
-	3150 	exportedQuantity The integer character length cannot exceed 12! 
-	3151 	exportedQuantity:Cannot be positive 
-	3152 	exportedQuantity:Cannot be equal to 0 
-	3153 	exportedQuantity:Cannot be negative 
-	3154 	exportSadItems:some invoiceItemIds is incorrect 
-	3160 	Exports are not allowed for Credit Note pending's FDN. 
-	3161 	The export quantity cannot be greater than the remaining quantity. 
-C105 	2034 	tin:Cannot use customs interface! 
-C103 	2035 	Already confirmed! 
-	2036 	Already canceled! 
-	2037 	invoiceNo or sadNumber does not exist! 
-C101 	2038 	basicInformation-->office:cannot be empty! 
-	2039 	basicInformation-->office:Byte length cannot be greater than 35! 
-	2040 	basicInformation-->cif:cannot be empty! 
-	2041 	basicInformation-->cif:Byte length cannot be greater than 50! 
-	2042 	basicInformation-->valuationMethod:cannot 	be empty! 
-	2043 	basicInformation-->valuationMethod:Byte 	length cannot be greater than 128! 
-	2044 	summary-->prn:cannot be empty! 
-	2045 	summary-->prn:Byte length cannot be greater than 80! 
-	2046 	basicInformation-->office,cif:Already exists 
-T109 	2047 	basicInformation-->invoiceIndustryCode:Invalid field value! 
-	2048 	goodsDetails-->taxRate:taxRate error！ 
-	2049 	Debit Note cannot be issued for export invoices 
-T110 	2050 	Export invoice cannot apply for Credit Note 
-T109 	2051 	basicInformation-->isBatch:Invalid field value! 
-T132 	2052 	interruptionTypeCode:Invalid field value! 
-	2053 	description:cannot be empty! 
-	2054 	description:Byte length cannot be greater than 200! 
-	2055 	errorDetail:cannot be empty! 
-	2056 	errorDetail:Byte length cannot be greater than 200! 
-
-	2057 	interruptionTime:cannot be empty 
-	2058 	interruptionTime:The time format must be yyyy-MMdd HH:mm:ss 
-T134 	2059 	commodityCategoryVersion cannot be empty 
-T106 	2060 	referenceNo byte length cannot be greater than 50 
-T113 	2061 	The application has been processed 
-C101 	2062 	goodsDetails-->pack:cannot be empty! 
-	2063 	goodsDetails-->pack:Byte length cannot be greater than 1024! 
-T109 	2064 	basicInformation-->invoiceNo:summary-->modeCode is 0, 'invoiceNo' error! 
-	2065 	basicInformation-->sellerDetails:ninBrn-->The NinBrn is not correct! 
-ALL 	2066 	XXX:data-->content:Illegal json format! 
-T109 	2067 	sellerDetails-->cannot be empty! 
-	2068 	basicInformation-->cannot be empty! 
-	2069 	buyerDetails-->cannot be empty! 
-	2070 	T109:data-->content:cannot be empty! 
-	2071 	goodsDetails-->cannot be empty! 
-	2072 	summary-->cannot be empty! 
-	2073 	when invoiceType is 4,extend cannot be empty! 
-T110 	2074 	Original invoice Id is not correct! 
-T109 	2075 	Invoice amount exceeds the maximum limit! 
-T131 	2076 	operationType:cannot be empty! 
-	2077 	operationType:Byte length cannot be greater than 3! 
-	2078 	operationType: invalid field value! 
-	2079 	supplierTin:cannot be empty! 
-	2080 	supplierTin:Byte length cannot be greater than 50! 
-	2081 	If 'operationType' is '101', supplierName cannot be empty! 
-	2082 	supplierName:Byte length cannot be greater than 100! 
-	2083 	If 'operationType' is '102', supplierName must be empty! 
-	2084 	If 'operationType' is '102', supplierTin must be empty! 
-	2085 	If 'adjustType' is '104', remarks cannot be empty! 
-	2086 	remarks:Byte length cannot be greater than 1024! 
-	2087 	If 'operationType' is '101', adjustType must be empty! 
-
-	2088 	If 'operationType' is '102', adjustType cannot be empty! 
-	2089 	adjustType:Byte length cannot be greater than 20! 
-	2090 	adjustType: invalid field value! 
-	2091 	Item is not in stock! 
-	2092 	 Original inventory quantity cannot be less than the reduced quantity! 
-T136 	2093 	FileName cannot be empty 
-	2094 	FileName:Byte length cannot be greater than 256! 
-	2095 	FileContent cannot be empty! 
-	2096 	VerifyString cannot be empty! 
-	2097 	Filename and decryption verifystring must be equal! 
-	2098 	Certificate overdue! 
-	2099 	Duplicate certificate! 
-	2100 	Certificate resolution error! 
-T109 	2101 	importServicesSeller-->importBusinessName:cannot be empty! 
-	2102 	importServicesSeller-->importBusinessName:Byte length cannot be greater than 500! 
-	2103 	importServicesSeller-->importEmailAddress:cannot be empty! 
-	2104 	importServicesSeller-->importEmailAddress:The byte length cannot be less than 6 and cannot be greater than50! 
-	2105 	importServicesSeller-->importEmailAddress:Must be an email address! 
-	2106 	importServicesSeller-->importContactNumber:cannot be empty! 
-	2107 	importServicesSeller-->importContactNumber:Byte length cannot be greater than 30! 
-	2108 	importServicesSeller-->importAddres:cannot 	be empty! 
-	2109 	importServicesSeller-->importAddres:Byte length cannot be greater than 500! 
-T137、T140、
-T142、T143 	2110 	tin cannot be empty! 
-	2111 	tin:Byte length cannot be greater than 20! 
-C105 	2112 	C105:data-->content:cannot be empty! 
-	2113 	C105:data-->content:Illegal json format! 
-T131 	2114 	StockInDate:The time format must be yyyy-MM-dd! 
-T109 
- 	2115 	importServicesSeller-->importInvoiceDate:cannot be empty! 
-
- 
- 
- 	2116 	importServicesSeller-->importInvoiceDate:The time format must be yyyy-MM-dd HH:mm:ss! 
-	2117 	importServicesSeller-->importAttachmentName: 
-cannot be empty! 
-	2118 	importServicesSeller-->importAttachmentName:Byte length cannot be greater than 256! 
-	2119 	If’invoiceIndustryCode:104',sellerDetails->referenceNo cannot be empty! 
-	2120 	If 	'invoiceIndustryCode:104',sellerDetails->referenceNo cannot be empty! 
-	2121 	importServicesSeller-
-->importAttachmentName:Attachment format error! 
-	2122 	goodsDetails-->itemCode:Item code and Name is not configured with URA. Complete the configuration process for this item using your system or from the URA portal to proceed. item code x, item name y. 
-	2123 	goodsDetails-->itemCode:Item code and Name are not matching with URA. Please ensure that this item code and Name matches with what was submitted to URA to proceed. item code x, item name y. 
-	2124 	goodsDetails-->itemCode:Does not match the goodsCategoryId! 
-T109、131、T139 	2125 	stockLock-->itemCode:updateGoodsStock getLock time out! 
-T131 	2126 	stockInType:cannot be empty! 
-	2127 	stockInType:Byte length cannot be greater than 3! 
-	2128 	stockInType: invalid field value! 
-	2129 	If 'stockInType' not equals to '103', productionBatchNo must be empty! 
-	2130 	If 'stockInType' not equals to '103', productionDate must be empty! 
-	2131 	productionBatchNo:cannot be empty! 
-	2132 	productionBatchNo:Byte length cannot be greater than 50! 
-	2133 		If 	'stockInType 	: 	Not 	equal 	to 
-103',productionBatchNo must be empty! 
-	2134 	If 'stockInType : Not equal to 103',productionDate must be empty! 
-	2135 	If 'operationType' is '102', productionBatchNo must be empty! 
-	2136 	If 'operationType' is '102',productionDate must be 
-
-		empty! 
-	2137 	If 'stockInType : 103',supplierName must be empty! 
-	2138 	If 'stockInType : 103',supplierTin must be empty! 
-T109、T139 	2139 	goodsDetails-->unitOfMeasure : Required if discountFlag is 1 or 2! 
-T139 	2141 	destinationBranchId cannot be empty! 
-	2142 	destinationBranchId:Byte length cannot be greater than 18! 
-	2143 	sourceBranchId does not belong to current taxpayer! 
-	2144 	destinationBranchId 	cannot 	be empty!nationBranchId:Byte length cannot be greater than 18! 
-	2145 	sourceBranchId and destinationBranchId cannot be the same! 
-	2146 	transferTypeCode:cannot be empty! 
-	2147 	transferTypeCode:Byte length cannot be greater than 20! 
-	2148 	transferTypeCode: invalid field value! 
-	2149 	remarks:cannot be empty! 
-	2150 	remarks:Byte length cannot be greater than 1024! 
-	2151 	If 'transferTypeCode' is '103', remarks cannot be empty! 
-	2152 	transferred quantity exceeds the original stock 
-	2153 	sourceBranchId cannot be empty 
-	2154 	sourceBranchId:Byte length cannot be greater than 18! 
-T140 	2155 	password cannot be empty! 
-	2156 	password:Byte length cannot be greater than 500! 
-T141 	2157 	deliveryMethod cannot be empty! 
-	2158 	deliveryMethod:Byte length cannot be greater than 3! 
-	2159 	deliveryMethod:Invalid field value! 
-	2160 	If 'deliveryMethod : 001',contactMobile must be empty! 
-	2161 	If 'deliveryMethod : 002',contactEmail must be empty! 
-T140 	2162 	Invalid User account or Password! 
-	2163 	Password error! 
-	2164 	Invalid User account! 
-T142 	2165 	otp error! 
-	2166 	otp cannot be empty! 
-
-	2167 	otp:Byte length cannot be greater than 6! 
-T143 	2168 	branchId cannot be empty! 
-	2169 	branchId:Byte length cannot be greater than 18! 
-	2170 	deviceNo cannot be empty! 
-	2171 	deviceNo:Byte length cannot be greater than 18! 
-T142 	2172 	otp has expired! 
-T143 	2173 	deviceNo format error! 
-	2174 	branchId does not exist! 
-	2175 	deviceNo already exists 
-T131 	2176 	This product has been stored, it cannot stock in using opening stock 
-	2177 	If 'operationType' is '102', stockInType must be empty! 
-T136 	2178 	Encryption type does not match! 
-	2179 	The key length of the public key should be 2048! 
-T109 	2180 	basicInformation-->currency:Invalid field value! 
-	2181 	goodsDetails-->exciseCurrency:Invalid field value! 
-T109、T110 	2182 	taxDetails-->exciseCurrency:Invalid field value! 
-T109 	2183 	sellerDetails-->branchId:cannot be empty! 
-	2184 	sellerDetails-->branchId:Byte length cannot be greater than 18! 
-	2185 	sellerDetails-->branchId does not belong to current taxpayer! 
-	2186 	sellerDetails-->branchName:If 'branchId' is not empty, it cannot be empty! 
-	2187 	sellerDetails-->branchName:Byte length cannot be greater than 500! 
-	2188 	sellerDetails-->branchName does not belong to current taxpayer! 
-T106、T107 	2189 	branchName:cannot be empty! 
-	2190 	branchName:Byte length cannot be greater than 500! 
-T131 	2191 	branchId:cannot be empty! 
-	2192 	branchId:Byte length cannot be greater than 18! 
-	2193 	branchId: branch does not belong to current taxpayer! 
-T131、T139 	2194 	goodsCode:cannot be empty! 
-	2195 	goodsCode:Byte length cannot be greater than 50! 
-	2196 	commodityGoodsId and goodsCode cannot be empty at the same time! 
-T109、T110 
- 	2197 	Some items details are inconsistent with the goods maintenance. 
-
- 
- 	2198 	Some items details are inconsistent with goods maintenance and the application cannot be approved. 
-	2199 	Some items details are inconsistent with goods maintenance and the application cannot be submitted. 
-T136 	2200 	The certificate has no matching fingerprint. Please upload the fingerprint to tax office first! 
-T109 	2201 	buyerExtend-->propertyType:cannot be empty! 
-	2202 	buyerExtend-->propertyType:Byte length cannot be greater than 50! 
-	2203 	buyerExtend-->district:cannot be empty! 
-	2204 	buyerExtend-->district:Byte length cannot be greater than 50! 
-	2205 	buyerExtend-->municipalityCounty:cannot be empty! 
-	2206 	buyerExtend-->municipalityCounty:Byte 	length cannot be greater than 50! 
-	2207 	buyerExtend-->divisionSubcounty:cannot be empty! 
-	2208 	buyerExtend-->divisionSubcounty:Byte length cannot be greater than 50! 
-	2209 	buyerExtend-->town:cannot be empty! 
-	2210 	buyerExtend-->town:Byte length cannot be greater than 50! 
-	2211 	buyerExtend-->cellVillage:cannot be empty! 
-	2212 	buyerExtend-->cellVillage:Byte length cannot be greater than 60! 
-	2213 	buyerExtend-->effectiveRegistrationDate:cannot be empty! 
-	2214 	buyerExtend-->effectiveRegistrationDate:The time format must be yyyy-MM-dd! 
-	2215 	buyerExtend-->meterStatus:cannot be empty! 
-	2216 	buyerExtend-->meterStatus:Byte length cannot be greater than 3! 
-	2217 	buyerExtend-->meterStatus:Invalid field value! 
- 
- 
- 
- 
- 
- 
- 
- 	2218 	otherUnit:cannot be empty! 
-	2219 	otherUnit:Byte length cannot be greater than 3! 
-	2220 	otherUnit: invalid field value! 
-	2221 	packageScaled cannot be empty! 
-	2222 	packageScaled The integer character length cannot exceed 12! 
-	2223 	otherScaled cannot be empty! 
-	2224 	otherScaled The integer character length cannot 
-
- 
- 
- 
-T130 		exceed 12! 
-	2225 	haveOtherUnit:cannot be empty! 
-	2226 	haveOtherUnit:Byte length cannot be greater than 3! 
-	2227 	haveOtherUnit: invalid field value! 
-	2228 	If 'haveOtherUnit' is '101', goodsOtherUnits cannot be empty! 
-	2229 	If 'haveOtherUnit' is '102', goodsOtherUnits must be empty! 
-	2230 	some goods cannot have duplicate secondary units of measurement! 
-	2231 	otherUnit cannot equals to 'measureUnit'! 
-	2232 	If 'havePieceUnit is '101', otherUnit cannot equals to 'pieceMeasureUnit'! 
-T130、T131、
-T139 	2233 	measureUnit:cannot be empty! 
-	2234 	measureUnit:Byte length cannot be greater than 3! 
-	2235 	measureUnit: invalid field value! 
-T130 	2236 	pieceMeasureUnit:cannot be empty! 
-	2237 	pieceMeasureUnit:Byte length cannot be greater than 3! 
-	2238 	pieceMeasureUnit: invalid field value! 
-T130 	2239 	If 'havePieceUnit' is '102', haveOtherUnit must be '102'! 
-T109 	2240 	basicInformation-->invoiceKind:You have registered VAT, please issue tax invoice! 
-T139 	2241 	goodsStockInItem can not be empty! 
-	2242 	goodsStockTransferItem can not be empty! 
-T131、T139 	2243 	measureUnit: inconsistent with the maintained commodity unit! 
-T109 	2244 	buyerDetails-->buyerType: cannot be empty! 
-	2245 	buyerDetails-->buyerType:Byte length cannot be greater than 3! 
-	2246 	buyerDetails-->buyerTin: If 'buyerType' is '0', and 'InvoiceIndustry' is not '102', 'buyerLegalName' and 'buyerBusinessName' cannot be empty at the same time! 
-	2247 	buyerDetails-->buyerLegalName: If 'buyerType' is '0', buyerLegalName cannot be empty! 
-	2248 	buyerDetails-->buyerLegalName: Buyer's legal name is inconsistent! 
-	2249 	buyerDetails-->buyerTin: Buyer's tin not exist! 
-
-	2250 	sellerDetails-->isCheckReferenceNo:cannot be empty! 
-	2251 	sellerDetails-->isCheckReferenceNo:Byte length cannot be greater than 1! 
-	2252 	sellerDetails-->isCheckReferenceNo:Invalid field value! 
-	2253 	The seller's reference number already exists! 
-	2254 	If 'isCheckReferenceNo' is '1',sellerDetails->referenceNo cannot be empty! 
-T127 	2255 	goodsCode:cannot be empty! 
-	2256 	goodsCode:Byte length cannot be greater than 50! 
-	2257 	goodsName:cannot be empty! 
-	2258 	goodsName:Byte length cannot be greater than 100! 
-	2259 	commodityCategoryName:cannot be empty! 
-	2260 	commodityCategoryName:Byte length cannot be greater than 200! 
-T119 	2261 	The taxpayer does not exist or the state is abnormal! 
-T109 	2262 	payWay-->paymentMode:cannot be empty! 
-	2263 	payWay-->paymentMode:Byte length cannot be greater than 3! 
-	2264 	payWay-->paymentMode: invalid field value! 
-	2265 	payWay-->paymentAmount:cannot be empty! 
-	2266 	payWay-->paymentAmount:The integer character length cannot exceed 12, and the decimal character length cannot exceed 2! 
- 	2270 	Total Amount Paid and Gross Amount are inconsistent! 
-T130 	2771 	otherPrice:Cannot be empty! 
-	2772 	otherPrice:The integer character length cannot exceed 12! 
-	2773 	otherPrice:Cannot be positive 
-	2774 	otherPrice:Cannot be equal to 0 
-	2775 	otherPrice:Cannot be negative 
-T109、T110 	2776 	goodsDetails-->tax: Tax calculation error! 
-T113 	2777 	TaskId does not exist! 
-T109 	2778 	Permission denied, you can't issue import invoice! 
-T105 	2779 	userName:cannot be empty! 
-	2780 	userName:Byte length cannot be greater than 200! 
-	2781 	changedPassword:cannot be empty! 
-
-	2782 	changedPassword:Byte length cannot be greater than 200! 
-T110 	2783 	oriInvoiceId:cannot be empty! 
-	2784 	oriInvoiceId:Byte length cannot be greater than 20! 
-T109、T110 	2785 	Tax Amount in the Tax Details(Section E: Tax 
-Details) cannot be less than the sum Tax in the 
-Goods Details(Section D: Goods & Services 
-Details)! 
-T109 	2786 	You cannot issue offline invoices! 
-	2787 	goodsDetails-->discountFlag:The previous line is not a discounted line,this line can not be a discount line! 
-	2788 	Branch 1 has no stock of this production! 
-	2789 	basicInformation-->issuedDate: You cannot backdate invoices relating to prior periods! 
-T109、T110 	2790 	goodsDetails-->exciseTax:If 'exciseFlag' is '2', it must be empty or '0'! 
-	2791 	goodsDetails-->exciseTax:When exciseFlag is '1' must be negative or '0'! 
-T109 	2792 	goodsDetails-->exciseTax:when exciseFlag is '1' and discountFlag is '0' and exciseRule is '2' 
-Must be '0'! 
-	2793 	goodsDetails-->exciseRate: excise tax rate error, it should be *** ! 
-	2794 	goodsDetails-->exciseTax: excise tax calculation error! 
-	2795 	goodsDetails-->exciseRule:exciseRule error! 
-	2796 	You can't select tax exemption and deemed at the same time! 
-T121 	2797 	issueDate:cannot be empty! 
-T130 	2798 	issueDate:The time format must bey yyy-MM-dd! 
-	2799 	commodityCategoryId: The original product category of the product is 'service', you cannot modify it to 'commodity'. 
-	2800 	commodityCategoryId: The original product category of the product is 'commodity', you cannot modify it to 'service'. 
-T114 	2801 	invoiceApplyCategoryCode:Invalid field value, this document is rebate! 
-	2802 	oriInvoiceId:If 'invoiceApplyCategoryCode' is 
-
-		'105',it must be empty! 
-	2803 	The credit note without original FDN has been cancelled, please don't apply repeatedly! 
-T109 	2804 	You don't have permission to issue credit memo! 
-	2805 	buyerDetails-->buyerType: If invoiceType is '5' ,'invoiceIndustryCode' is not '102', buyerType must be '0' or '1' 
-	2806 	buyerDetails-->buyerTin: If invoiceType is '5' ,'invoiceIndustryCode' is not '102', buyerTin can not be empty! 
-	2807 	basicInformation-->invoiceIndustryCode:If invoiceType is '50 
-',invoiceIndustryCode cannot be '104'! 
-TCS 	9901 	Reached the maximum concurrency, Please try again later.  
-TCS 	9902 	Cache service connection failed, please try again later.  
-T109 	2808 	airlineGoodsDetails:If invoiceIndustryCode is '109',airlineGoodsDetails cannot be empty! 
-	2809 	buyerDetails-->buyerType: The foreigner is not allowed for generating invoices with deemed item. 
-T131 	2810 	Invoice number does not exist! 
-	2811 	The invoice is not for you! 
-	2812 	The type of invoice must be Invoice/Receipt or 
-Debit Note！ 
-	2813 	The invoice has been canceled! 
-	2814 	The invoice has been issued credit note! 
-	2815 	Commodity code (****) does not belong to the invoice! 
-	2816 	goodsDetails-->taxRate: You are duty free taxpayer, if 'invoiceIndustryCode' not equal to '102' or '104' , 'taxRate' should be zero or standard! 
-T109 	2817 	goodsDetails-->exciseFlag: You are duty free taxpayer, if 'invoiceIndustryCode' not equal to 
-'102' or '104' , 'exciseFlag' must be '2'! 
-T110 	2818 	Please request credit note without original invoice! 
-T131 	2819 	You cannot use airline invoices for stock 
-T109 	2820 	goodsDetails-->goodsCategoryId: The commodity category can only be service! 
-
-	2821 	buyerDetails-->buyerTin: you don't have permission to issue deemed invoices! 
-	2822 	basicInformation-->invoiceType: Duty free shops cannot issue rebate / memo , 'invoiceType' can not be '5'! 
-	2823 	buyerDetails-->buyerTin: if the 'deemedFlag' is '1','buyerTin' can not be empty, and 'buyerTin' must exist in the deemed list and be valid! 
- 	2824 	E-Invoicing status abnormal! 
-T109 	2825 	You don't have permission to issue credit note without original invoice! 
-	2826 	buyerDetails-->buyerTin: If 'invoiceIndustryCode' is '104', 'buyerTin' must be the same as the 
-'tin' in the outer packet! 
-	2827 	goodsDetails-->exciseFlag:Credit Memo/Rebate products cannot include excise duty ,'exciseFlag' must be '2'! 
-	2828 	taxDetails-->taxCategoryCode:cannot be empty! 
-	2829 	taxDetails-->taxCategoryCode:Byte length cannot be greater than 2! 
-	2830 	taxDetails-->taxCategoryCode:Invalid field value! 
-	2831 	taxDetails-->taxRateName: If 'taxCategoryCode' is '05' or '10' , 'taxRateName' can not be empty! 
-	2832 	goodsDetails-->exciseRateName: If 'exciseFlag' is '1', 'exciseRateName' can not be empty! 
-	2833 	taxDetails-->taxRate: If 'taxCategoryCode' is * , 'taxRate' must be *! 
-	2834 	buyerDetails-->buyerLegalName: If 
-'invoiceIndustryCode' is '102', 'buyerLegalName' can not be empty! 
-T127 	2835 	branchId:cannot be empty! 
-	2836 	branchId:Byte length cannot be greater than 18! 
-	2837 	branchId does not belong to current taxpayer! 
-T109 	2838 	You can't issue invoice/receipt through this channel, please contact URA! 
-	2839 	The buyer TIN relates to Non-individual. Please use customer type as Business to complete this transaction! 
-	2840 	taxDetails-->taxCategoryCode: You can not issue invoices of this tax type 'Out of Scope for VAT'! 
-T131 	2841 	Same FDN or productionBatchNo cannot be stocked 
-
-		in more than once! 
-	2842 	isCheckBatchNo:Invalid field value! 
-T145 	2843 	'productionBatchNo'、'invoiceNo'、'referenceNo' cannot be empty at the same time! 
-	2844 	productionBatchNo:cannot be empty! 
-	2845 	productionBatchNo:Byte length cannot be greater than 50! 
-	2846 	referenceNo:cannot be empty! 
-	2847 	referenceNo:Byte length cannot be greater than 20! 
-T109 	2848 	goodsDetails-->exciseFlag: This product is configured as excise duty, 'exciseFlag' must be '1'! 
-	2849 	goodsDetails-->itemCode: Does not match the 'categoryId'! 
-	2850 	goodsDetails-->exciseFlag: TThis product is not configured as excise duty, 'exciseFlag' must be '2'! 
-	2851 	goodsDetails-->exciseFlag: You have not registered Excise Duty or Excise Duty is not effective，'exciseFlag' must be '2'! 
-	2852 	goodsDetails-->exciseFlag: Excise duty is not available in export invoice , 'exciseFlag' must be '2'! 
-	2853 	goodsDetails-->vatApplicableFlag: cannot be empty! 
-	2854 	goodsDetails-->vatApplicableFlag: Byte length cannot be greater than 1! 
-	2855 	goodsDetails-->vatApplicableFlag: Invalid field value! 
-	2856 	goodsDetails-->vatApplicableFlag: You can not issue invoices of this tax type 'Out of Scope for VAT'，'vatApplicableFlag' can not be '0'! 
-	2857 	goodsDetails-->taxRate:If 'vatApplicableFlag' is '0', 'taxRate' must be '0'! 
-	2858 	Failed to save some goods items, please contact URA! 
-	2859 	goodsDetails-->deemedFlag: If 'vatApplicableFlag' is '0', 'deemedFlag' should be '2'! 
-T146 	2860 	type: cannot be empty! 
-	2861 	type: Byte length cannot be greater than 1! 
-
-	2862 	type: Invalid field value! 
-	2863 	categoryCode: cannot be empty! 
-	2864 	categoryCode: Byte length cannot be greater than 1! 
-	2865 	issuedDate:cannot be empty! 
-	2866 	issuedDate:The time format must beyyyy-MM-dd HH:mm:ss! 
-	2867 	categoryCode: does not exist! 
-T106 	2868 	queryType: cannot be empty! 
-	2869 	queryType: Byte length cannot be greater than 1! 
-	2870 	queryType: Invalid field value! 
-	2871 	If 'queryType' is '0', 'buyerTin'、
-'buyerNinBrn'、'buyerLegalName' must be empty! 
-T109、T110 	2872 	goodsDetails-->unitOfMeasure:Please use a unit of measure acceptable by customs to proceed! 
-T127 	2873 	serviceMark: cannot be empty! 
- 	2874 	serviceMark: Byte length cannot be greater than 3! 
- 	2875 	serviceMark: Invalid field value! 
- 	2876 	haveExciseTax: cannot be empty! 
- 	2877 	haveExciseTax: Byte length cannot be greater than 3! 
- 	2878 	haveExciseTax: Invalid field value! 
-T147、T148、
-T149 	2879 	combineKeywords: cannot be empty! 
- 	2880 	combineKeywords: Byte length cannot be greater than 50! 
- 	2881 	id:cannot be empty! 
- 	2882 	id:Byte length cannot be greater than 18! 
-T109 	2883 	goodsDetails-->pack: value error, it should be *! 
- 	2884 	goodsDetails-->stick: value error, it should be *! 
-T131 	2885 	goodsStockInItem-->remarks:cannot be empty! 
- 	2886 	goodsStockInItem-->remarks:Byte length cannot be greater than 1024! 
-T109、T110 	2887 	buyerDetails-->buyerTin: If 'buyerType' is 'B2C', 'buyerTin'、'buyerNinBrn'、'buyerLegalName' and 'buyerMobilePhone' cannot be empty at the same time! 
- 	2888 	buyerDetails-->buyerTin: If 'buyerType' is 'Foreigner', 'buyerCitizenship'、'buyerPassportNum' and 'buyerLegalName' cannot be empty at the same time! 
-
-TCS 	2889 	The current version is too low, please upgrade to the latest version. 
-T131、T139 	2890 	rollBackIfError:cannot be empty! 
-	2891 	rollBackIfError:Byte length cannot be greater than 1! 
-	2892 	rollBackIfError: Invalid field value! 
-T111 	2893 	creditNoteType: cannot be empty! 
-	2894 	creditNoteType: Byte length cannot be greater than 1! 
-	2895 	creditNoteType: Invalid field value! 
-T106 	2896 	dataSource: cannot be empty! 
-	2897 	dataSource: Byte length cannot be greater than 3! 
-	2898 	dataSource: Invalid field value! 
-T127 	2899 	goodsTypeCode: cannot be empty! 
-	2900 	goodsTypeCode: Byte length cannot be greater than 3! 
-	2901 	goodsTypeCode: Invalid field value! 
-T109 	2902 	edcDetails-->tankNo: cannot be empty! 
-	2903 	edcDetails-->tankNo: Byte length cannot be greater than 50! 
-	2904 	edcDetails-->pumpNo: cannot be empty! 
-	2905 	edcDetails-->pumpNo: Byte length cannot be greater than 50! 
-	2906 	edcDetails-->nozzleNo: cannot be empty! 
-	2907 	edcDetails-->nozzleNo: Byte length cannot be greater than 50! 
-	2908 	edcDetails-->controllerNo: cannot be empty! 
-	2909 	edcDetails-->controllerNo: Byte length cannot be greater than 50! 
-	2910 	edcDetails-->acquisitionEquipmentNo: cannot be empty! 
-	2911 	edcDetails-->acquisitionEquipmentNo: Byte length cannot be greater than 50! 
-	2912 	edcDetails-->levelGaugeNo: cannot be empty! 
-	2913 	edcDetails-->levelGaugeNo: Byte length cannot be greater than 50! 
-	2914 	edcDetails-->mvrn: cannot be empty! 
-	2915 	edcDetails-->mvrn: Byte length cannot be greater than 32! 
-T167 	2916 	fuelType: cannot be empty! 
-	2917 	fuelType: Byte length cannot be greater than 200! 
-
-T170 	2918 	deviceNumber: cannot be empty! 
-	2919 	deviceNumber: Byte length cannot be greater than 20! 
-	2920 	deviceNumber does not belong to you. 
-T169 	2921 	Pump no does not exist! 
- 	2922 	edcOrderNum: cannot be empty! 
-	2923 	edcOrderNum: Byte length cannot be greater than 24! 
-	2924 	disconnectedType: cannot be empty! 
-	2925 	disconnectedType: Byte length cannot be greater than 3! 
-	2926 	disconnectedType: Invalid field value! 
-	2927 	disconnectedTime: cannot be empty! 
-	2928 	disconnectedTime: The time format must bey yyyyMM-dd HH:mm:ss! 
-T109 	2929 	branch does not match the gas station. 
-	2930 	invoiceNo: TCS is offline now, Can't find this invoice! 
-T166 	2931 	invoiceNo:You can not modify buyer's information more than X times. 
-	2932 	invoiceNo:The buyer information cannot be modified because of the fiscal document was generated * hours ago. 
-T163 	2933 	shiftNo: cannot be empty! 
-	2934 	shiftNo: Byte length cannot be greater than 20! 
-	2935 	startVolume: cannot be empty! 
-	2936 	startVolume:The integer character length cannot exceed 12, and the decimal character length cannot exceed 2! 
-	2937 	startVolume: Cannot be positive! 
-	2938 	startVolume: Cannot be equal to 0! 
-	2939 	startVolume: Cannot be negative! 
-	2940 	endVolume: cannot be empty! 
-	2941 	endVolume:The integer character length cannot exceed 12, and the decimal character length cannot exceed 2! 
-	2942 	endVolume: Cannot be positive! 
-	2943 	endVolume: Cannot be equal to 0! 
-	2944 	endVolume: Cannot be negative! 
-	2945 	fuelType: cannot be empty! 
-	2946 	fuelType: Byte length cannot be greater than 200! 
-	2947 	goodsId: cannot be empty! 
-
-	2948 	goodsId: Byte length cannot be greater than 18! 
-	2949 	goodsCode: cannot be empty! 
-	2950 	goodsCode: Byte length cannot be greater than 50! 
-	2951 	invoiceNumber: cannot be empty! 
-	2952 	invoiceNumber:The integer character length cannot exceed 12! 
-	2953 	invoiceNumber: Cannot be positive! 
-	2954 	invoiceNumber: Cannot be equal to 0! 
-	2955 	invoiceNumber: Cannot be negative! 
-	2956 	nozzleNo: cannot be empty! 
-	2957 	nozzleNo: Byte length cannot be greater than 50! 
-	2958 	pumpNo: cannot be empty! 
-	2959 	pumpNo: Byte length cannot be greater than 50! 
-	2960 	tankNo: cannot be empty! 
-	2961 	tankNo: Byte length cannot be greater than 50! 
-	2962 	userName: cannot be empty! 
-	2963 	userName: Byte length cannot be greater than 500! 
-	2964 	userCode: cannot be empty! 
-	2965 	userCode: Byte length cannot be greater than 100! 
-	2966 	startTime:cannot be empty! 
-	2967 	startTime:The time format must bey yyyy-MM-dd HH:mm:ss! 
-	2968 	endTime:cannot be empty! 
-	2969 	endTime:The time format must bey yyyy-MM-dd HH:mm:ss! 
-	2970 	modifyType: cannot be empty! 
-	2971 	modifyType: Byte length cannot be greater than 1! 
-	2972 	modifyType: Invalid field value! 
-T166 	2973 	invoiceNo does not exist. 
-T109 	2974 	edcDetails-->nozzleNo: NozzleNo error. 
-	2975 	edcDetails-->tankNo: Does not match 'nozzleNo'. 
-	2976 	edcDetails-->pumpNo: Does not match 'nozzleNo'. 
-	2977 	edcDetails-->controllerNo: ControllerNo error. 
-	2978 	edcDetails-->acquisitionEquipmentNo: AcquisitionEquipmentNo error. 
-	2979 	edcDetails-->levelGaugeNo: LevelGaugeNo error. 
-T130 	2980 	goodsDetails-->item: **** is not a fuel type item. 
-	2981 	measureUnit: The defalut measure unit should be '***'. 
-	2982 	***: The '***' is not in the UoM list of fuel. 
-	2983 	pieceScaledValue error, it should be '***'. 
-
-T172 	2984 	nozzleId: cannot be empty! 
-	2985 	nozzleId: Byte length cannot be greater than 18! 
-	2986 	nozzleNo: cannot be empty! 
-	2987 	nozzleNo: Byte length cannot be greater than 50! 
-	2988 	nozzleId does not match 'nozzleNo'. 
-	2989 	status: cannot be empty! 
-	2990 	status: Byte length cannot be greater than 3! 
-	2991 	status: invalid field value! 
-T130 	2992 	commodityCategoryId '***'  have been used. 
-	2993 	fuelTankId: cannot be empty! 
-	2994 	fuelTankId: Byte length cannot be greater than 18! 
-	2995 	fuelTankId '**' does not match the branch '**'. 
-T165 	2996 	tankList can not be empty! 
-	2997 	pumpList can not be empty! 
-	2998 	pumpId: cannot be empty! 
-	2999 	pumpId: Byte length cannot be greater than 18! 
-	3000 	pumpVersion: cannot be empty! 
-	3001 	pumpVersion: Byte length cannot be greater than 15! 
-	3002 	goodsId '***' is not fuel type! 
-	3003 	pumpId '***' is not for you! 
-	3004 	updateDateStr:cannot be empty! 
-	3005 	updateDateStr:The time format must be yyyy-MM-dd HH:mm:ss! 
-T166 	3006 	createDateStr:cannot be empty! 
-	3007 	createDateStr:The time format must be yyyy-MM-dd HH:mm:ss! 
-T139 	3008 	sourceFuelTankId: cannot be empty! 
-	3009 	sourceFuelTankId: Byte length cannot be greater than 18! 
-	3010 	source fuel tank '**' does not match the source branch '**'. 
-	3011 	destinationFuelTankId: cannot be empty! 
-	3012 	destinationFuelTankId: Byte length cannot be greater than 8! 
-	3013 	destination fuel tank '**' does not match the destination branch '**'. 
-	3014 	Goods with code '***' should be non-fuel products. 
-	3015 	Goods with code '***' should be fuel products. 
-T131 	3016 	lossQuantity cannot be empty! 
-	3017 	lossQuantity The integer character length cannot exceed 12! 
-
-	3018 	lossQuantity:Cannot be positive! 
-	3019 	lossQuantity:Cannot be equal to 0! 
-	3020 	lossQuantity:Cannot be negative! 
-	3021 	originalQuantity cannot be empty! 
-	3022 	originalQuantity The integer character length cannot exceed 12! 
-	3023 	originalQuantity:Cannot be positive! 
-	3024 	originalQuantity:Cannot be equal to 0! 
-	3025 	originalQuantity:Cannot be negative! 
-	3026 	loss quantity should be between ** and **. 
-	3027 	calculation error, the quantity should be equals original qty - loss qty. 
-	3028 	fuel tank '**' does not match the goods code '**'. 
-T109 	3029 	Fuel invoice cannot be issued debit note. 
-T165 	3031 	presentPrice:cannot be empty! 
- 	3032 	presentPrice:The integer character length cannot exceed 12! 
- 	3033 	presentPrice:Cannot be positive! 
- 	3034 	presentPrice:Cannot be equal to 0! 
- 	3035 	presentPrice:Cannot be negative! 
-T130 	3036 	The commodity category of the product has been marked as 'excisable' by URA, the value of field 'haveExciseTax' should be '101'. 
-T109 	3037 	The following Goods/ Services remaining amount or quantity of Deemed VAT/ VAT Exemption is less than the entered amount or quantity: {0} please modify. 
-	3038 	goodsDetails-->deemedExemptCode: cannot be empty! 
-	3039 	goodsDetails-->deemedExemptCode: Byte length cannot be greater than 3! 
-	3040 	goodsDetails-->deemedExemptCode: Invalid field value! 
-	3041 	goodsDetails-->vatProjectId: cannot be empty! 
-	3042 	goodsDetails-->vatProjectId: Byte length cannot be greater than 18! 
-	3043 	goodsDetails-->vatProjectId: Deemed/Exempt Project is invalid. 
-	3044 	goodsDetails-->vatProjectName: cannot be empty! 
-	3045 	goodsDetails-->vatProjectName: Byte length cannot be greater than 100! 
-	3046 	goodsDetails-->vatProjectName: does not exist! 
-	3047 	goodsDetails-->unitOfMeasure: You only can issue a 
-
-		Deemed invoice for this product using the Unit of Measure "***" configured by URA for this buyer. 
-	3048 	goodsDetails-->deemedFlag: If 'deemedExemptCode' is '101', 'deemedFlag' should be '1'! 
-	3049 	goodsDetails-->deemedFlag: If 'deemedExemptCode' is '102', 'deemedFlag' should be '2'! 
-	3050 	taxDetails-->taxAmount: must be '0' if the tax category is zero rate. 
-	3051 	taxDetails-->taxAmount: must be '0' if the tax category is exemption. 
-	3052 	Exchange rate is currently being updated. Please try again later. 
-T166 	3053 	Credit note is not allowed to modify the buyer's information. 
-	3054 	The invoice has been issued credit note, can not modify buyer's information. 
-	3055 	The invoice has been applied for credit note, can not modify buyer's information. 
-T109、T175 	3056 	mobileNumber:cannot be empty. 
-	3057 	mobileNumber:Byte length cannot be greater than 30. 
-	3058 	agentType: invalid field value. 
-	3059 	Parameter Missing 
-	3060 	The TIN is not registered in the ETAX system 
-	3061 	ETAX data conversion exception 
-	3062 	Headquarters information not found 
-	3063 	Your tin does not exist. 
-	3064 	The status of TIN is abnormal. 
-	3065 	Your TIN and mobile number do not match. 
-	3066 	The mobile number already exists. 
-	3067 	You have more than one branches, not allowed to use USSD. 
-	3068 	You have registered VAT,not allowed to use USSD. 
-	3069 	You are not allowed to use USSD. 
-	3070 	You have registered for non-USSD,not allowed to use USSD. 
-	3071 	Your TIN and legal name do not match. 
-	3072 	The device status is abnormal. 
-	3073 	basicInformation-->deviceNo: is not correct. 
-	3074 	Your branch does not exist. 
-T109 	3075 	Please use interface api-T110 to apply credit note. 
-	3076 		goodsDetails-->discountTotal:'discountFlag' 	is 
-
-		'1', therefore 'discountTotal' can not be empty! 
-	3077 	buyerDetails-->buyerTin: If 'buyerType' is '0', and 'InvoiceIndustry' is '101', and  'nonResidentFlag' is '0', 'buyerTin' cannot be empty! 
-	3078 	buyerDetails-->nonResidentFlag: Invalid field value! 
-	3079 	goodsDetails-->taxRate: You are applying an invoice with exempting VAT project, the tax rate should be empty or '-'. 
-	3080 	goodsDetails-->exciseRate: You are applying an invoice with exempting VAT project, the excise tax rate should be empty or '-'. 
-	3081 	You are generating B2G invoice, the invoice type should be 'Invoice/Receipt' or 'Credit Note' or 'Debite Note'. 
-	3082 	buyerDetails-->buyerTin: If 'buyerType' is 'B2G', 'buyerTin' cannot be empty. 
-	3083 	The buyer is not allowed to issue B2G invoice. 
-T176 	3084 	deviceIssuingStatus: cannot be empty! 
-	3085 	deviceIssuingStatus: Byte length cannot be greater than 3! 
-	3086 	deviceIssuingStatus: Invalid field value! 
-T109 	3087 	VAT is not allowed for receipt. 
-ALL 	3088 	Device has been blocked, please contact your manager. 
-T110、T114 	3089 	attachmentList-->fileName: cannot be empty! 
-	3090 	attachmentList-->fileName: Byte length cannot be greater than 256! 
-	3091 	attachmentList-->fileType: cannot be empty! 
-	3092 	attachmentList-->fileType: Byte length cannot be greater than 5! 
-	3093 	attachmentList-->fileType: format error. 
-	3094 	attachmentList-->fileContent: cannot be empty. 
-	3095 	attachmentList-->fileContent: parsing error. 
-T109 	3096 	The size of the uploaded attachment cannot exceed ** MB. 
-	3097 	Agent invoicing is limited to service goods. 
-	3098 	Agent invoicing does not support offline mode. 
-	3099 	You have no agency qualification, or your agency qualification has expired. 
-	3100 	The seller does not match the agent, or the agency 
-
-		relationship has expired. 
-T127 	3101 	queryType: cannot be empty! 
-	3102 	queryType: Byte length cannot be greater than 1! 
-	3103 	queryType: Invalid field value! 
-	3104 	tin: If 'queryType' is 'Agent goods query', 'tin' cannot be empty. 
-	3105 	branchId: If 'queryType' is 'Agent goods query', 'branchId' cannot be empty. 
-	3106 	branchId does not belong to taxpayer '*'. 
-	3107 	tin: If 'queryType' is 'Normal goods query', 'tin' must be empty. 
-	3108 	serviceMark: If 'queryType' is 'Agent goods query', 'serviceMark' must be 'service goods'. 
-T106 	3109 	sellerTinOrNin: cannot be empty. 
-	3110 	sellerTinOrNin: Byte length cannot be greater than 100. 
-	3111 	sellerLegalOrBusinessName: can not be empty. 
-	3112 	sellerLegalOrBusinessName: Byte length cannot be greater than 256. 
-T109 	3113 	You are trying to Generate an invoice relating to excisable product(s). Please Add Excise Duty to this transaction to proceed. 
-	3114 	goodsDetails-->discountTotal: cannot be greater than total. 
-T110 	3115 	summary-->grossAmount: cannot be greater than original invoice. 
-	3116 	summary-->taxAmount: cannot be greater than original invoice. 
-T143 	3117 	deviceType: cannot be empty! 
-	3118 	deviceType: Byte length cannot be greater than 1! 
-	3119 	deviceType: Invalid field value! 
-	3120 	This device has been distributed to another TIN. 
-	3121 	This device has been distributed to another branch ''. 
-T109 	3122 	You are issuing an agent invoice/receipt, but the product '*' is not authorized. 
-	3123 	 
-T110 	3124 	You are not allowed to issue 'credit note without original invoice' for your principal. 
-T114 	3125 	Only when the device/virtual device (DSN: ***) status is registered, you can cancel it. 
-
-T131 	3126 	The invoice has been flagged and can not be added to your stock ledger. 
-T109 	3127 	Your principal can't issue invoice/receipt through this channel, please contact URA. 
-	3128 	basicInformation-->deviceNo: Device status is abnormal. 
- 
-T181 	3129 	If 'buyerType' is 'B2B' or 'B2G', 'buyerTin', and 'buyerNinBrn' cannot be empty at the same time. 
-	3130 	If 'buyerType' is 'B2C', 'buyerTin', 'buyerNinBrn', 'buyerLegalName', and 'buyerLinePhone' cannot be empty at the same time. 
-	3131 	If 'buyerType' is 'Foreigner', 'buyerCitizenship', 'buyerPassportNum' and 'buyerLegalName' cannot be empty at the same time. 
-	3132 	Frequent contacts cannot exceed X. 
-	3133 	id does not exist. 
-T110、T114 	3134 	Document 'original invoice' is not available, please contact URA. 
-C106 	2022 	invoiceNo:cannot be empty! 
-	2023 	invoiceNo:Byte length cannot be greater than 20! 
-	2031 	invoiceNo:Invoice does not exist! 
-	2034 	tin:Cannot use customs interface! 
-C107 	2022 	invoiceNo:cannot be empty! 
-	2023 	invoiceNo:Byte length cannot be greater than 20! 
-	2034 	tin:Cannot use customs interface! 
-	3142 	exportStatusCode:cannot be empty! 
-	3143 	exportStatusCode:Byte length cannot be greater than 3! 
-	3159 	exportStatusCode:Invalid field value! 
-	2031 	invoiceNo:Invoice does not exist! 
-	3160 	Exports are not allowed for Credit Note pe FDN. 	nding's 
-T109 	3155 	buyerDetails-->deliveryTermsCode:Byte cannot be greater than 3! 	length 
-	3156 	buyerDetails-->buyerLegalName: 	If 
-			'invoiceIndustryCode' 	is 
-'deliveryTermsCode' can not be empty! 	'102', 
-	3157 	buyerDetails-->deliveryTermsCode: invalid field value! 
-	3158 		goodsDetails-->totalWeight: 	If 
-'invoiceIndustryCode' is '102', 'totalWeight' can 
-		not be empty! 
-	3162 	FDNs undergoing export processing are unable to issue credit note. 
-	3163 	Insufficient remaining quantity,can not apply credit note. 
-	3196 	goodsDetails-->goodsCategoryId: The commodity category can only be goods! Change invoiceIndustryCode to 112 
- 
+	
 Interface code table 
 Webservice interface code table 
 Interface Name 	Interface Code 	Description 
@@ -1596,25 +272,6 @@ Response Message 	{
  
  
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  	"device": { 
  	"deviceModel": "AE320", 
  	"deviceNo": "20190611", 
@@ -1677,16 +334,6 @@ Response Message 	{
   "isDutyFreeTaxpayer": "0", 
   "isAllowIssueCreditWithoutFDN": "0", 
 	 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
 } 	 "periodDate": "7", 
@@ -1812,6 +459,10 @@ issueDebitNot e 	Is invoicing debit note allowed when a credit note is 	Y 	1 	0:
 qrCodeURL 	Invoice verification 
 page 	prefix 
 address 	Y 	200 	https://efris.ura.go.ug/site_ mobile/#/invoiceValidation 
+
+
+
+
 4.	Obtaining Symmetric Key and Signature 
 Interface Name 		Get symmetric key and signature information – Used only for those with online 	
 		mode	 	
@@ -1830,6 +481,10 @@ Field description
 Field 	Field Name 	Required 	Length 	Description 
 passowrdDes 	Encrypted symmetric key 	Y 	Unlimit ed 	Used to encrypt and decrypt all data after login 
 sign 	Signature value 	Y 	Unlimit ed 	 
+
+
+
+
 5.	Forget Password 
 Interface Name 	forget password 
 Description 	forget password 
@@ -1847,6 +502,10 @@ Field description
 Field 	Field Name 	Required 	Length 	Description 
 userName 	username 	Y 	200 	 
 changedPassw ord 	Modified password 	Y 	200 	 
+
+
+
+
 6.	Invoice /Receipt query 
 Interface Name 	Invoice inquiry 
 Description 	Query all invoice information（Invoice/receipt, credit note, debit note, cancel credit note, cancel debit note） 
@@ -1854,10 +513,6 @@ Interface Code 	T106
 Request Encrypted 	Y 	
 Response Encrypted 	Y 	
 Request Message 	{ 
- 
- 
- 
- 
  
  
  	"oriInvoiceNo": "00000000002", 
@@ -1869,13 +524,6 @@ Request Message 	{
 "combineKeywords": "7777777", 
 
 	 
- 
- 
- 
- 
- 
- 
- 
  
 } 	"invoiceType": "1", 
 "invoiceKind": "1", 
@@ -1892,24 +540,6 @@ Request Message 	{
 "sellerTinOrNin": "1009837013", 
 "sellerLegalOrBusinessName": "CLASSY TRENDS BOUTIQUE"  
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"page": { 
@@ -1940,40 +570,7 @@ Response Message 	{
  
  
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 	 
- 
- 
 }, { 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"branchName": "Mr. RAJIV DINESH GANDHI", 
@@ -2006,7 +603,8 @@ Response Message 	{
 "operator": "administrator", 
 "userName": "Mr. ANDREW KIIZA" 
 	 
-} 	}] 	
+} 	}] 
+
 Flow Description 	The data is arranged in reverse order according to the date of issue. Only query the seller Tin equal to (the outer packet gets Tin) 
 Field description 
 Field 	Field Name 	Required 	Length 	Description 
@@ -2115,7 +713,12 @@ deviceNo 	deviceNo 	Y 		50
 uploadingTime 	uploadingTime 	Y 		Date 	 
 referenceNo 	referenceNo 	N 		50 	Seller's Reference No. 
 operator 	operator 	N 	100 	 
-userName 	userName 	N 	500 	 
+userName 	userName 	N 	500 
+
+
+
+
+
 7.	Query Normal Invoice/Receipt  
 Interface Name 	Apply for invoice inquiry 
 Description 	Query all Invoice/Receipt invoice information that can be issued with Credit Note, Cancel Debit Note 
@@ -2123,13 +726,6 @@ Interface Code 	T107
 Request Encrypted 	Y 	
 Response Encrypted 	Y 	
 Request Message 	{ 
- 
- 
- 
- 
- 
- 
- 
  
  
 } 	"invoiceNo": "00000000001", 
@@ -2143,18 +739,6 @@ Request Message 	{
 "pageSize": "10", 
 "branchName": "Mr. HENRY KAMUGISHA" 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"page": { 
@@ -2174,22 +758,6 @@ Response Message 	{
  	"buyerLegalName": "test", 
 	 
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
 } 	 	"tin": "8888888888", 
  	"businessName": "aisino1", 
  	"legalName": "test", 
@@ -2208,6 +776,8 @@ Response Message 	{
  	"grossAmount ": "2000.00", 
  	"dataSource": "101" 
 }] 
+
+
 Flow Description 	1.	Display the positive invoices that the current taxpayer has opened, and filter out the current positive invoices without submitting a credit note or Debit note application, and Not obsolete 
 2.	The data is arranged in reverse order according to the date of issue. 
 3.	Only query the seller Tin equal to (the outer packet gets Tin) 
@@ -2251,7 +821,12 @@ pageNo 	current page number 	Y 	10
 pageSize 	How many records are displayed per page 	Y 	3 	 
 totalSize 	Total number of 
 articles 	Y 	10 	 
-pageCount 	total pages 	Y 	10 	 
+pageCount 	total pages 	Y 	10 	
+
+
+
+
+
 8.	Invoice details 
 Interface Name 	Invoice details 
 
@@ -2263,35 +838,6 @@ Request Message 	{
  
 } 	"invoiceNo": "22598049632407113016" 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  	"sellerDetails": { 
 	 	"tin": "201905081705", 
@@ -2409,27 +955,6 @@ Response Message 	{
 	 	 	"discountFlag": "1", 
 	 	 	"deemedFlag": "1", 
 	 	 	"exciseFlag": "2", 
-
-	 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
-  
-  
-  
-  
-  
-  
-  
-  
   	"categoryId": "2", 
 "categoryName": "Test", 
 "goodsCategoryId": "5673", 
@@ -2453,13 +978,7 @@ Response Message 	{
 "pieceMeasureUnit": "101" 
 		 	}], 
 	 	"tax
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
+ 	
  	 	Details": [{ 
 "taxCategoryCode": "01", 
 "netAmount": "3813.55", 
@@ -2470,10 +989,6 @@ Response Message 	{
 "exciseCurrency": "UGX", 
 "taxRateName": "123" 
 		 	}, { 
- 	 
- 	 
- 	 
- 	 
  	 
  	 
  	 	"taxCategoryCode": "05", 
@@ -2924,6 +1439,9 @@ preGrossAmoun t 	  gross amount  	N 	 number 	Original Invoice/Receipt total gro
 preTaxAmount 	 tax amount 	N 	number 	Original Invoice/Receipt  total tax amount 
 preNetAmount 	net amount 	N 	number 	Original Invoice/Receipt  total net amount 
  
+
+
+
  
 9. Invoice Upload 
 Interface Name 	Invoice Upload 
@@ -2932,19 +1450,6 @@ Interface Code 	T109
 Request Encrypted 	Y 	
 Response Encrypted 	Y 	
 Request Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"sellerDetails": { 
@@ -3049,34 +1554,6 @@ Request Message 	{
 	 	 	"unitPrice": "150.00", 
 	 	 	"total": "1", 
 
-	 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
-  
-  
-  
-  
-  
-  
-  
-  
   	"taxRate": "0.18", 
 "tax": "12.88", 
 "discountTotal": "18.00", 
@@ -3108,12 +1585,6 @@ Request Message 	{
 "pieceMeasureUnit": "101" 
 		 	}], 
 	 	"tax
- 	 
- 	 
- 	 
- 	 
- 	 
- 	 
  	 
  	 
 	 	}, { 	Details": [{ 
@@ -3207,42 +1678,6 @@ FGj4N6ioIGzVr9G40uhQGdm16ZU+q44XjW2oUnI9w="
 } 
 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"sellerDetails": { 
@@ -3894,6 +2329,10 @@ legalName 	legalName 	N 	256
 businessName 	businessName 	 N 	256 	 
 address 	address 	N 	500 	 
  
+
+
+
+
 10.	Credit Note Application 
  
 Interface Name 	Credit Note Application 
@@ -3902,34 +2341,7 @@ Interface Code 	T110
 Request Encrypted 	Y 	
 Response Encrypted 	Y 	
 Request Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
+
  
  	"oriInvoiceId": "0123456", 
 "oriInvoiceNo": "1234556789", 
@@ -3961,68 +2373,8 @@ Request Message 	{
  	"goodsCategoryId": "1125", 
  	"goodsCategoryName": "Test", 
  	"exciseRate": "0.12", 
-
-	 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 	 
- 
- 
- 
- 
- 
- 
  
 }, { 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  
@@ -4059,10 +2411,6 @@ Request Message 	{
 "exciseRateName": "123", 
 "vatApplicableFlag": "1" 
 	 
- 
- 
- 
- 
  
  	}], 
 "taxDetails": [{ 
@@ -4355,6 +2703,9 @@ fileName 	fileName 	N 	256
 fileType 	fileType 	N 	5 	fileType format: png、doc、 pdf、jpg、txt、docx、xlsx、 cer、crt、der 
 fileContent 	fileContent 	N 	Unlimit ed 	Base64 content 
  
+
+
+
 11.	Credit /Cancel Debit Note Application List Query 
 Interface Name 	Credit/Cancel Debit Note Application List Query 
 Description 	Credit/Cancel Debit Note Application List Query 
@@ -4364,17 +2715,7 @@ Request Encrypted 	Y
 Response Encrypted 	Y 	
 Request Message 	{ 
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
+
 } 	"referenceNo": "1234556789", 
 "oriInvoiceNo": "1234556789", 
 "invoiceNo": "1234556789", 
@@ -4390,23 +2731,6 @@ Request Message 	{
 "sellerTinOrNin": "1009837013", 
 "sellerLegalOrBusinessName": "CLASSY TRENDS BOUTIQUE" 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  
@@ -4431,46 +2755,8 @@ Response Message 	{
 	 	"buyerTin": "7777777777", 
 	 	"buyerBusinessName": "aisino", 
 	 	"buyerLegalName": "test", 
-	 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 	 
- 
- 
- 
  
 }, { 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"tin": "8888888888", 
@@ -4586,18 +2872,6 @@ Request Message 	{
  
 } 	"id": "229700709531101368" 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"id": "229700709531101368", 
@@ -4747,6 +3021,8 @@ fileName 	fileName 	N 	256
 fileType 	fileType 	N 	5 	fileType format: png、doc、 pdf、jpg、txt、docx、xlsx、 cer、crt、der 
 fileContent 	fileContent 	N 	Unlimit ed 	Base64 content 
  
+
+
 13.	Credit /Debit Note approval  
 Interface Name 	credit application approval 
 Description 	credit application approval 
@@ -4769,6 +3045,10 @@ approveStatus 	Approval Status 	Y 	3 	101 Approved
 Associated dictionary table creditNoteApproveStatus 
 remark 	Remarks 	Y 	1024 	 
 taskId 	task ID 	Y 	20 	 
+
+
+
+
 14.	Cancel of credit /debit note Application 
 Interface Name 	Cancel Credit Note 、initiate Cancel of Debit Note Application 
 Description 	Cancellation of credit and debit notes 
@@ -4812,6 +3092,9 @@ fileName 	fileName 	N 	256
 fileType 	fileType 	N 	5 	fileType format: png、doc、 pdf、jpg、txt、docx、xlsx、 cer、crt、der 
 fileContent 	fileContent 	N 	Unlimit ed 	Base64 content 
  
+
+
+
 15.	System Dictionary Update 
 Interface Name 	System dictionary update 
 Description 	Query system parameters such as VAT, Excise Duty, and Currency 
@@ -4820,24 +3103,6 @@ Request Encrypted 	N
 Response Encrypted 	Y 
 Request Message 	Null 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"creditNoteMaximumInvoicingDays": { 
@@ -4956,6 +3221,8 @@ Field description
 Field 	Field Name 	Required 	Length 	Description 
  	 	 	 	 
  
+
+
 17.	Invoice Checks 
 Interface Name 	Invoice Checks 
 Description 	Contrast client invoice with server invoice consistent 
@@ -4993,6 +3260,11 @@ FDN
 Original FDN 
 4:Debit Note 
 The size of the collection cannot exceed the set value 	
+
+
+
+
+
 18.	Query Credit Note Application and Cancel of Debit Note Application Details 
 Interface Name 	Query Credit Note Application and Cancel of Debit Note Application Details 
 Description 	Query Credit Note and Cancel Debit Note to apply for details 
@@ -5003,31 +3275,7 @@ Request Message 	{
  
 } 	"id": "229700709531101368" 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
+
  
  	"goodsDetails": [{ 
  	"itemName": "apple", 
@@ -5057,60 +3305,7 @@ Response Message 	{
  	"exciseCurrency": "UGX", 
  	"exciseRateName": "123", 
 
-	 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 	 
 }, { 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"vatApplicableFlag": "1" 
@@ -5142,15 +3337,6 @@ Response Message 	{
 "vatApplicableFlag": "1" 
 	 
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
  	}], 
 "taxDetails": [{ 
  "taxCategoryCode": "01", 
@@ -5164,31 +3350,6 @@ Response Message 	{
 }, { 
  "taxCategoryCode": "05", 
 	 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
 } 	 	"netAmount": "1818.18", 
@@ -5328,6 +3489,10 @@ invoiceIndustry Code 	invoiceIndustryCod e 	Y 	3 	101:General Industry
 110:EDC 
 111:Auction 
 112:Export Service 
+
+
+
+
  
 19.	Query Taxpayer Information By TIN 
 Interface Name 	Query Taxpayer Information By TIN or ninBrn 
@@ -5340,21 +3505,6 @@ Request Message 	{
  	"ninBrn": "7777777777" 
 } 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 	 
- 
- 
- 
- 
- 
  
  
  	"taxpayer": { 
@@ -5420,8 +3570,6 @@ Response Message 	{
  
  
  
- 
- 
 } 	"currency": "USD", 
 "rate": "3700", 
 "importDutyLevy": "3740.6388", 
@@ -5439,6 +3587,10 @@ rate 	 	VAT rate 	Y 	Number 	Exchange rate of target currency to ugx eg: 1usd = 
 importDutyLev y 	importDutyLevy 	Y 	Number 	 
 inComeTax 	inComeTax 	Y 	Number 	 
 exportLevy 	exportLevy 	Y 	Number 	 
+
+
+
+
 22.	Query cancel credit note details 
 Interface Name 	Query cancel credit note details 
 Description 	Query cancel credit note details Mapping to T114 
@@ -5449,8 +3601,6 @@ Request Message 	{
  	"invoiceNo": "22970000531455" 
 } 
 Response Message 	{ 
- 
- 
  
  
  
@@ -5473,6 +3623,8 @@ grossAmount 	grossAmount 	Y 	Number
 reason 	Cancel reason 	Y 	1024 	 
 reasonCode 	Refund reason code 	Y 	3 	Corresponding dictionary cancelRefundReason 
  
+
+
 23.	Query Commodity Category 
 Interface Name 	Query Commodity Category 
 Description 	Query Commodity Category 
@@ -5490,54 +3642,7 @@ Response Message 	 	[{
 	 
  
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 	 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
 }, { 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  
@@ -5602,44 +3707,6 @@ Request Message 	{
 } 
 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"page": { 
@@ -5724,6 +3791,9 @@ pageCount 	total pages 	Y 	10
 vatOutScopeCo de 	VAT Out of Scope 	Y 	3 	101:Yes 
 102:No 
  
+
+
+
 25.	Query Excise Duty 
 Interface Name 	Query Excise Duty 
 Description 	Query Excise Duty 
@@ -5745,58 +3815,7 @@ Response Message 	{
  	 	 	"type": "101", 
 	 
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 	 
- 
- 
- 
- 
- 
- 
- 
- 
- 
 }, { 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	 	"rate": "0.18", 
@@ -5828,6 +3847,7 @@ Response Message 	{
 }] 
 	 
 } 	}] 	
+
 Flow Description 	Query Excise Duty 
 Field description 
 Field 	Field Name 	Required 	Length 	Description 
@@ -5860,11 +3880,6 @@ Request Message 	{
 Response Message 	[ 
  
  
- 
- 
- 
- 
- 
 ] 	{ 
  	"currency": "USD", 
  	"rate": "3700", 
@@ -5884,6 +3899,8 @@ importDutyLev y 	importDutyLevy 	Y 	Number
 inComeTax 	inComeTax 	Y 	Number 	 
 exportLevy 	exportLevy 	Y 	Number 	 
  
+
+
 27.	Goods/Services Inquiry 
 Interface Name 	Goods/Services Inquiry 
 Description 	Goods/Services Inquiry 
@@ -5891,17 +3908,6 @@ Interface Code 	T127
 Request Encrypted 	Y 	
 Response Encrypted 	Y 	
 Request Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"goodsCode": "0001", 
@@ -5921,41 +3927,6 @@ Request Message 	{
 
 	} 	
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  
@@ -5998,16 +3969,6 @@ Response Message 	{
  "goodsTypeCode": "101", 
  "updateDateStr": "2022-01-14 13:43:00", "tankNo": "137465834749262155", 
 	  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   
   
  }] 
@@ -6123,6 +4084,9 @@ otherScaled 	otherScaled 	N 	Number 	Integer digits cannot exceed
 12, decimal digits cannot exceed 8; 
 packageScaled 	packageScaled 	N 	Number 	Integer digits cannot exceed 
 12, decimal digits cannot exceed 8; 
+
+
+
  
 28.	Query the stock quantity by goods id 
 Interface Name 	Query the stock quantity by goods id 
@@ -6148,6 +4112,8 @@ Field 	Field Name 	Required 	Length 	Description
 stock 	 	currency 	Y 	Number 	 
 stockPrewarnin g 	stockPrewarning 	Y 	Number 	 
  
+
+
 29.	Batch Invoice Upload 
 Interface Name 	Batch Invoice Upload 
 Description 	Batch Invoice Upload 
@@ -6356,26 +4322,11 @@ otherScaled 	otherScaled 	Y 	Number 	Integer digits cannot exceed
 packageScaled 	packageScaled 	Y 	Number 	Integer digits cannot exceed 
 12, decimal digits cannot exceed 8; 
  
+
+
+
 31.	Goods Stock Maintain 
 	 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
 } 	 "stockInType": "101", 
  "productionBatchNo": "1200983", 
@@ -6482,6 +4433,9 @@ lossQuantity 	lossQuantity 	N 	Number 	Integer digits cannot exceed 12, decimal 
 exceed 8; 
 originalQuant ity 	originalQuantity 	N 	Number 	Integer digits cannot exceed 12, decimal digits cannot 
 exceed 8; 
+
+
+
 32.	Upload exception log 
 Interface Name 	Upload exception log 
 Description 	Upload exception log 
@@ -6514,6 +4468,8 @@ description 	description 	Y 	3000
 errorDetail 	errorDetail 	N 	4000 	 
 interruptionTim e 	interruptionTime 	Y 	Date 	yyyy-MM-dd HH24:mm:ss 
  
+
+
 33.	TCS upgrade system file download 
 Interface Name 	TCS upgrade system file download 
 Description 	Query the files needed to upgrade the system by version number and operation type number, including uploading attachments and required sql files! 
@@ -6567,6 +4523,10 @@ deleteurl 	deleteurl 	Y 	256 	deleteurl
 ordernumber 	ordernumber 	Y 	10 	Execution sequence 
 updatesql 	updatesql 	Y 	CLOB 	Sql file 
  
+
+
+
+
 34.	Commodity category incremental update 
 Interface Name 	Commodity category incremental update 
 Description 	Returns only the commodity category changes since the local version up to current version. 
@@ -6577,27 +4537,6 @@ Request Message 	{
  
 } 	"commodityCategoryVersion": "1.0" 
 Response Message 	[{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	 	"commodityCategoryCode": "100000000", 
@@ -6683,6 +4622,8 @@ Field description
 Field 	Field Name 	Required 	Length 	Description 
 latesttcsversion 	latesttcsversion 	Y 	Number 	 
  
+
+
  
 36.	Certificate public key upload 
    
@@ -6708,6 +4649,9 @@ Field 	Field Name 	Required 	Length 	Description
 fileName 	fileName 	Y 	256 	FileName must be in '.crt' and '.cer' format! 
 verifyString 	verifyString 	Y 	Unlimite d 	TIN Intercept the top 10 + yymmdd as AES Key to encrypt file name 
 fileContent 	fileContent 	Y 	Unlimite d 	base64 string 
+
+
+
 37.	Check exempt/Deemed taxpayer 
    
 Interface Name 	Check exempt/Deemed taxpayer 
@@ -6719,17 +4663,6 @@ Request Message 	{
 } 	"tin": "1009830845", 
 "commodityCategoryCode": "10000000,10000001", 
 Response Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  	"taxpayerType": "101", 
@@ -6788,6 +4721,8 @@ unit 	unit 	Y 	3 	T115 rateUnit
 currentQty 	currentQty 	N 	Number 	 
 currentAmount 	currentAmount 	Y 	Number 	 
  
+
+
 38.	Get all branches 
    
 Interface Name 	Get all branches 
@@ -6814,22 +4749,6 @@ Interface Code 	T139
 Request Encrypted 	Y 	
 Response Encrypted 	Y 	
 Request Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
 } 	"goodsStockTransfer": { 
  "sourceBranchId": "206637525568955296", 
@@ -6887,6 +4806,9 @@ GoodsStockTransferItem field:
 remarks 	remarks 	N 	1024 	 
 returnCode 	returnCode 	N 	10 	Leave empty in the request. It will be populated with the status code in the response. 
 returnMessage 	returnMessage 	N 	1024 	Leave empty in the request. It will be populated with the status code in the response. 
+
+
+
 40. Goods/Services Inquiry by goods Code 
 Interface Name 	Goods/Services Inquiry by goods Code 
 Description 	Goods/Services Inquiry by goods Code 
@@ -6935,6 +4857,9 @@ otherUnit 	otherUnit 	 N 	3 	T115 rateUnit
 otherScaled 	otherScaled 	Y 	Number 	 
 packageScaled 	packageScaled 	Y 	Number 	 
  
+
+
+
 41. Goods Stock recods query 
 Interface Name 	Goods Stock recods query 
 Description 	Goods Stock recods query 
@@ -7004,6 +4929,10 @@ referenceNo 	referenceNo 	N 	50
 branchId 	branchId 	N 	18 	 
 branchName 	branchName 	N 	500 	 
 totalAmount 	totalAmount 	N 	Number 	 
+
+
+
+
 42. Query Commodity Category / Excise Duty by issueDate 
 Interface Name 	Query Commodity Category /Excise Duty by issueDate 
 Description 	Query Commodity Category /Excise Duty by issueDate 
@@ -7021,35 +4950,6 @@ Message 	{
 "issueDate": "2021-06-23 17:13:12" 
 Response 
 Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  	"commodityCategory": { 
  "commodityCategoryCode": "100000000", 
@@ -7148,12 +5048,6 @@ Request
 Message 	{ 
  
  
- 
- 
- 
- 
- 
- 
 } 	"combineKeywords": "425502528294126235", 
 "stockInType": "101", 
 "startDate": "2021-09-10", 
@@ -7165,25 +5059,7 @@ Message 	{
 Response 
 Message 	{ 
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
+
  
 } 	"page": { 
  "pageNo": "1", 
@@ -7253,24 +5129,6 @@ Message 	{
  
  
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
 } 	"goodsStockIn": { 
  "stockInType": "101", 
  "remarks": "Increase inventory", 
@@ -7293,6 +5151,9 @@ Message 	{
  "unitPrice": "6999", 
  "amount": "69990.00" 
 }] 
+
+
+
 Flow Description 	Goods Stock recods detail query 
 Field description 
 	Field 	Field Name 	Required 	Length 	Description 
@@ -7341,9 +5202,6 @@ Request
 Message 	{ 
  
  
- 
- 
- 
 } 	"referenceNo": "425502528294126235", 
 "startDate": "2021-09-10", 
 "endDate": "2021-09-11", 
@@ -7351,18 +5209,6 @@ Message 	{
 "pageSize": "10" 
 Response 
 Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  
@@ -7415,24 +5261,7 @@ Response
 Message 	{ 
  
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
+
 } 	"goodsStockAdjust": { 
  "branchId": "2020090132456", 
  "branchName": "PARAMOUR COSMETICS LIMITED", 
@@ -7488,6 +5317,9 @@ currentQuanti ty 	currentQuantity 	N 	Number 	Integer digits cannot exceed 12, d
 adjustAmount 	adjustAmount 	N 	Number 	Integer digits cannot exceed 12, decimal digits cannot exceed 8; 
 remarks 	remarks 	N 	1024 	goodsStockInItem-->remarks 
  
+
+
+
 47. Query fuel type 
 Interface Name 	Query fuel type 
 Description 	Query fuel type 
@@ -7513,6 +5345,10 @@ fuelTypeLevel 	fuelTypeLevel 	Y 	1
 isLeafNode 	isLeafNode 	Y 	3 	101:Y   
 102:N 
  
+
+
+
+
 48. Upload shift information 
 Interface Name 	Upload shift information 
 Description 	Upload shift information 
@@ -7524,17 +5360,6 @@ Message 	{
  "shiftNo": "20220101-01", 
  "startVolume": "851.91", 
 	 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
 } 	"endVolume": "851.91", 
 "fuelType": "Kerosene", 
@@ -7570,6 +5395,9 @@ userCode 	userCode 	Y 	100 	User Account
 startTime 	startTime 	Y 	Date 	yyyy-MM-dd HH24:mm:ss 
 endTime 	endTime 	Y 	Date 	yyyy-MM-dd HH24:mm:ss 
  
+
+
+
 49. Upload EDC disconnection data 
 Interface Name 	Upload EDC disconnection data 
 Description 	Upload EDC disconnection data 
@@ -7594,6 +5422,8 @@ Controller
 disconnectedT ime 	disconnectedTime 	Y 	Date 	yyyy-MM-dd HH24:mm:ss 
 remarks 	remarks 	N 	Text 	 
  
+
+
 50. Update buyer details 
 Interface Name 	Update buyer details 
 Description 	Update buyer details 
@@ -7603,20 +5433,7 @@ Response Encrypted 	N
 Request 
 Message 	{ 
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
+
  
 } 	"invoiceNo": "321000229045", 
 "buyerTin": "201905081705", 
@@ -7659,6 +5476,8 @@ buyerReferenc eNo 	Buyer ReferenceNo 	N 	50 	EFD and CS do not need to be transm
 mvrn 	mvrn 	N 	32 	 
 createDateStr 	createDateStr 	N 	Date 	yyyy-MM-dd HH24:mm:ss 
  
+
+
 51. EDC Invoice /Receipt Inquiry 
 Interface Name 	EDC Invoice /Receipt inquiry 
 Description 	EDC Invoice /Receipt inquiry 
@@ -7667,13 +5486,6 @@ Request Encrypted 	Y
 Response Encrypted 	Y 	
 Request 
 Message 	{ 
- 
- 
- 
- 
- 
- 
- 
  
  	"fuelType": "Naphtha", 
 "invoiceNo": "321000229045", 
@@ -7688,37 +5500,6 @@ Message 	{
 	} 	
 Response 
 Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  
@@ -7833,6 +5614,8 @@ pumpNo 	pumpNo 	N 		50
 nozzleNo 	nozzleNo 	N 		50 	 
 fuelType 	fuelType 	N 		200 	 
  
+
+
 52. Query fuel pump version 
 Interface Name 	Query fuel pump version 
 Description 	Query fuel pump version 
@@ -7866,6 +5649,8 @@ pumpVersion 	pumpVersion 	N 	15
 taxpayerId 	taxpayerId 	N 	18 	 
 legalName 	legalName 	N 	200 	 
  
+
+
 53. Query fuel pump、fuel nozzle、fuel tank according to pump no 
 Interface Name 	Query fuel pump、fuel nozzle、fuel tank according to pump no 
 Description 	Query fuel pump、fuel nozzle、fuel tank according to pump no 
@@ -7998,6 +5783,9 @@ manufactureDa teStr 	manufactureDateS tr 	N 	Date
 enableStatusC ode 	enableStatusCode 	N 	3 	101:enable 
 102:disable 
  
+
+
+
 54. Query efd location 
 Interface Name 	Query efd location 
 Description 	Query efd location 
@@ -8028,6 +5816,10 @@ longitude 	longitude 	N 	60
 latitude 	latitude 	N 	60 	 
 recordDate 	recordDate 	N 	Date 	 
  
+
+
+
+
 55. Query EDC UoM exchange rate 
 Interface Name 	Query EDC UoM exchange rate 
 Description 	Query EDC UoM exchange rate 
@@ -8045,6 +5837,9 @@ Field 	Field Name 	Required 	Length 	Description
 unitOfMeasure 	unitOfMeasure 	Y 	3 	 
 exchangeRate 	exchangeRate 	Y 	Number 	 
  
+
+
+
 56. Fuel nozzle status upload 
 Interface Name 	Fuel nozzle status upload 
 Description 	Fuel nozzle status upload 
@@ -8071,6 +5866,9 @@ status 	status 	Y 	1 	1:Available
 7:Nozzle Locked 
 10:Offline 
  
+
+
+
 57. Query Edc device Version 
 Interface Name 	Query Edc device Version 
 Description 	Query Edc device Version 
@@ -8098,6 +5896,9 @@ deviceTypeCod e 	deviceTypeCode 	Y 	3 	101:Controller
 103:Level Gauge 
 versionNo 	versionNo 	Y 	20 	 
  
+
+
+
 58. Account Creation for USSD taxpayer 
 Interface Name 	Account Creation for USSD taxpayer 
 Description 	Account Creation for USSD taxpayer 
@@ -8116,6 +5917,10 @@ Field 	Field Name 	Required 	Length 	Description
 tin 	Tin 	Y 	10-20 	 
 mobileNumber 	mobileNumber 	Y 	30 	 
  
+
+
+
+
 59. Upload device issuing status 
 Interface Name 	Upload device issuing status 
 Description 	Upload device issuing status 
@@ -8137,6 +5942,9 @@ Status 	deviceIssuingSta tus 	Y 	3 	101:Ready
 102:Issuing 
 103:Printing 
  
+
+
+
  
 60. Negative stock configuration inquiry 
 Interface Name 	Negative stock configuration inquiry 
@@ -8148,16 +5956,6 @@ Request
 Message 	NULL 
 Response 
 Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  
@@ -8192,6 +5990,8 @@ commodityCate goryCode 	commodityCategor yCode 	Y 	18
 isSelectAll 	isSelectAll 	Y 	3 	101:Y 
 102:N 	
  
+
+
 61. EFD Transfer 
 Interface Name 	EFD Transfer 
 Description 	EFD Transfer 
@@ -8211,6 +6011,8 @@ Field 	Field Name 	Required 	Length 	Description
 destinationBr anchId 	destinationBranc hId 	Y 	18 	 
 remarks 	remarks 	N 	1024 	 
  
+
+
 62. Query agent relation information 
 Interface Name 	Query agent relation information 
 Description 	Query agent relation information 
@@ -8223,19 +6025,6 @@ Message 	{
 } 	"tin": "1009837013" 
 Response 
 Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  
@@ -8302,17 +6091,6 @@ Response
 Message 	{ 
  
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
 } 	"taxType": [{ 
  "taxTypeName": "Value Added Tax",  "taxTypeCode": "301", 
  "registrationDate": "04/09/2019", 
@@ -8356,15 +6134,6 @@ Message 	{
  "operationType": "101", 
 	 
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
 } 	"id": "613714332817808478", 
 "buyerType": "0", 
 "buyerTin": "1009837013", 
@@ -8399,6 +6168,8 @@ buyerAddress 	buyerAddress 	N 	500
 buyerCitizens hip 	buyerCitizenship 	N 	128 	 
 buyerPassport Num 	buyerPassportNum 	N 	30 	 
  
+
+
 65. Get Frequent Contacts 
 Interface Name 	Get Frequent Contacts 
 Description 	Get Frequent Contacts 
@@ -8429,6 +6200,7 @@ buyerTin 	buyerTin 	N 	20
 buyerLegalNam e 	buyerLegalName 	N 	256 	 
  
  
+
 Field 	Field Name 	Required 	Length 	Description 
 id 	id 	Y 	18 	 
 buyerType 	buyerType 	Y 	1 	0	: B2B  
@@ -8445,6 +6217,8 @@ buyerAddress 	buyerAddress 	N 	500
 buyerCitizens hip 	buyerCitizenship 	N 	128 	 
 buyerPassport Num 	buyerPassportNum 	N 	30 	 
  
+
+
 66. Goods Stock Transfer records query 
 Interface Name 	Goods Stock Transfer records query 
 Description 	Goods Stock Transfer records query 
@@ -8463,18 +6237,6 @@ Message 	{
 } 	"pageSize": "10" 
 Response 
 Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
 } 	"page": { 
@@ -8501,6 +6263,8 @@ endDate 	endDate 	N 	Date 	yyyy-MM-dd
 pageNo 	current page number 	Y 	10 	yyyy-MM-dd 
 pageSize 	How many records are displayed per page 	Y 	3 	Cannot be greater than the integer 100 
  
+
+
 Field 	Field Name 	Required 	Length 	Description 
 id 	id 	N 	18 	 
 referenceNo 	referenceNo 	N 	50 	 
@@ -8520,20 +6284,6 @@ Message 	{
 } 	"id": "425502528294126235" 
 Response 
 Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  
@@ -8592,6 +6342,8 @@ currentQuanti ty 	currentQuantity 	N 	Number 	Integer digits cannot exceed 12, d
 remarks 	remarks 	N 	1024 	goodsStockTransferItem-
 ->remarks 
  
+
+
 68. Query HS Code List 
 Interface Name 	Query HS Code List 
 Description 	Query HS Code List 
@@ -8612,7 +6364,11 @@ Field 	Field Name 	Required 	Length 	Description
 hsCode 	hsCode 	Y 	 	 
 description 	description 	Y 	 	 
 isLeaf 	isLeaf 	Y 	 	0 :yes 1:no 
-parentClass 	parentClass 	Y 	 	 
+parentClass 	parentClass 	Y 	
+
+
+
+
 69. Invoice Remain Details 
 Interface 
 Name 	Invoice Remain details 
@@ -8627,23 +6383,6 @@ Message 	{
 } 	"invoiceNo": "159078217852531032" 
 Response 
 Message 	{ 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
  

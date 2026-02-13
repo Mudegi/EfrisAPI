@@ -7234,9 +7234,9 @@ async def external_submit_invoice(
                 "ninBrn": "",
                 "legalName": company.name,
                 "businessName": company.name,
-                "address": company.address or "",
-                "emailAddress": company.email or "",
-                "mobilePhone": company.phone or "",
+                "address": "",  # Optional - company model doesn't have this field
+                "emailAddress": "",  # Optional - company model doesn't have this field
+                "mobilePhone": "",  # Optional - company model doesn't have this field
                 "linePhone": "",
                 "placeOfBusi": "",
                 "referenceNo": ""

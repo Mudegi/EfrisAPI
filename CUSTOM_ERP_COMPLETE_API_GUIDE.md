@@ -253,6 +253,342 @@ Get excise codes from: `GET /api/external/efris/excise-duty`
 
 ---
 
+## 📋 COMPLETE T130 FIELD GUIDE (For ERP Developers)
+
+### What You Need to Send to Register a Product
+
+When you POST to `/api/external/efris/register-product`, send these fields:
+
+#### ✅ REQUIRED FIELDS (Every Product Needs These)
+
+```json
+{
+    "item_code": "YOUR-PRODUCT-CODE",
+    "item_name": "Product Name",
+    "unit_price": 10000,
+    "commodity_code": "1010524"
+}
+```
+
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| `item_code` | String | Your ERP's unique product code | `"CEMENT-001"` |
+| `item_name` | String | Product name (max 100 characters) | `"Cement 50kg Bag"` |
+| `unit_price` | Number | Selling price per unit | `35000` |
+| `commodity_code` | String | EFRIS commodity category ID | `"1010524"` |
+
+#### 📦 OPTIONAL FIELDS (But Recommended)
+
+| Field | Type | Default | Description | Example |
+|-------|------|---------|-------------|---------|
+| `commodity_name` | String | - | Commodity category name | `"Portland cement"` |
+| `unit_of_measure` | String | `"102"` | Unit code from EFRIS | `"102"` (Piece) |
+| `description` | String | - | Product description | `"Portland cement 50kg bags"` |
+| `stock_quantity` | Number | - | Opening/current stock balance | `100` |
+
+#### 🚨 EXCISE DUTY FIELDS (Only for Excisable Products)
+
+| Field | Type | Required When | Description | Example |
+|-------|------|---------------|-------------|---------|
+| `have_excise_tax` | String | - | `"101"` = Yes<br>`"102"` = No | `"101"` |
+| `excise_duty_code` | String | **ONLY when `have_excise_tax="101"`** | Excise code from EFRIS T125 | `"130101"` |
+
+### 🔴 CRITICAL RULES FOR EXCISE ITEMS
+
+#### Rule 1: If Product Has Excise Tax
+```json
+{
+    "item_code": "BEER-001",
+    "item_name": "Nile Beer 500ml",
+    "unit_price": 3500,
+    "commodity_code": "1010301",
+    "unit_of_measure": "104",     ← MUST match excise unit!
+    "have_excise_tax": "101",     ← Set to "101" (YES)
+    "excise_duty_code": "130101"  ← MUST provide this code
+}
+```
+
+**What the API expects:**
+- `have_excise_tax` MUST be `"101"` (string, not number)
+- `excise_duty_code` is **REQUIRED** - API will reject without it
+- **`unit_of_measure` MUST match the excise duty's unit from T125** ← CRITICAL!
+- Get valid excise codes from: `GET /api/external/efris/excise-duty`
+
+#### ⚠️ UNIT MATCHING REQUIREMENT (CRITICAL!)
+
+**Each excise duty code has a specific unit of measure defined by EFRIS.**
+
+When you fetch excise codes from `/api/external/efris/excise-duty`, you get:
+
+```json
+{
+    "excise_codes": [
+        {
+            "exciseCode": "LED130100",
+            "exciseName": "Gas oil (Diesel)",
+            "unit": "104",        ← This is the REQUIRED unit
+            "rate": "1230"
+        },
+        {
+            "exciseCode": "LED190100",
+            "exciseName": "Beer (local)",
+            "unit": "104",        ← Beer must use unit 104 (Litre)
+            "rate": "30"
+        }
+    ]
+}
+```
+
+**📌 The Rule:**
+```
+If excise code LED130100 has unit="104" (Litre)
+Then your product MUST be registered with unit_of_measure="104"
+```
+
+**Why This Matters:**
+- Excise tax is calculated per specific unit (per litre, per kilogram, etc.)
+- EFRIS rejects mismatched units
+- Example: You can't register diesel (liquid) as "102" (Piece) - it MUST be "104" (Litre)
+
+**Example Flow:**
+
+1️⃣ **Fetch excise codes first:**
+```python
+response = requests.get(
+    f"{BASE_URL}/api/external/efris/excise-duty",
+    headers=headers
+)
+excise = response.json()
+```
+
+2️⃣ **Find your product's excise code and its unit:**
+```python
+# For diesel:
+excise_code = "LED130100"  # Gas oil
+excise_unit = "104"        # Litre (from T125 data)
+```
+
+3️⃣ **Register product with MATCHING unit:**
+```python
+product = {
+    "item_code": "DIESEL-001",
+    "item_name": "Diesel",
+    "unit_price": 5500,
+    "commodity_code": "1010401",
+    "unit_of_measure": "104",        # ← MUST match excise unit
+    "have_excise_tax": "101",
+    "excise_duty_code": "LED130100"
+}
+```
+
+#### Rule 2: If Product Does NOT Have Excise Tax
+```json
+{
+    "item_code": "CEMENT-001",
+    "item_name": "Cement 50kg Bag",
+    "unit_price": 35000,
+    "commodity_code": "1010524",
+    "unit_of_measure": "102",
+    "have_excise_tax": "102"      ← Set to "102" (NO)
+    // DO NOT include excise_duty_code field at all
+}
+```
+
+**What the API expects:**
+- `have_excise_tax` set to `"102"` (or omit - defaults to "102")
+- Do **NOT** send `excise_duty_code` field
+- Sending excise_duty_code when have_excise_tax="102" may cause errors
+
+### 📊 Complete Examples by Product Type
+
+#### Example 1: Simple Product (No Excise)
+```json
+{
+    "item_code": "CHAIR-001",
+    "item_name": "Office Chair",
+    "unit_price": 250000,
+    "commodity_code": "5020101",
+    "commodity_name": "Furniture",
+    "unit_of_measure": "102",
+    "description": "Ergonomic office chair",
+    "stock_quantity": 50,
+    "have_excise_tax": "102"
+}
+```
+
+#### Example 2: Excisable Product (Beer)
+```json
+{
+    "item_code": "BEER-NILE-500",
+    "item_name": "Nile Special Beer 500ml",
+    "unit_price": 3500,
+    "commodity_code": "1010301",
+    "commodity_name": "Beer",
+    "unit_of_measure": "104",     ← Beer excise uses Litre
+    "description": "Nile Special Beer 500ml bottle",
+    "stock_quantity": 1000,
+    "have_excise_tax": "101",
+    "excise_duty_code": "LED190100"  ← Beer excise code
+}
+```
+
+**Note:** Beer excise (LED190100) requires unit "104" (Litre), NOT "102" (Piece)
+
+#### Example 3: Excisable Product (Fuel)
+```json
+{
+    "item_code": "FUEL-DIESEL",
+    "item_name": "Diesel",
+    "unit_price": 5500,
+    "commodity_code": "1010401",
+    "commodity_name": "Petroleum products",
+    "unit_of_measure": "104",      ← Diesel excise uses Litre
+    "description": "Gas oil for automotive",
+    "have_excise_tax": "101",
+    "excise_duty_code": "LED130100",  ← Diesel excise code
+    "goods_type_code": "102"
+}
+```
+
+**Note:** All fuel products use unit "104" (Litre) because excise is charged per litre
+
+### 🛠️ How to Get Excise Duty Codes
+
+**Step 1: Fetch Available Excise Codes**
+```python
+import requests
+
+headers = {
+    "X-API-Key": "your_api_key",
+    "X-API-Secret": "your_api_secret"
+}
+
+response = requests.get(
+    "https://efrisintegration.nafacademy.com/api/external/efris/excise-duty",
+    headers=headers
+)
+
+excise_data = response.json()
+print(excise_data)
+```
+
+**Step 2: Response Format**
+```json
+{
+    "status": "success",
+    "excise_codes": [
+        {
+            "exciseCode": "130101",
+            "exciseName": "Beer",
+            "unit": "104",
+            "rate": "0.30"
+        },
+        {
+            "exciseCode": "130201",
+            "exciseName": "Petrol",
+            "unit": "104",
+            "rate": "1200"
+        }
+    ]
+}
+```
+
+**Step 3: Match Product to Excise Code**
+- Beer products → `"130101"`
+- Petrol → `"130201"`
+- Diesel → `"130202"`
+- Soft drinks → `"130301"`
+- Cigarettes → Use specific cigarette excise codes
+
+### ❌ Common Mistakes and Fixes
+
+#### Mistake 1: Missing excise_duty_code
+```json
+// ❌ WRONG - Will fail
+{
+    "item_name": "Beer",
+    "have_excise_tax": "101"
+    // Missing excise_duty_code!
+}
+
+// ✅ CORRECT
+{
+    "item_name": "Beer",
+    "have_excise_tax": "101",
+    "excise_duty_code": "130101"
+}
+```
+
+#### Mistake 2: Using number instead of string
+```json
+// ❌ WRONG - Use strings
+{
+    "have_excise_tax": 101
+}
+
+// ✅ CORRECT
+{
+    "have_excise_tax": "101"
+}
+```
+
+#### Mistake 3: Including excise_duty_code for non-excise items
+```json
+// ❌ WRONG - Confusing
+{
+    "item_name": "Cement",
+    "have_excise_tax": "102",
+    "excise_duty_code": ""
+}
+
+// ✅ CORRECT - Omit the field
+{
+    "item_name": "Cement",
+    "have_excise_tax": "102"
+}
+```
+
+#### Mistake 4: Wrong unit of measure for excise items
+```json
+// ❌ WRONG - Diesel excise requires unit 104 (Litre)
+{
+    "item_name": "Diesel",
+    "unit_of_measure": "102",
+    "have_excise_tax": "101",
+    "excise_duty_code": "LED130100"
+}
+// EFRIS will reject: Unit mismatch!
+
+// ✅ CORRECT - Check excise code's unit first
+{
+    "item_name": "Diesel",
+    "unit_of_measure": "104",      ← Match excise unit
+    "have_excise_tax": "101",
+    "excise_duty_code": "LED130100"
+}
+```
+
+**Rule:** Always fetch the excise code first, check its unit, then use that same unit for your product.
+
+### 📝 Quick Checklist Before Sending
+
+- [ ] All 4 required fields present: `item_code`, `item_name`, `unit_price`, `commodity_code`
+- [ ] If excisable: `have_excise_tax="101"` AND `excise_duty_code` provided
+- [ ] **If excisable: `unit_of_measure` MATCHES the excise code's unit from T125** ← CRITICAL!
+- [ ] If not excisable: `have_excise_tax="102"` OR omit field
+- [ ] All code values are **strings** (in quotes: "101" not 101)
+- [ ] Unit price is a **number** (no quotes: 5000 not "5000")
+- [ ] Fetched excise codes from `/api/external/efris/excise-duty` before registering
+
+**For Excise Items - Double Check:**
+1. Fetch excise duty data: `GET /api/external/efris/excise-duty`
+2. Find your excise code (e.g., LED130100 for diesel)
+3. Note the `unit` field value (e.g., "104" for Litre)
+4. Use that EXACT unit in `unit_of_measure` when registering product
+5. EFRIS will reject if units don't match!
+
+---
+
 ## Stock Management
 
 ### Stock Increase (T131)
@@ -361,6 +697,34 @@ The system automatically calculates:
 - Net Amount (before tax)
 - Tax Amount
 - Gross Amount (total)
+
+### Seller Information - Auto-Populated
+
+**You do NOT send seller/company information with each invoice.**
+
+The system automatically uses your company details from the API key:
+- Company TIN
+- Company Name
+
+**What gets auto-filled:**
+```json
+{
+    "sellerDetails": {
+        "tin": "YOUR_TIN",           ← From API key
+        "legalName": "YOUR_COMPANY", ← From API key
+        "businessName": "YOUR_COMPANY"
+    }
+}
+```
+
+Your developers should **NOT** include fields like:
+- ❌ `company_tin`
+- ❌ `company_name`
+- ❌ `company_address`
+- ❌ `company_phone`
+- ❌ `company_email`
+
+The API key identifies your company - that's all you need!
 
 ### Request Format
 
