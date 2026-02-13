@@ -7191,7 +7191,7 @@ async def external_submit_invoice(
         
         efris_payload = {
             "oriInvoiceId": "",
-            "invoiceNo": invoice_data["invoice_number"],
+            "invoiceNo": "",  # Empty for new invoices - EFRIS assigns FDN
             "antifakeCode": "",
             "deviceNo": company.device_no,
             "isCheckBatchNo": "0",
@@ -7218,7 +7218,7 @@ async def external_submit_invoice(
                 "buyerReferenceNo": ""
             },
             "basicInformation": {
-                "invoiceNo": invoice_data["invoice_number"],
+                "invoiceNo": "",  # Empty - EFRIS will generate FDN
                 "antifakeCode": "",
                 "deviceNo": company.device_no,
                 "isCheckBatchNo": "0",
@@ -7239,7 +7239,7 @@ async def external_submit_invoice(
                 "mobilePhone": "",  # Optional - company model doesn't have this field
                 "linePhone": "",
                 "placeOfBusi": "",
-                "referenceNo": ""
+                "referenceNo": invoice_data["invoice_number"]  # Your internal invoice number
             },
             "goodsDetails": goods_details,
             "taxDetails": [],
