@@ -7138,56 +7138,96 @@ async def external_submit_invoice(
             test_mode=company.efris_test_mode
         )
         
-        # Build EFRIS T109 payload - Simple tax inclusive format
+        # Build EFRIS T109 payload - Handle both Simple and Pre-formatted EFRIS data
         goods_details = []
         total_net = 0
         total_tax = 0
         total_gross = 0
         
         for idx, item in enumerate(invoice_data["items"], 1):
-            qty = float(item.get("quantity", 1))
-            unit_price = float(item.get("unit_price", 0))
-            tax_rate_pct = float(item.get("tax_rate", 18))  # Default 18%
-            discount = float(item.get("discount", 0))
+            # Support both Simple Custom ERP format AND pre-formatted EFRIS format
+            # Simple format: item_name, item_code, quantity, unit_price, tax_rate
+            # EFRIS format: item, itemCode, qty, unitPrice, taxRate, total, tax
             
-            # Tax inclusive calculation
-            total_with_tax = (qty * unit_price) - discount
-            tax_rate_decimal = tax_rate_pct / 100
-            net_amount = total_with_tax / (1 + tax_rate_decimal)
-            tax_amount = total_with_tax - net_amount
+            # Check if data is already EFRIS-formatted (has "qty" instead of "quantity")
+            is_efris_format = "qty" in item or "itemCode" in item
+            
+            if is_efris_format:
+                # Data is already EFRIS-formatted - use it directly
+                item_name = item.get("item", "")
+                item_code = item.get("itemCode", "")
+                qty = float(item.get("qty", 1))
+                unit_price = float(item.get("unitPrice", 0))
+                total_line = float(item.get("total", 0))
+                tax_amount = float(item.get("tax", 0))
+                tax_rate_str = item.get("taxRate", "-")
+                
+                # Calculate net amount
+                net_amount = total_line - tax_amount if tax_amount > 0 else total_line
+                
+            else:
+                # Simple Custom ERP format - calculate everything
+                item_name = item.get("item_name", "")
+                item_code = item.get("item_code", "")
+                qty = float(item.get("quantity", 1))
+                unit_price = float(item.get("unit_price", 0))
+                tax_rate_pct = float(item.get("tax_rate", 18))  # Default 18%
+                discount = float(item.get("discount", 0))
+                
+                # Tax inclusive calculation
+                total_line = (qty * unit_price) - discount
+                tax_rate_decimal = tax_rate_pct / 100
+                net_amount = total_line / (1 + tax_rate_decimal)
+                tax_amount = total_line - net_amount
+                tax_rate_str = str(tax_rate_pct) if tax_rate_pct > 0 else "-"
             
             goods_details.append({
-                "item": item.get("item_name", ""),
-                "itemCode": item.get("item_code", ""),
+                "item": item_name,
+                "itemCode": item_code,
                 "qty": str(qty),
-                "unitOfMeasure": item.get("unit_of_measure", "102"),
+                "unitOfMeasure": item.get("unitOfMeasure", item.get("unit_of_measure", "102")),
                 "unitPrice": str(round(unit_price, 2)),
-                "total": str(round(total_with_tax, 2)),
-                "taxRate": str(tax_rate_pct) if tax_rate_pct > 0 else "-",
+                "total": str(round(total_line, 2)),
+                "taxRate": tax_rate_str,
                 "tax": str(round(tax_amount, 2)),
-                "discountTotal": str(round(discount, 2)) if discount > 0 else "0",
-                "discountTaxRate": "0",
-                "orderNumber": str(idx),
-                "discountFlag": "2",
-                "deemedFlag": "2",
-                "exciseFlag": "2",
-                "categoryId": "",
-                "categoryName": "",
-                "goodsCategoryId": item.get("commodity_code", ""),
-                "goodsCategoryName": "",
-                "exciseRate": "",
-                "exciseRule": "",
-                "exciseTax": "",
-                "pack": "",
-                "stick": "",
-                "exciseUnit": "",
-                "exciseCurrency": "",
-                "exciseRateName": ""
+                "discountTotal": item.get("discountTotal", "0"),
+                "discountTaxRate": item.get("discountTaxRate", "0"),
+                "orderNumber": item.get("orderNumber", str(idx)),
+                "discountFlag": item.get("discountFlag", "2"),
+                "deemedFlag": item.get("deemedFlag", "2"),
+                "exciseFlag": item.get("exciseFlag", "2"),
+                "categoryId": item.get("categoryId", ""),
+                "categoryName": item.get("categoryName", ""),
+                "goodsCategoryId": item.get("goodsCategoryId", item.get("commodity_code", "")),
+                "goodsCategoryName": item.get("goodsCategoryName", ""),
+                "exciseRate": item.get("exciseRate", ""),
+                "exciseRule": item.get("exciseRule", ""),
+                "exciseTax": item.get("exciseTax", ""),
+                "pack": item.get("pack", ""),
+                "stick": item.get("stick", ""),
+                "exciseUnit": item.get("exciseUnit", ""),
+                "exciseCurrency": item.get("exciseCurrency", ""),
+                "exciseRateName": item.get("exciseRateName", ""),
+                "vatApplicableFlag": item.get("vatApplicableFlag", "1")
             })
             
             total_net += net_amount
             total_tax += tax_amount
-            total_gross += total_with_tax
+            total_gross += total_line
+        
+        # Convert tax_details from snake_case to camelCase if provided
+        tax_details = []
+        if "tax_details" in invoice_data and invoice_data["tax_details"]:
+            for td in invoice_data["tax_details"]:
+                tax_details.append({
+                    "taxCategoryCode": td.get("tax_category_code", "01"),
+                    "netAmount": str(td.get("net_amount", 0)),
+                    "taxRate": str(td.get("tax_rate", "-")),
+                    "taxAmount": str(td.get("tax_amount", 0)),
+                    "grossAmount": str(td.get("gross_amount", 0)),
+                    "tax": str(td.get("tax_amount", 0)),
+                    "currencyType": td.get("currency_type", "UGX")
+                })
         
         efris_payload = {
             "oriInvoiceId": "",
@@ -7205,14 +7245,14 @@ async def external_submit_invoice(
                 "buyerTin": invoice_data.get("customer_tin", ""),
                 "buyerNinBrn": "",
                 "buyerPassportNum": "",
-                "buyerLegalName": invoice_data["customer_name"],
-                "buyerBusinessName": invoice_data["customer_name"],
+                "buyerLegalName": invoice_data.get("customer_name", ""),
+                "buyerBusinessName": invoice_data.get("customer_name", ""),
                 "buyerAddress": invoice_data.get("customer_address", ""),
                 "buyerEmail": invoice_data.get("customer_email", ""),
                 "buyerMobilePhone": invoice_data.get("customer_phone", ""),
                 "buyerLinePhone": "",
                 "buyerPlaceOfBusi": "",
-                "buyerType": "1",
+                "buyerType": invoice_data.get("buyer_type", "1"),  # Use provided or default to Individual
                 "buyerCitizenship": "1",
                 "buyerSector": "1",
                 "buyerReferenceNo": ""
@@ -7242,17 +7282,21 @@ async def external_submit_invoice(
                 "referenceNo": invoice_data["invoice_number"]  # Your internal invoice number
             },
             "goodsDetails": goods_details,
-            "taxDetails": [],
+            "taxDetails": tax_details,  # Use converted tax_details
             "summary": {
-                "netAmount": str(round(total_net, 2)),
-                "taxAmount": str(round(total_tax, 2)),
-                "grossAmount": str(round(total_gross, 2)),
+                "netAmount": str(round(invoice_data.get("total_amount", total_net), 2)),
+                "taxAmount": str(round(invoice_data.get("total_tax", total_tax), 2)),
+                "grossAmount": str(round((invoice_data.get("total_amount", total_net) + invoice_data.get("total_tax", total_tax)), 2)),
                 "itemCount": str(len(invoice_data["items"])),
                 "modeCode": "0",
                 "remarks": invoice_data.get("remarks", ""),
                 "qrCode": ""
             },
-            "payWay": [{"paymentMode": "101", "paymentAmount": str(round(total_gross, 2)), "orderNumber": ""}],
+            "payWay": [{
+                "paymentMode": invoice_data.get("payment_method", "101"),  # Use provided or default to Cash
+                "paymentAmount": str(round((invoice_data.get("total_amount", total_net) + invoice_data.get("total_tax", total_tax)), 2)),
+                "orderNumber": ""
+            }],
             "extend": {
                 "reason": "",
                 "reasonCode": ""
