@@ -7198,7 +7198,10 @@ async def external_submit_invoice(
                 "exciseFlag": item.get("exciseFlag", "2"),
                 "categoryId": item.get("categoryId", ""),
                 "categoryName": item.get("categoryName", ""),
-                "goodsCategoryId": item.get("goodsCategoryId", item.get("commodity_code", "")),
+                # Validate goodsCategoryId - replace invalid codes with empty string
+                # EFRIS will then use the commodity code from T130 product registration
+                # Invalid: "100000000" (9 digits), codes > 8 digits, or all zeros
+                "goodsCategoryId": (lambda code: "" if (code and (len(code) > 8 or code.startswith("10000000") or code == "000000000")) else code)(item.get("goodsCategoryId", item.get("commodity_code", ""))),
                 "goodsCategoryName": item.get("goodsCategoryName", ""),
                 "exciseRate": item.get("exciseRate", ""),
                 "exciseRule": item.get("exciseRule", ""),
