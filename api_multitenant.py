@@ -7274,9 +7274,9 @@ async def external_submit_invoice(
                 "ninBrn": "",
                 "legalName": company.name,
                 "businessName": company.name,
-                "address": "",  # Optional - company model doesn't have this field
-                "emailAddress": "",  # Optional - company model doesn't have this field
-                "mobilePhone": "",  # Optional - company model doesn't have this field
+                "address": "Kampala, Uganda",  # Default address
+                "emailAddress": f"efris@{company.tin}.ug",  # Required - use TIN-based email
+                "mobilePhone": "0700000000",  # Default phone
                 "linePhone": "",
                 "placeOfBusi": "",
                 "referenceNo": invoice_data["invoice_number"]  # Your internal invoice number
