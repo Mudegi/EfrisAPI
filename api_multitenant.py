@@ -7190,8 +7190,9 @@ async def external_submit_invoice(
                 "total": str(round(total_line, 2)),
                 "taxRate": tax_rate_str,
                 "tax": str(round(tax_amount, 2)),
-                "discountTotal": item.get("discountTotal", "0"),
-                "discountTaxRate": item.get("discountTaxRate", "0"),
+                # EFRIS validation: If discountFlag is "2" (no discount) or "0", discountTotal MUST be empty
+                "discountTotal": "" if item.get("discountFlag", "2") in ["0", "2"] else item.get("discountTotal", ""),
+                "discountTaxRate": "" if item.get("discountFlag", "2") in ["0", "2"] else item.get("discountTaxRate", ""),
                 "orderNumber": item.get("orderNumber", str(idx)),
                 "discountFlag": item.get("discountFlag", "2"),
                 "deemedFlag": item.get("deemedFlag", "2"),
