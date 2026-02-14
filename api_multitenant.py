@@ -7261,6 +7261,9 @@ async def external_submit_invoice(
                 "invoiceNo": "",  # Empty - EFRIS will generate FDN
                 "antifakeCode": "",
                 "deviceNo": company.device_no,
+                "issuedDate": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "operator": "API User",  # Required - default operator for external API
+                "currency": invoice_data.get("currency", "UGX"),
                 "isCheckBatchNo": "0",
                 "isInsurance": "0",
                 "invoiceType": "1",
