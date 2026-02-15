@@ -7082,6 +7082,59 @@ async def get_saved_qb_credit_memos(
 # EXTERNAL API ENDPOINTS - For Custom ERP Integration
 # ============================================================================
 
+def _amount_to_words(amount):
+    """Convert numeric amount to words for invoice display"""
+    try:
+        amount_int = int(amount)
+        
+        # Simple implementation for UGX
+        ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+        tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+        teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+        
+        def words_under_thousand(n):
+            if n == 0:
+                return ""
+            elif n < 10:
+                return ones[n]
+            elif n < 20:
+                return teens[n - 10]
+            elif n < 100:
+                return tens[n // 10] + (" " + ones[n % 10] if n % 10 != 0 else "")
+            else:
+                return ones[n // 100] + " hundred" + (" " + words_under_thousand(n % 100) if n % 100 != 0 else "")
+        
+        if amount_int == 0:
+            return "Zero shillings only"
+        
+        # Split into millions, thousands, and hundreds
+        millions = amount_int // 1000000
+        thousands = (amount_int % 1000000) // 1000
+        hundreds = amount_int % 1000
+        
+        result = []
+        if millions > 0:
+            result.append(words_under_thousand(millions) + " million")
+        if thousands > 0:
+            result.append(words_under_thousand(thousands) + " thousand")
+        if hundreds > 0:
+            result.append(words_under_thousand(hundreds))
+        
+        return " ".join(result).strip().capitalize() + " shillings only"
+    except:
+        return ""
+
+def _get_payment_mode_name(mode_code):
+    """Convert payment mode code to name"""
+    modes = {
+        "101": "Cash",
+        "102": "Credit",
+        "103": "Mobile Money",
+        "104": "Card",
+        "105": "Bank Transfer"
+    }
+    return modes.get(str(mode_code), "Cash")
+
 @app.post("/api/external/efris/submit-invoice")
 async def external_submit_invoice(
     invoice_data: dict,
@@ -7089,36 +7142,110 @@ async def external_submit_invoice(
     db: Session = Depends(get_db)
 ):
     """
-    Submit invoice to EFRIS - Simple Tax Inclusive Format
+    Submit invoice to EFRIS and get complete fiscal invoice data
     
-    Custom ERP invoices are TAX INCLUSIVE - all prices include tax
-    No complicated tax calculations - EFRIS handles it
+    This endpoint returns ALL data needed to render an EFRIS-style fiscal invoice
+    in your Custom ERP, including seller details, fiscal data, items, and QR code.
     
     Request Body:
     {
         "invoice_number": "INV-001",
         "invoice_date": "2024-01-24",
         "customer_name": "ABC Company Ltd",
-        "customer_tin": "1234567890",  // Optional
+        "customer_tin": "1234567890",  // Optional, required for B2B
+        "buyer_type": "1",  // 0=Business, 1=Individual, 2=Government
+        "payment_method": "102",  // 101=Cash, 102=Credit, 103=Mobile Money
+        "currency": "UGX",  // Optional, defaults to UGX
         "items": [
             {
-                "item_name": "Product A",
-                "item_code": "PROD-001",  // Must be registered first
-                "quantity": 10,
-                "unit_price": 5900,  // Tax inclusive price
-                "tax_rate": 18,  // Tax rate as percentage (18 for 18% VAT)
-                "discount": 0  // Optional discount amount
+                "item": "Product A",  // Or "item_name"
+                "itemCode": "PROD-001",  // Must be registered via T130
+                "qty": "10",
+                "unitOfMeasure": "101",  // 101=Piece, 102=Box, etc.
+                "unitPrice": "5900",  // Tax inclusive
+                "total": "59000",
+                "taxRate": "18",  // Or "-" for tax-exempt
+                "tax": "9000",
+                "goodsCategoryId": "44102906",  // Commodity code
+                "vatApplicableFlag": "1"  // 0=No VAT, 1=VAT applicable
+            }
+        ],
+        "tax_details": [  // Optional - will be auto-calculated if missing
+            {
+                "tax_category_code": "01",  // 01=Standard, 03=Zero-rated
+                "net_amount": "50000",
+                "tax_rate": "18",
+                "tax_amount": "9000",
+                "gross_amount": "59000"
             }
         ]
     }
     
-    Response:
+    Response - Complete EFRIS Invoice Data:
     {
         "success": true,
-        "fdn": "1234567890123456",
-        "verification_code": "ABC123",
-        "invoice_number": "INV-001"
+        "message": "Invoice fiscalized successfully",
+        
+        // Section A: Seller Details
+        "seller": {
+            "brn": "",
+            "tin": "1014409555",
+            "legal_name": "Your Company Name",
+            "trade_name": "Your Company Name",
+            "address": "Kampala, Uganda",
+            "reference_number": "INV-001",
+            "served_by": "API User"
+        },
+        
+        // Section B: Fiscal/URA Information
+        "fiscal_data": {
+            "document_type": "Original",
+            "fdn": "325043056477",  // Fiscal Document Number
+            "verification_code": "234893273725405146366",
+            "device_number": "1014409555_02",
+            "efris_invoice_id": "...",
+            "issued_date": "15/02/2026",
+            "issued_time": "13:48:41",
+            "qr_code": "base64_encoded_qr_code_image"
+        },
+        
+        // Section C: Buyer Details
+        "buyer": {
+            "name": "Timothy Khabusi",
+            "tin": "",
+            "buyer_type": "1"
+        },
+        
+        // Section D: Items
+        "items": [...],  // Same as sent, with EFRIS formatting
+        
+        // Section E: Tax Details (by category)
+        "tax_details": [
+            {
+                "taxCategoryCode": "01",
+                "netAmount": "2000000",
+                "taxRate": "18",
+                "taxAmount": "360000",
+                "grossAmount": "2360000"
+            }
+        ],
+        
+        // Section F: Summary
+        "summary": {
+            "net_amount": 2000000,
+            "tax_amount": 360000,
+            "gross_amount": 2360000,
+            "gross_amount_words": "Two million three hundred sixty thousand shillings only",
+            "payment_mode": "Credit",
+            "total_amount": 2360000,
+            "currency": "UGX",
+            "number_of_items": 1,
+            "mode": "Online",
+            "remarks": ""
+        }
     }
+    
+    Use this response to render a PDF/HTML invoice matching EFRIS format.
     """
     try:
         # Validate required fields
@@ -7315,12 +7442,29 @@ async def external_submit_invoice(
         # Submit to EFRIS (T109)
         result = efris.upload_invoice(efris_payload)
         
+        # Debug: Log the response structure
+        print(f"[EXTERNAL API] EFRIS Response Structure:")
+        print(f"  - returnStateInfo: {result.get('returnStateInfo', {})}")
+        print(f"  - data keys: {result.get('data', {}).keys()}")
+        if 'decrypted_content' in result.get('data', {}):
+            print(f"  - decrypted_content keys: {result['data']['decrypted_content'].keys() if isinstance(result['data']['decrypted_content'], dict) else 'not a dict'}")
+        
         if result.get("returnStateInfo", {}).get("returnCode") == "00":
             # Success - extract FDN and verification code
-            data = result.get("data", {})
+            # The decrypted content is stored in result['data']['decrypted_content']
+            data = result.get("data", {}).get("decrypted_content", result.get("data", {}))
+            
+            # Debug: Log what we're extracting
+            print(f"[EXTERNAL API] Extracting fiscal data:")
+            print(f"  - basicInformation: {data.get('basicInformation', {})}")
+            print(f"  - summary: {data.get('summary', {})}")
+            
             fdn = data.get("basicInformation", {}).get("invoiceNo", "")
             verification_code = data.get("basicInformation", {}).get("antifakeCode", "")
+            invoice_id = data.get("basicInformation", {}).get("invoiceId", "")
             qr_code = data.get("summary", {}).get("qrCode", "")
+            
+            print(f"[EXTERNAL API] Extracted values: FDN={fdn}, VerifCode={verification_code}, InvoiceID={invoice_id}")
             
             # Save to database
             efris_invoice = EFRISInvoice(
@@ -7337,7 +7481,7 @@ async def external_submit_invoice(
                 currency="UGX",
                 status="success",
                 fdn=fdn,
-                efris_invoice_id=data.get("basicInformation", {}).get("invoiceId", ""),
+                efris_invoice_id=invoice_id,
                 submission_date=datetime.utcnow(),
                 efris_payload=efris_payload,
                 efris_response=result
@@ -7345,15 +7489,64 @@ async def external_submit_invoice(
             db.add(efris_invoice)
             db.commit()
             
+            # Return complete invoice data for rendering EFRIS-style fiscal invoice
             return {
                 "success": True,
-                "fdn": fdn,
-                "verification_code": verification_code,
-                "qr_code": qr_code,
-                "efris_invoice_id": efris_invoice.efris_invoice_id,
+                "message": "Invoice fiscalized successfully",
+                
+                # Section A: Seller Details
+                "seller": {
+                    "brn": "",  # Add BRN to Company model if needed
+                    "tin": company.tin,
+                    "legal_name": company.name,
+                    "trade_name": company.name,
+                    "address": "Kampala, Uganda",
+                    "reference_number": invoice_data["invoice_number"],
+                    "served_by": "API User"
+                },
+                
+                # Section B: URA/EFRIS Information
+                "fiscal_data": {
+                    "document_type": "Original",
+                    "fdn": fdn,  # Fiscal Document Number
+                    "verification_code": verification_code,
+                    "device_number": company.device_no,
+                    "efris_invoice_id": invoice_id,
+                    "issued_date": datetime.now().strftime("%d/%m/%Y"),
+                    "issued_time": datetime.now().strftime("%H:%M:%S"),
+                    "qr_code": qr_code
+                },
+                
+                # Section C: Buyer Details
+                "buyer": {
+                    "name": invoice_data["customer_name"],
+                    "tin": invoice_data.get("customer_tin", ""),
+                    "buyer_type": invoice_data.get("buyer_type", "1")
+                },
+                
+                # Section D: Goods & Services Details
+                "items": goods_details,
+                
+                # Section E: Tax Details (by category)
+                "tax_details": tax_details,
+                
+                # Section F: Summary
+                "summary": {
+                    "net_amount": round(total_net, 2),
+                    "tax_amount": round(total_tax, 2),
+                    "gross_amount": round(total_gross, 2),
+                    "gross_amount_words": _amount_to_words(total_gross),
+                    "payment_mode": _get_payment_mode_name(invoice_data.get("payment_method", "101")),
+                    "total_amount": round(total_gross, 2),
+                    "currency": invoice_data.get("currency", "UGX"),
+                    "number_of_items": len(goods_details),
+                    "mode": "Online",
+                    "remarks": invoice_data.get("remarks", "")
+                },
+                
+                # Legacy fields for backward compatibility
                 "invoice_number": invoice_data["invoice_number"],
-                "fiscalized_at": efris_invoice.submission_date.isoformat(),
-                "message": "Invoice fiscalized successfully"
+                "fiscalized_at": efris_invoice.submission_date.isoformat()
             }
         else:
             # EFRIS error
