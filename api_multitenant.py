@@ -7287,7 +7287,30 @@ async def external_submit_invoice(
                 unit_price = float(item.get("unitPrice", 0))
                 total_line = float(item.get("total", 0))
                 tax_amount = float(item.get("tax", 0))
-                tax_rate_str = item.get("taxRate", "-")
+                
+                # Normalize taxRate for EFRIS compliance
+                raw_tax_rate = item.get("taxRate", "0.18")
+                if raw_tax_rate in ["-", "", "0", 0]:
+                    tax_rate_str = str(raw_tax_rate) if raw_tax_rate else "-"
+                elif isinstance(raw_tax_rate, (int, float)):
+                    # Convert number to proper format
+                    if raw_tax_rate == 0.18 or raw_tax_rate == 18:
+                        tax_rate_str = "0.18"
+                    elif raw_tax_rate > 1:
+                        # Likely percentage like 18, convert to decimal
+                        tax_rate_str = f"{raw_tax_rate / 100:.2f}"
+                    else:
+                        tax_rate_str = f"{raw_tax_rate:.2f}"
+                else:
+                    # String - ensure proper format
+                    try:
+                        rate_val = float(str(raw_tax_rate))
+                        if rate_val > 1:
+                            tax_rate_str = f"{rate_val / 100:.2f}"
+                        else:
+                            tax_rate_str = f"{rate_val:.2f}" if rate_val > 0 else "0"
+                    except:
+                        tax_rate_str = str(raw_tax_rate)
                 
                 # Calculate net amount
                 net_amount = total_line - tax_amount if tax_amount > 0 else total_line
@@ -7346,19 +7369,65 @@ async def external_submit_invoice(
             total_tax += tax_amount
             total_gross += total_line
         
-        # Convert tax_details from snake_case to camelCase if provided
+        # Convert tax_details - support both snake_case and camelCase formats
         tax_details = []
         if "tax_details" in invoice_data and invoice_data["tax_details"]:
             for td in invoice_data["tax_details"]:
-                tax_details.append({
-                    "taxCategoryCode": td.get("tax_category_code", "01"),
-                    "netAmount": str(td.get("net_amount", 0)),
-                    "taxRate": str(td.get("tax_rate", "-")),
-                    "taxAmount": str(td.get("tax_amount", 0)),
-                    "grossAmount": str(td.get("gross_amount", 0)),
-                    "tax": str(td.get("tax_amount", 0)),
-                    "currencyType": td.get("currency_type", "UGX")
-                })
+                # Support both formats: taxCategoryCode (EFRIS) or tax_category_code (simple)
+                tax_category = td.get("taxCategoryCode", td.get("tax_category_code", "01"))
+                net_amount = td.get("netAmount", td.get("net_amount", 0))
+                gross_amount = td.get("grossAmount", td.get("gross_amount", 0))
+                tax_amount = td.get("taxAmount", td.get("tax_amount", 0))
+                tax_rate_name = td.get("taxRateName", td.get("tax_rate_name", ""))
+                
+                # CRITICAL: Format taxRate correctly for EFRIS
+                # - For VAT (01): MUST be "0.18" exactly
+                # - For Excise (05) fixed rate: MUST be "0"
+                # - For Zero-rated (02): MUST be "0"
+                # - For Exempt (03): MUST be "-"
+                raw_tax_rate = td.get("taxRate", td.get("tax_rate", "0.18"))
+                
+                # Normalize taxRate to EFRIS-compliant format
+                if tax_category == "01":
+                    # VAT must be exactly "0.18"
+                    tax_rate_str = "0.18"
+                elif tax_category == "05":
+                    # Excise - check exciseRule to determine if percentage or fixed
+                    excise_rule = td.get("exciseRule", td.get("excise_rule", "2"))
+                    if excise_rule == "1":
+                        # Percentage-based excise - format as decimal
+                        try:
+                            rate_val = float(str(raw_tax_rate).replace("%", ""))
+                            if rate_val > 1:  # e.g., 10 means 10%
+                                rate_val = rate_val / 100
+                            tax_rate_str = f"{rate_val:.2f}"
+                        except:
+                            tax_rate_str = "0"
+                    else:
+                        # Fixed rate excise - must be "0"
+                        tax_rate_str = "0"
+                elif tax_category == "02":
+                    tax_rate_str = "0"
+                elif tax_category == "03":
+                    tax_rate_str = "-"
+                else:
+                    tax_rate_str = str(raw_tax_rate)
+                
+                tax_detail_entry = {
+                    "taxCategoryCode": str(tax_category),
+                    "netAmount": str(net_amount),
+                    "taxRate": tax_rate_str,
+                    "taxAmount": str(tax_amount),
+                    "grossAmount": str(gross_amount),
+                    "tax": str(tax_amount),
+                    "currencyType": td.get("currency_type", td.get("currencyType", "UGX"))
+                }
+                
+                # Add taxRateName if present (for excise display)
+                if tax_rate_name:
+                    tax_detail_entry["taxRateName"] = tax_rate_name
+                
+                tax_details.append(tax_detail_entry)
         
         efris_payload = {
             "oriInvoiceId": "",
