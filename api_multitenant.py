@@ -7135,6 +7135,71 @@ def _get_payment_mode_name(mode_code):
     }
     return modes.get(str(mode_code), "Cash")
 
+def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calculated_gross, goods_details):
+    """
+    Build EFRIS summary section.
+    
+    Priority:
+    1. Use client's summary if provided and valid
+    2. Calculate from tax_details grossAmount (excluding excise)
+    3. Use calculated values from items
+    
+    CRITICAL: summary.grossAmount MUST equal sum of tax_details.grossAmount (excluding excise)
+    """
+    # Check if client provided a summary
+    client_summary = invoice_data.get("summary", {})
+    
+    # Get values from tax_details for validation
+    tax_details = invoice_data.get("tax_details", [])
+    
+    # Calculate grossAmount from tax_details (excluding excise - taxCategoryCode "05")
+    tax_details_gross = 0
+    tax_details_net = 0
+    tax_details_tax = 0
+    
+    for td in tax_details:
+        category = td.get("taxCategoryCode", td.get("tax_category_code", "01"))
+        if category != "05":  # Exclude excise from gross calculation
+            gross = float(td.get("grossAmount", td.get("gross_amount", 0)))
+            net = float(td.get("netAmount", td.get("net_amount", 0)))
+            tax = float(td.get("taxAmount", td.get("tax_amount", 0)))
+            tax_details_gross += gross
+            tax_details_net += net
+            tax_details_tax += tax
+    
+    # Determine the correct values
+    if tax_details_gross > 0:
+        # Use tax_details values (most accurate for EFRIS validation)
+        final_net = tax_details_net
+        final_tax = tax_details_tax
+        final_gross = tax_details_gross
+    elif client_summary and client_summary.get("grossAmount"):
+        # Use client summary
+        final_net = float(client_summary.get("netAmount", calculated_net))
+        final_tax = float(client_summary.get("taxAmount", calculated_tax))
+        final_gross = float(client_summary.get("grossAmount", calculated_gross))
+    else:
+        # Use calculated values
+        final_net = calculated_net
+        final_tax = calculated_tax
+        final_gross = calculated_gross
+    
+    print(f"[T109 DEBUG] Summary calculation:")
+    print(f"  - tax_details_gross: {tax_details_gross}")
+    print(f"  - client_summary: {client_summary}")
+    print(f"  - calculated: net={calculated_net}, tax={calculated_tax}, gross={calculated_gross}")
+    print(f"  - final: net={final_net}, tax={final_tax}, gross={final_gross}")
+    
+    return {
+        "netAmount": str(round(final_net, 2)),
+        "taxAmount": str(round(final_tax, 2)),
+        "grossAmount": str(round(final_gross, 2)),
+        "itemCount": str(len(goods_details)),
+        "modeCode": "0",
+        "remarks": invoice_data.get("remarks", client_summary.get("remarks", "")),
+        "qrCode": ""
+    }
+
 @app.post("/api/external/efris/submit-invoice")
 async def external_submit_invoice(
     invoice_data: dict,
@@ -7521,18 +7586,11 @@ async def external_submit_invoice(
             },
             "goodsDetails": goods_details,
             "taxDetails": tax_details,  # Use converted tax_details
-            "summary": {
-                "netAmount": str(round(invoice_data.get("total_amount", total_net), 2)),
-                "taxAmount": str(round(invoice_data.get("total_tax", total_tax), 2)),
-                "grossAmount": str(round((invoice_data.get("total_amount", total_net) + invoice_data.get("total_tax", total_tax)), 2)),
-                "itemCount": str(len(invoice_data["items"])),
-                "modeCode": "0",
-                "remarks": invoice_data.get("remarks", ""),
-                "qrCode": ""
-            },
+            # Build summary - prefer client's summary if provided, else use calculated values
+            "summary": _build_invoice_summary(invoice_data, total_net, total_tax, total_gross, goods_details),
             "payWay": [{
                 "paymentMode": invoice_data.get("payment_method", "101"),  # Use provided or default to Cash
-                "paymentAmount": str(round((invoice_data.get("total_amount", total_net) + invoice_data.get("total_tax", total_tax)), 2)),
+                "paymentAmount": str(round(total_gross, 2)),  # Use calculated gross
                 "orderNumber": ""
             }],
             "extend": {
