@@ -246,6 +246,31 @@ POST /api/external/efris/submit-invoice
 | `goodsCategoryId` | Yes | string | Commodity code |
 | `vatApplicableFlag` | Yes | string | "0"=No VAT, "1"=VAT applies |
 
+### Supported Field Name Formats
+
+The API supports **both camelCase and snake_case** field names:
+
+| EFRIS Format (camelCase) | Snake_case Alternative |
+|--------------------------|------------------------|
+| `itemCode` | `item_code` |
+| `goodsCategoryId` | `goods_category_id`, `commodity_code` |
+| `unitOfMeasure` | `unit_of_measure` |
+| `unitPrice` | `unit_price` |
+| `taxRate` | `tax_rate` |
+| `taxCategoryCode` | `tax_category_code` |
+| `netAmount` | `net_amount` |
+| `taxAmount` | `tax_amount` |
+| `grossAmount` | `gross_amount` |
+
+**Example - Both formats work:**
+```json
+// Format A: EFRIS camelCase
+{"itemCode": "PROD001", "goodsCategoryId": "44102906"}
+
+// Format B: snake_case
+{"item_code": "PROD001", "goods_category_id": "44102906"}
+```
+
 ### Field Reference - Tax Details
 
 | Field | Required | Type | Description |

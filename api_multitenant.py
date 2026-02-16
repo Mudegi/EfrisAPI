@@ -7271,13 +7271,23 @@ async def external_submit_invoice(
         total_tax = 0
         total_gross = 0
         
+        print(f"[T109 DEBUG] ===== INCOMING INVOICE DATA =====")
+        print(f"[T109 DEBUG] Invoice Number: {invoice_data.get('invoice_number', 'N/A')}")
+        print(f"[T109 DEBUG] Items count: {len(invoice_data.get('items', []))}")
+        
         for idx, item in enumerate(invoice_data["items"], 1):
+            print(f"[T109 DEBUG] === Processing Item {idx} ===")
+            print(f"[T109 DEBUG] Raw item keys: {list(item.keys())}")
+            print(f"[T109 DEBUG] Raw itemCode: '{item.get('itemCode', item.get('item_code', 'N/A'))}'")
+            print(f"[T109 DEBUG] Raw goodsCategoryId: '{item.get('goodsCategoryId', item.get('goods_category_id', item.get('commodity_code', 'N/A')))}'")
+            
             # Support both Simple Custom ERP format AND pre-formatted EFRIS format
             # Simple format: item_name, item_code, quantity, unit_price, tax_rate
             # EFRIS format: item, itemCode, qty, unitPrice, taxRate, total, tax
             
             # Check if data is already EFRIS-formatted (has "qty" instead of "quantity")
             is_efris_format = "qty" in item or "itemCode" in item
+            print(f"[T109 DEBUG] is_efris_format: {is_efris_format}")
             
             if is_efris_format:
                 # Data is already EFRIS-formatted - use it directly
@@ -7331,6 +7341,23 @@ async def external_submit_invoice(
                 tax_amount = total_line - net_amount
                 tax_rate_str = str(tax_rate_pct) if tax_rate_pct > 0 else "-"
             
+            # Get goodsCategoryId - support multiple field name formats
+            raw_goods_category = item.get("goodsCategoryId", 
+                                 item.get("goods_category_id", 
+                                 item.get("commodity_code", 
+                                 item.get("commodityCategoryId", ""))))
+            
+            # Validate goodsCategoryId - only filter clearly invalid codes
+            # Valid: "44102906" (8 chars), "1010101" (7 chars), etc.
+            # Invalid: "100000000" (9 chars, placeholder), "000000000" (all zeros)
+            if raw_goods_category and (len(raw_goods_category) > 8 or raw_goods_category.startswith("10000000") or raw_goods_category == "000000000"):
+                print(f"[T109 DEBUG] WARNING: Invalid goodsCategoryId '{raw_goods_category}' - clearing to let EFRIS use T130 value")
+                goods_category_id = ""
+            else:
+                goods_category_id = raw_goods_category
+            
+            print(f"[T109 DEBUG] Final goodsCategoryId: '{goods_category_id}'")
+            
             goods_details.append({
                 "item": item_name,
                 "itemCode": item_code,
@@ -7349,10 +7376,7 @@ async def external_submit_invoice(
                 "exciseFlag": item.get("exciseFlag", "2"),
                 "categoryId": item.get("categoryId", ""),
                 "categoryName": item.get("categoryName", ""),
-                # Validate goodsCategoryId - replace invalid codes with empty string
-                # EFRIS will then use the commodity code from T130 product registration
-                # Invalid: "100000000" (9 digits), codes > 8 digits, or all zeros
-                "goodsCategoryId": (lambda code: "" if (code and (len(code) > 8 or code.startswith("10000000") or code == "000000000")) else code)(item.get("goodsCategoryId", item.get("commodity_code", ""))),
+                "goodsCategoryId": goods_category_id,
                 "goodsCategoryName": item.get("goodsCategoryName", ""),
                 "exciseRate": item.get("exciseRate", ""),
                 "exciseRule": item.get("exciseRule", ""),
@@ -7368,6 +7392,17 @@ async def external_submit_invoice(
             total_net += net_amount
             total_tax += tax_amount
             total_gross += total_line
+        
+        # Debug: Print final goods_details before sending to EFRIS
+        print(f"[T109 DEBUG] ===== FINAL GOODS DETAILS =====")
+        for i, gd in enumerate(goods_details):
+            print(f"[T109 DEBUG] Item {i+1}:")
+            print(f"[T109 DEBUG]   item: '{gd.get('item', 'N/A')}'")
+            print(f"[T109 DEBUG]   itemCode: '{gd.get('itemCode', 'N/A')}'")
+            print(f"[T109 DEBUG]   goodsCategoryId: '{gd.get('goodsCategoryId', 'N/A')}'")
+            print(f"[T109 DEBUG]   qty: {gd.get('qty', 'N/A')}")
+            print(f"[T109 DEBUG]   taxRate: '{gd.get('taxRate', 'N/A')}'")
+        print(f"[T109 DEBUG] =====================================")
         
         # Convert tax_details - support both snake_case and camelCase formats
         tax_details = []
