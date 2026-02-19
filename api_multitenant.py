@@ -7152,20 +7152,28 @@ def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calcula
     # Get values from tax_details for validation
     tax_details = invoice_data.get("tax_details", [])
     
-    # Calculate grossAmount from tax_details (excluding excise - taxCategoryCode "05")
-    tax_details_gross = 0
-    tax_details_net = 0
-    tax_details_tax = 0
+    # Calculate from tax_details
+    # CRITICAL EFRIS rules:
+    #   - grossAmount = sum of grossAmount EXCLUDING excise ("05")
+    #   - netAmount   = sum of netAmount EXCLUDING excise ("05") 
+    #   - taxAmount   = sum of ALL taxAmount INCLUDING excise ("05")
+    #     (Error 1344: taxAmount must equal sum of ALL taxAmounts in taxDetails)
+    tax_details_gross = 0  # excludes excise
+    tax_details_net = 0    # excludes excise
+    tax_details_tax = 0    # includes ALL taxes (VAT + excise)
     
     for td in tax_details:
         category = td.get("taxCategoryCode", td.get("tax_category_code", "01"))
-        if category != "05":  # Exclude excise from gross calculation
+        tax_amt = float(td.get("taxAmount", td.get("tax_amount", 0)))
+        
+        # taxAmount always includes ALL categories (including excise)
+        tax_details_tax += tax_amt
+        
+        if category != "05":  # Exclude excise from gross/net calculation
             gross = float(td.get("grossAmount", td.get("gross_amount", 0)))
             net = float(td.get("netAmount", td.get("net_amount", 0)))
-            tax = float(td.get("taxAmount", td.get("tax_amount", 0)))
             tax_details_gross += gross
             tax_details_net += net
-            tax_details_tax += tax
     
     # Determine the correct values
     if tax_details_gross > 0:
@@ -7185,7 +7193,9 @@ def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calcula
         final_gross = calculated_gross
     
     print(f"[T109 DEBUG] Summary calculation:")
-    print(f"  - tax_details_gross: {tax_details_gross}")
+    print(f"  - tax_details_gross (excl excise): {tax_details_gross}")
+    print(f"  - tax_details_net (excl excise): {tax_details_net}")
+    print(f"  - tax_details_tax (ALL incl excise): {tax_details_tax}")
     print(f"  - client_summary: {client_summary}")
     print(f"  - calculated: net={calculated_net}, tax={calculated_tax}, gross={calculated_gross}")
     print(f"  - final: net={final_net}, tax={final_tax}, gross={final_gross}")
@@ -7364,26 +7374,30 @@ async def external_submit_invoice(
                 tax_amount = float(item.get("tax", 0))
                 
                 # Normalize taxRate for EFRIS compliance
+                # EFRIS accepts: "0.18" (standard), "0" (zero-rated/excise), "-" (exempt)
                 raw_tax_rate = item.get("taxRate", "0.18")
-                if raw_tax_rate in ["-", "", "0", 0]:
-                    tax_rate_str = str(raw_tax_rate) if raw_tax_rate else "-"
+                if raw_tax_rate == "-":
+                    tax_rate_str = "-"  # Exempt
+                elif raw_tax_rate in ["", None]:
+                    tax_rate_str = "0.18"  # Default to standard VAT
+                elif raw_tax_rate in ["0", 0, 0.0]:
+                    tax_rate_str = "0"  # Zero-rated
                 elif isinstance(raw_tax_rate, (int, float)):
-                    # Convert number to proper format
                     if raw_tax_rate == 0.18 or raw_tax_rate == 18:
                         tax_rate_str = "0.18"
                     elif raw_tax_rate > 1:
-                        # Likely percentage like 18, convert to decimal
                         tax_rate_str = f"{raw_tax_rate / 100:.2f}"
                     else:
                         tax_rate_str = f"{raw_tax_rate:.2f}"
                 else:
-                    # String - ensure proper format
                     try:
                         rate_val = float(str(raw_tax_rate))
-                        if rate_val > 1:
+                        if rate_val == 0:
+                            tax_rate_str = "0"
+                        elif rate_val > 1:
                             tax_rate_str = f"{rate_val / 100:.2f}"
                         else:
-                            tax_rate_str = f"{rate_val:.2f}" if rate_val > 0 else "0"
+                            tax_rate_str = f"{rate_val:.2f}"
                     except:
                         tax_rate_str = str(raw_tax_rate)
                 
@@ -7400,11 +7414,21 @@ async def external_submit_invoice(
                 discount = float(item.get("discount", 0))
                 
                 # Tax inclusive calculation
-                total_line = (qty * unit_price) - discount
-                tax_rate_decimal = tax_rate_pct / 100
-                net_amount = total_line / (1 + tax_rate_decimal)
-                tax_amount = total_line - net_amount
-                tax_rate_str = str(tax_rate_pct) if tax_rate_pct > 0 else "-"
+                total_line = (qty * unit_price)
+                if tax_rate_pct > 0:
+                    tax_rate_decimal = tax_rate_pct / 100 if tax_rate_pct > 1 else tax_rate_pct
+                    net_amount = total_line / (1 + tax_rate_decimal)
+                    tax_amount = total_line - net_amount
+                    tax_rate_str = f"{tax_rate_decimal:.2f}"  # "0.18" format
+                elif tax_rate_pct == 0:
+                    net_amount = total_line
+                    tax_amount = 0
+                    tax_rate_str = "0"  # Zero-rated
+                else:
+                    # Negative means exempt
+                    net_amount = total_line
+                    tax_amount = 0
+                    tax_rate_str = "-"  # Exempt
             
             # Get goodsCategoryId - support multiple field name formats
             raw_goods_category = item.get("goodsCategoryId", 
@@ -7435,24 +7459,83 @@ async def external_submit_invoice(
                 # EFRIS validation: If discountFlag is "2" (no discount) or "0", discountTotal MUST be empty
                 "discountTotal": "" if item.get("discountFlag", "2") in ["0", "2"] else item.get("discountTotal", ""),
                 "discountTaxRate": "" if item.get("discountFlag", "2") in ["0", "2"] else item.get("discountTaxRate", ""),
-                "orderNumber": item.get("orderNumber", str(idx)),
+                "orderNumber": item.get("orderNumber", str(idx - 1)),  # EFRIS spec: start from 0
                 "discountFlag": item.get("discountFlag", "2"),
                 "deemedFlag": item.get("deemedFlag", "2"),
                 "exciseFlag": item.get("exciseFlag", "2"),
-                "categoryId": item.get("categoryId", ""),
-                "categoryName": item.get("categoryName", ""),
+                # Excise fields: populate from item when exciseFlag=1, empty when exciseFlag=2
+                "categoryId": item.get("categoryId", "") if item.get("exciseFlag", "2") == "1" else "",
+                "categoryName": item.get("categoryName", "") if item.get("exciseFlag", "2") == "1" else "",
                 "goodsCategoryId": goods_category_id,
                 "goodsCategoryName": item.get("goodsCategoryName", ""),
-                "exciseRate": item.get("exciseRate", ""),
-                "exciseRule": item.get("exciseRule", ""),
-                "exciseTax": item.get("exciseTax", ""),
-                "pack": item.get("pack", ""),
-                "stick": item.get("stick", ""),
-                "exciseUnit": item.get("exciseUnit", ""),
-                "exciseCurrency": item.get("exciseCurrency", ""),
-                "exciseRateName": item.get("exciseRateName", ""),
+                "exciseRate": item.get("exciseRate", "") if item.get("exciseFlag", "2") == "1" else "",
+                "exciseRule": item.get("exciseRule", "") if item.get("exciseFlag", "2") == "1" else "",
+                "exciseTax": item.get("exciseTax", "") if item.get("exciseFlag", "2") == "1" else "",
+                "pack": item.get("pack", "1"),  # Default to 1 per EFRIS spec
+                "stick": item.get("stick", "1"),  # Default to 1 per EFRIS spec
+                "exciseUnit": item.get("exciseUnit", "") if item.get("exciseFlag", "2") == "1" else "",
+                "exciseCurrency": item.get("exciseCurrency", "") if item.get("exciseFlag", "2") == "1" else "",
+                "exciseRateName": item.get("exciseRateName", "") if item.get("exciseFlag", "2") == "1" else "",
                 "vatApplicableFlag": item.get("vatApplicableFlag", "1")
             })
+            
+            # EFRIS Discount Line Generation (for simple format items with discount)
+            # EFRIS requires a SEPARATE discount line with discountFlag="0"
+            if not is_efris_format and discount > 0:
+                # Mark the original item as discounted
+                goods_details[-1]["discountFlag"] = "1"
+                goods_details[-1]["discountTotal"] = str(round(-discount, 2))
+                goods_details[-1]["discountTaxRate"] = tax_rate_str
+                
+                # Calculate discount tax/net breakdown
+                if tax_rate_str not in ["-", "0", ""]:
+                    try:
+                        discount_rate = float(tax_rate_str)
+                        discount_net = discount / (1 + discount_rate)
+                        discount_tax = discount - discount_net
+                    except:
+                        discount_net = discount
+                        discount_tax = 0
+                else:
+                    discount_net = discount
+                    discount_tax = 0
+                
+                # Add the EFRIS discount line (discountFlag="0", negative amounts)
+                discount_line = {
+                    "item": f"{item_name} (discount)",
+                    "itemCode": item_code,
+                    "qty": "1",
+                    "unitOfMeasure": item.get("unitOfMeasure", item.get("unit_of_measure", "102")),
+                    "unitPrice": str(round(-discount, 2)),
+                    "total": str(round(-discount, 2)),
+                    "taxRate": tax_rate_str,
+                    "tax": str(round(-discount_tax, 2)),
+                    "discountTotal": "",  # Must be empty for discountFlag=0
+                    "discountTaxRate": "",
+                    "orderNumber": str(idx),  # Next order number after the original item
+                    "discountFlag": "0",  # This IS the discount line
+                    "deemedFlag": "2",
+                    "exciseFlag": "2",
+                    "categoryId": "",
+                    "categoryName": "",
+                    "goodsCategoryId": goods_category_id,
+                    "goodsCategoryName": item.get("goodsCategoryName", ""),
+                    "exciseRate": "",
+                    "exciseRule": "",
+                    "exciseTax": "",
+                    "pack": "1",
+                    "stick": "1",
+                    "exciseUnit": "",
+                    "exciseCurrency": "",
+                    "exciseRateName": "",
+                    "vatApplicableFlag": item.get("vatApplicableFlag", "1")
+                }
+                goods_details.append(discount_line)
+                
+                # Subtract discount from totals
+                total_net -= discount_net
+                total_tax -= discount_tax
+                total_gross -= discount
             
             total_net += net_amount
             total_tax += tax_amount
@@ -7468,6 +7551,62 @@ async def external_submit_invoice(
             print(f"[T109 DEBUG]   qty: {gd.get('qty', 'N/A')}")
             print(f"[T109 DEBUG]   taxRate: '{gd.get('taxRate', 'N/A')}'")
         print(f"[T109 DEBUG] =====================================")
+        
+        # Auto-generate tax_details from items if client didn't provide them
+        if "tax_details" not in invoice_data or not invoice_data.get("tax_details"):
+            print(f"[T109 DEBUG] No tax_details provided - auto-generating from items")
+            tax_groups = {}  # taxCategoryCode -> {net, tax, gross, excise_unit, excise_currency, rate_name}
+            
+            for gd_item in goods_details:
+                # Determine tax category from item's taxRate
+                item_tax_rate = gd_item.get("taxRate", "0.18")
+                if item_tax_rate == "-":
+                    cat = "03"  # Exempt
+                elif item_tax_rate == "0":
+                    cat = "02"  # Zero-rated
+                else:
+                    cat = "01"  # Standard VAT
+                
+                item_total = float(gd_item.get("total", 0))
+                item_tax = float(gd_item.get("tax", 0))
+                item_net = item_total - item_tax if item_tax > 0 else item_total
+                
+                if cat not in tax_groups:
+                    tax_groups[cat] = {"net": 0, "tax": 0, "gross": 0}
+                tax_groups[cat]["net"] += item_net
+                tax_groups[cat]["tax"] += item_tax
+                tax_groups[cat]["gross"] += item_total
+                
+                # Handle excise duty items
+                if gd_item.get("exciseFlag") == "1":
+                    excise_tax = float(gd_item.get("exciseTax", 0))
+                    if excise_tax > 0:
+                        if "05" not in tax_groups:
+                            tax_groups["05"] = {"net": 0, "tax": 0, "gross": 0,
+                                                "excise_unit": gd_item.get("exciseUnit", ""),
+                                                "excise_currency": gd_item.get("exciseCurrency", "")}
+                        tax_groups["05"]["net"] += item_net
+                        tax_groups["05"]["tax"] += excise_tax
+                        tax_groups["05"]["gross"] += item_net + excise_tax
+            
+            # Build tax_details array in invoice_data for the conversion step below
+            auto_tax_details = []
+            cat_names = {"01": "Standard Rate (18%)", "02": "Zero Rate (0%)", "03": "Exempt",
+                         "04": "Deemed (18%)", "05": "Excise Duty"}
+            for cat, amounts in sorted(tax_groups.items()):
+                entry = {
+                    "taxCategoryCode": cat,
+                    "netAmount": str(round(amounts["net"], 2)),
+                    "taxRate": "0.18" if cat == "01" else ("0" if cat in ["02", "05"] else ("-" if cat == "03" else "0.18")),
+                    "taxAmount": str(round(amounts["tax"], 2)),
+                    "grossAmount": str(round(amounts["gross"], 2)),
+                    "taxRateName": cat_names.get(cat, ""),
+                    "exciseUnit": amounts.get("excise_unit", ""),
+                    "exciseCurrency": amounts.get("excise_currency", "")
+                }
+                auto_tax_details.append(entry)
+            invoice_data["tax_details"] = auto_tax_details
+            print(f"[T109 DEBUG] Auto-generated tax_details: {auto_tax_details}")
         
         # Convert tax_details - support both snake_case and camelCase formats
         tax_details = []
@@ -7519,15 +7658,31 @@ async def external_submit_invoice(
                     "taxRate": tax_rate_str,
                     "taxAmount": str(tax_amount),
                     "grossAmount": str(gross_amount),
-                    "tax": str(tax_amount),
-                    "currencyType": td.get("currency_type", td.get("currencyType", "UGX"))
+                    # EFRIS spec requires exciseUnit and exciseCurrency in ALL taxDetails entries
+                    "exciseUnit": td.get("exciseUnit", td.get("excise_unit", "")),
+                    "exciseCurrency": td.get("exciseCurrency", td.get("excise_currency", ""))
                 }
                 
-                # Add taxRateName if present (for excise display)
+                # Add taxRateName if present
                 if tax_rate_name:
                     tax_detail_entry["taxRateName"] = tax_rate_name
                 
+                print(f"[T109 DEBUG] taxDetail entry: cat={tax_category}, net={net_amount}, tax={tax_amount}, gross={gross_amount}, rate={tax_rate_str}")
                 tax_details.append(tax_detail_entry)
+        
+        # Build invoice summary from the finalized tax_details (most accurate for EFRIS validation)
+        invoice_summary = _build_invoice_summary(invoice_data, total_net, total_tax, total_gross, goods_details)
+        
+        # Calculate payment total: netAmount + ALL taxes (VAT + excise)
+        # This is what the buyer actually pays
+        payment_total = float(invoice_summary["netAmount"]) + float(invoice_summary["taxAmount"])
+        
+        print(f"[T109 DEBUG] ===== PAYLOAD CONSTRUCTION =====")
+        print(f"[T109 DEBUG] Summary: net={invoice_summary['netAmount']}, tax={invoice_summary['taxAmount']}, gross={invoice_summary['grossAmount']}")
+        print(f"[T109 DEBUG] Payment total: {payment_total}")
+        print(f"[T109 DEBUG] taxDetails count: {len(tax_details)}")
+        for i, td_entry in enumerate(tax_details):
+            print(f"[T109 DEBUG] taxDetail[{i}]: {td_entry}")
         
         efris_payload = {
             "oriInvoiceId": "",
@@ -7586,12 +7741,12 @@ async def external_submit_invoice(
             },
             "goodsDetails": goods_details,
             "taxDetails": tax_details,  # Use converted tax_details
-            # Build summary - prefer client's summary if provided, else use calculated values
-            "summary": _build_invoice_summary(invoice_data, total_net, total_tax, total_gross, goods_details),
+            # Build summary from tax_details (most accurate for EFRIS validation)
+            "summary": invoice_summary,
             "payWay": [{
                 "paymentMode": invoice_data.get("payment_method", "101"),  # Use provided or default to Cash
-                "paymentAmount": str(round(total_gross, 2)),  # Use calculated gross
-                "orderNumber": ""
+                "paymentAmount": str(round(payment_total, 2)),  # net + ALL taxes (incl excise)
+                "orderNumber": "a"  # EFRIS spec: lowercase letters a, b, c...
             }],
             "extend": {
                 "reason": "",
@@ -7629,18 +7784,20 @@ async def external_submit_invoice(
             print(f"[EXTERNAL API] Extracted values: FDN={fdn}, VerifCode={verification_code}, InvoiceID={invoice_id}")
             
             # Save to database
+            # Calculate excise total from excise items
+            total_excise = sum(float(gd.get("exciseTax", 0)) for gd in goods_details if gd.get("exciseFlag") == "1")
             efris_invoice = EFRISInvoice(
                 company_id=company.id,
                 invoice_no=invoice_data["invoice_number"],
                 invoice_date=datetime.strptime(invoice_data["invoice_date"], "%Y-%m-%d").date(),
                 customer_name=invoice_data["customer_name"],
                 customer_tin=invoice_data.get("customer_tin", ""),
-                buyer_type="1",
-                total_amount=round(total_gross, 2),
-                total_tax=round(total_tax, 2),
-                total_excise=0,
-                total_discount=sum(float(item.get("discount", 0)) for item in invoice_data["items"]),
-                currency="UGX",
+                buyer_type=invoice_data.get("buyer_type", "1"),
+                total_amount=round(payment_total, 2),
+                total_tax=round(float(invoice_summary["taxAmount"]), 2),
+                total_excise=round(total_excise, 2),
+                total_discount=sum(float(item.get("discount", item.get("discountTotal", 0)) or 0) for item in invoice_data["items"]),
+                currency=invoice_data.get("currency", "UGX"),
                 status="success",
                 fdn=fdn,
                 efris_invoice_id=invoice_id,
@@ -7694,12 +7851,12 @@ async def external_submit_invoice(
                 
                 # Section F: Summary
                 "summary": {
-                    "net_amount": round(total_net, 2),
-                    "tax_amount": round(total_tax, 2),
-                    "gross_amount": round(total_gross, 2),
-                    "gross_amount_words": _amount_to_words(total_gross),
+                    "net_amount": float(invoice_summary["netAmount"]),
+                    "tax_amount": float(invoice_summary["taxAmount"]),
+                    "gross_amount": float(invoice_summary["grossAmount"]),
+                    "gross_amount_words": _amount_to_words(float(invoice_summary["grossAmount"])),
                     "payment_mode": _get_payment_mode_name(invoice_data.get("payment_method", "101")),
-                    "total_amount": round(total_gross, 2),
+                    "total_amount": round(payment_total, 2),  # Net + ALL taxes (what buyer pays)
                     "currency": invoice_data.get("currency", "UGX"),
                     "number_of_items": len(goods_details),
                     "mode": "Online",
@@ -7721,8 +7878,8 @@ async def external_submit_invoice(
                 invoice_no=invoice_data["invoice_number"],
                 invoice_date=datetime.strptime(invoice_data["invoice_date"], "%Y-%m-%d").date(),
                 customer_name=invoice_data["customer_name"],
-                total_amount=invoice_data["total_amount"],
-                total_tax=invoice_data.get("total_tax", 0),
+                total_amount=round(payment_total, 2),
+                total_tax=round(float(invoice_summary["taxAmount"]), 2),
                 currency=invoice_data.get("currency", "UGX"),
                 status="failed",
                 error_message=f"{error_code}: {error_msg}",
