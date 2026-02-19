@@ -7135,13 +7135,13 @@ def _get_payment_mode_name(mode_code):
     }
     return modes.get(str(mode_code), "Cash")
 
-def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calculated_gross, goods_details):
+def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calculated_gross, goods_details, converted_tax_details=None):
     """
     Build EFRIS summary section.
     
     Priority:
-    1. Use client's summary if provided and valid
-    2. Calculate from tax_details grossAmount (excluding excise)
+    1. Calculate from converted tax_details (most accurate for EFRIS validation)
+    2. Use client's summary if provided and valid
     3. Use calculated values from items
     
     CRITICAL: summary.grossAmount MUST equal sum of tax_details.grossAmount (excluding excise)
@@ -7149,8 +7149,8 @@ def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calcula
     # Check if client provided a summary
     client_summary = invoice_data.get("summary", {})
     
-    # Get values from tax_details for validation
-    tax_details = invoice_data.get("tax_details", [])
+    # Get values from converted tax_details (preferred) or raw tax_details (fallback)
+    tax_details = converted_tax_details if converted_tax_details else invoice_data.get("tax_details", [])
     
     # Calculate from tax_details
     # CRITICAL EFRIS rules:
@@ -7175,24 +7175,26 @@ def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calcula
             tax_details_gross += gross
             tax_details_net += net
     
-    # Determine the correct values
-    if tax_details_gross > 0:
-        # Use tax_details values (most accurate for EFRIS validation)
+    # ALWAYS use tax_details values when available (most accurate for EFRIS validation)
+    if len(tax_details) > 0:
         final_net = tax_details_net
         final_tax = tax_details_tax
         final_gross = tax_details_gross
+        source = "tax_details"
     elif client_summary and client_summary.get("grossAmount"):
-        # Use client summary
+        # Use client summary as fallback
         final_net = float(client_summary.get("netAmount", calculated_net))
         final_tax = float(client_summary.get("taxAmount", calculated_tax))
         final_gross = float(client_summary.get("grossAmount", calculated_gross))
+        source = "client_summary"
     else:
-        # Use calculated values
+        # Use calculated values as last resort
         final_net = calculated_net
         final_tax = calculated_tax
         final_gross = calculated_gross
+        source = "calculated"
     
-    print(f"[T109 DEBUG] Summary calculation:")
+    print(f"[T109 DEBUG] Summary calculation (source: {source}):")
     print(f"  - tax_details_gross (excl excise): {tax_details_gross}")
     print(f"  - tax_details_net (excl excise): {tax_details_net}")
     print(f"  - tax_details_tax (ALL incl excise): {tax_details_tax}")
@@ -7671,7 +7673,7 @@ async def external_submit_invoice(
                 tax_details.append(tax_detail_entry)
         
         # Build invoice summary from the finalized tax_details (most accurate for EFRIS validation)
-        invoice_summary = _build_invoice_summary(invoice_data, total_net, total_tax, total_gross, goods_details)
+        invoice_summary = _build_invoice_summary(invoice_data, total_net, total_tax, total_gross, goods_details, tax_details)
         
         # Calculate payment total: netAmount + ALL taxes (VAT + excise)
         # This is what the buyer actually pays
