@@ -7611,15 +7611,41 @@ async def external_submit_invoice(
             print(f"[T109 DEBUG] Auto-generated tax_details: {auto_tax_details}")
         
         # Convert tax_details - support both snake_case and camelCase formats
+        # CRITICAL: Recalculate netAmount and grossAmount for EFRIS compliance
         tax_details = []
         if "tax_details" in invoice_data and invoice_data["tax_details"]:
             for td in invoice_data["tax_details"]:
                 # Support both formats: taxCategoryCode (EFRIS) or tax_category_code (simple)
                 tax_category = td.get("taxCategoryCode", td.get("tax_category_code", "01"))
-                net_amount = td.get("netAmount", td.get("net_amount", 0))
-                gross_amount = td.get("grossAmount", td.get("gross_amount", 0))
-                tax_amount = td.get("taxAmount", td.get("tax_amount", 0))
+                tax_amount = float(td.get("taxAmount", td.get("tax_amount", 0)))
                 tax_rate_name = td.get("taxRateName", td.get("tax_rate_name", ""))
+                
+                # CRITICAL: Recalculate netAmount and grossAmount based on EFRIS rules
+                if tax_category == "05":
+                    # Excise duty: netAmount = base amount before all taxes
+                    # grossAmount = netAmount + excise tax (not including VAT)
+                    # Find the base net amount from VAT entry or calculate from items
+                    base_net = 0
+                    for base_td in invoice_data["tax_details"]:
+                        if base_td.get("taxCategoryCode", base_td.get("tax_category_code")) == "01":
+                            base_net = float(base_td.get("netAmount", base_td.get("net_amount", 0)))
+                            break
+                    if base_net == 0:
+                        # Calculate from total_net if no VAT entry found
+                        base_net = total_net
+                    
+                    net_amount = base_net  # Same base as VAT
+                    gross_amount = base_net + tax_amount  # Base + excise only
+                else:
+                    # Non-excise categories: use client values but validate
+                    net_amount = float(td.get("netAmount", td.get("net_amount", 0)))
+                    gross_amount = float(td.get("grossAmount", td.get("gross_amount", 0)))
+                    
+                    # Validate: grossAmount should = netAmount + taxAmount for non-excise
+                    expected_gross = net_amount + tax_amount
+                    if abs(gross_amount - expected_gross) > 0.01:
+                        print(f"[T109 DEBUG] WARNING: Correcting grossAmount for cat {tax_category}: {gross_amount} -> {expected_gross}")
+                        gross_amount = expected_gross
                 
                 # CRITICAL: Format taxRate correctly for EFRIS
                 # - For VAT (01): MUST be "0.18" exactly
@@ -7656,10 +7682,10 @@ async def external_submit_invoice(
                 
                 tax_detail_entry = {
                     "taxCategoryCode": str(tax_category),
-                    "netAmount": str(net_amount),
+                    "netAmount": str(round(net_amount, 2)),
                     "taxRate": tax_rate_str,
-                    "taxAmount": str(tax_amount),
-                    "grossAmount": str(gross_amount),
+                    "taxAmount": str(round(tax_amount, 2)),
+                    "grossAmount": str(round(gross_amount, 2)),
                     # EFRIS spec requires exciseUnit and exciseCurrency in ALL taxDetails entries
                     "exciseUnit": td.get("exciseUnit", td.get("excise_unit", "")),
                     "exciseCurrency": td.get("exciseCurrency", td.get("excise_currency", ""))
@@ -7669,7 +7695,7 @@ async def external_submit_invoice(
                 if tax_rate_name:
                     tax_detail_entry["taxRateName"] = tax_rate_name
                 
-                print(f"[T109 DEBUG] taxDetail entry: cat={tax_category}, net={net_amount}, tax={tax_amount}, gross={gross_amount}, rate={tax_rate_str}")
+                print(f"[T109 DEBUG] taxDetail entry (corrected): cat={tax_category}, net={net_amount}, tax={tax_amount}, gross={gross_amount}, rate={tax_rate_str}")
                 tax_details.append(tax_detail_entry)
         
         # Build invoice summary from the finalized tax_details (most accurate for EFRIS validation)
