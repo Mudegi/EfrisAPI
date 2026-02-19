@@ -1,0 +1,291 @@
+================================================================================
+URGENT: DEPLOY FIX TO PRODUCTION SERVER NOW
+================================================================================
+
+THE PROBLEM:
+You restarted the server but it's still running OLD CODE.
+The fix exists in GitHub but your server doesn't have it yet!
+
+WHAT YOU DID (WRONG ORDER):
+1. ❌ Restart server
+   → Server restarted with OLD code that has the bug
+
+WHAT YOU NEED TO DO (CORRECT ORDER):
+1. ✅ Pull NEW code from GitHub
+2. ✅ Restart server
+   → Server restarts with NEW code that has the fix
+
+================================================================================
+STEP-BY-STEP DEPLOYMENT INSTRUCTIONS
+================================================================================
+
+OPTION 1: SSH Terminal (RECOMMENDED)
+-------------------------------------
+
+Step 1: Connect to your production server
+```
+ssh nafazplp@your-server-ip
+```
+(Or use cPanel/Namecheap Terminal)
+
+Step 2: Navigate to your application folder
+```
+cd /home/nafazplp/public_html/efrisintegration.nafacademy.com
+```
+
+Step 3: Check current Git status
+```
+git status
+```
+Should show: "Your branch is behind 'origin/main' by X commits"
+
+Step 4: PULL THE LATEST CODE FROM GITHUB
+```
+git pull origin main
+```
+
+EXPECTED OUTPUT:
+```
+remote: Enumerating objects: 17, done.
+remote: Counting objects: 100% (17/17), done.
+Updating 0777869..fdd87a0
+Fast-forward
+ api_multitenant.py | 6 +++---
+```
+
+Step 5: Verify the fix is in the code
+```
+grep -A 3 "sellerDetails" api_multitenant.py | tail -10
+```
+
+SHOULD SEE:
+```
+"address": "",  # Optional - company model doesn't have this field
+"emailAddress": "",  # Optional - company model doesn't have this field
+"mobilePhone": "",  # Optional - company model doesn't have this field
+```
+
+Step 6: Restart the application (Passenger reload)
+```
+touch passenger_wsgi.py
+```
+
+Or:
+```
+mkdir -p tmp
+touch tmp/restart.txt
+```
+
+Step 7: Wait 30 seconds for reload, then test
+
+
+OPTION 2: cPanel File Manager (If no SSH access)
+-------------------------------------------------
+
+Step 1: Log in to cPanel at your hosting provider
+
+Step 2: Open File Manager
+
+Step 3: Navigate to:
+public_html/efrisintegration.nafacademy.com
+
+Step 4: Look for "Git Version Control" icon or Terminal icon
+
+Step 5: In Terminal, run:
+```
+cd /home/nafazplp/public_html/efrisintegration.nafacademy.com
+git pull origin main
+touch passenger_wsgi.py
+```
+
+Step 6: Wait 30 seconds, then test
+
+
+OPTION 3: cPanel Git Pull Button
+---------------------------------
+
+If your cPanel has Git integration:
+
+Step 1: cPanel → Git Version Control
+Step 2: Find your repository
+Step 3: Click "Pull or Deploy" → "Update from Remote"
+Step 4: After pull completes, go to File Manager
+Step 5: Find passenger_wsgi.py
+Step 6: Right-click → Touch (to update timestamp)
+
+
+================================================================================
+VERIFICATION - Test if Fix is Live
+================================================================================
+
+Use curl or Postman to test:
+
+```
+curl -X POST https://efrisintegration.nafacademy.com/api/external/efris/submit-invoice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "X-API-Secret: YOUR_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "invoice_number": "TEST-FIX-001",
+    "invoice_date": "2026-02-13",
+    "customer_name": "Test Customer",
+    "items": [{
+      "item_name": "Test Product",
+      "item_code": "TEST-001",
+      "quantity": 1,
+      "unit_price": 1000,
+      "tax_rate": 18
+    }]
+  }'
+```
+
+EXPECTED RESULT (Fix working):
+```
+HTTP 200 OK
+{
+  "success": true,
+  "fdn": "1014409555027...",
+  "verification_code": "...
+}
+```
+
+WRONG RESULT (Old code still running):
+```
+HTTP 500 Internal Server Error
+{"detail":"Internal error: 'Company' object has no attribute 'address'"}
+```
+
+
+================================================================================
+COMMON MISTAKES
+================================================================================
+
+❌ MISTAKE #1: Only restarting without pulling code
+   - Server restarts with OLD code
+   - Bug still present
+
+✅ FIX: Pull code FIRST, then restart
+
+
+❌ MISTAKE #2: Pulling in wrong directory
+   - cd /home/nafazplp (wrong)
+   - cd /home/nafazplp/public_html/efrisintegration.nafacademy.com (correct)
+
+✅ FIX: Make sure you're in the application directory
+
+
+❌ MISTAKE #3: Git pull fails - working directory has changes
+   - Error: "Your local changes to the following files would be overwritten"
+
+✅ FIX: Stash or discard local changes first:
+```
+git stash
+git pull origin main
+```
+
+
+❌ MISTAKE #4: Passenger doesn't reload
+   - Touched the wrong file
+   - Need to wait 30-60 seconds
+
+✅ FIX: 
+```
+touch passenger_wsgi.py
+# Wait 30-60 seconds
+# Try request again
+```
+
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Q: "git pull" says "Already up to date"
+A: Your server already has the latest code. The issue is Passenger hasn't 
+   reloaded. Force reload:
+   ```
+   touch passenger_wsgi.py
+   touch tmp/restart.txt
+   ```
+
+Q: Still getting the error after pull and restart
+A: Check that you pulled in the CORRECT directory:
+   ```
+   pwd
+   # Should show: /home/nafazplp/public_html/efrisintegration.nafacademy.com
+   
+   git log --oneline -1
+   # Should show: fdd87a0 Fix Company object has no attribute 'address'
+   ```
+
+Q: Can't access SSH
+A: Use cPanel File Manager:
+   - Navigate to application folder
+   - Use Terminal widget or Git Version Control
+   - Or manually upload the changed file
+
+Q: Git pull asks for credentials
+A: Your server needs GitHub access configured. Either:
+   - Set up SSH key for GitHub
+   - Or use HTTPS with personal access token
+   - Or manually download and upload the file
+
+
+================================================================================
+MANUAL FILE UPLOAD (Last Resort)
+================================================================================
+
+If Git doesn't work, manually upload the fixed file:
+
+1. Download api_multitenant.py from GitHub:
+   https://github.com/Mudegi/EfrisAPI/blob/main/api_multitenant.py
+
+2. In cPanel File Manager:
+   - Navigate to public_html/efrisintegration.nafacademy.com
+   - Upload api_multitenant.py (overwrite existing)
+   - Touch passenger_wsgi.py to reload
+
+3. Wait 30 seconds and test
+
+
+================================================================================
+AFTER SUCCESSFUL DEPLOYMENT
+================================================================================
+
+✅ Verify:
+- Invoice submission returns HTTP 200 (not 500)
+- FDN number is returned
+- No "attribute 'address'" error
+
+✅ Notify:
+- Your development team
+- Any affected users
+- Mark bug as resolved
+
+✅ Monitor:
+- Watch for any new errors
+- Test a few more invoice submissions
+- Check logs for issues
+
+
+================================================================================
+CONTACT FOR HELP
+================================================================================
+
+If deployment still fails after following these steps:
+
+1. Take screenshot of:
+   - Terminal showing "git pull" output
+   - Terminal showing "pwd" output (current directory)
+   - Error message from test request
+
+2. Check:
+   - Are you in the correct server?
+   - Are you in the correct directory?
+   - Do you have permissions to modify files?
+
+3. Alternative: Ask your hosting provider to:
+   - Pull latest code from GitHub
+   - Restart the Python application
+
+================================================================================

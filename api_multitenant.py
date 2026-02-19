@@ -21,8 +21,15 @@ from sqlalchemy import text, func
 from typing import List, Optional, Dict
 import json
 import secrets
+import logging
 from datetime import datetime
 from dotenv import load_dotenv
+
+# Configure logging - control verbosity via EFRIS_LOG_LEVEL env var
+# Set EFRIS_LOG_LEVEL=DEBUG for verbose output, default is INFO for production
+_log_level = os.environ.get("EFRIS_LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, _log_level, logging.INFO), format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("efris_api")
 
 from database.connection import get_db, init_db
 from database.models import (
@@ -536,12 +543,33 @@ excise_duty_reference = {}
 
 
 def get_efris_manager(company: Company) -> EfrisManager:
-    """Get or create EFRIS manager for a company"""
-    if company.id not in efris_managers:
-        efris_managers[company.id] = EfrisManager(
-            tin=company.tin,
-            test_mode=True  # TODO: Make this configurable per company
-        )
+    """Get or create EFRIS manager for a company with AES key caching.
+    
+    This caches EfrisManager instances per company so the AES key from T104
+    is reused across requests. Without caching, every request triggers:
+      T101 (time sync) + T104 (key exchange) + T103 (get params) = ~5-6 seconds overhead.
+    With caching, only the first call per 24hrs does the handshake.
+    """
+    if company.id in efris_managers:
+        mgr = efris_managers[company.id]
+        # Check if configuration changed (cert path, test mode, device)
+        if (mgr.tin == company.tin and 
+            mgr.device_no == (company.device_no or f"{company.tin}_02") and
+            mgr.test_mode == company.efris_test_mode):
+            # Same config - reuse (ensure_authenticated will refresh AES key if expired)
+            return mgr
+        else:
+            # Config changed - recreate
+            logger.info(f"[EFRIS CACHE] Config changed for company {company.id}, recreating manager")
+            del efris_managers[company.id]
+    
+    logger.info(f"[EFRIS CACHE] Creating new EfrisManager for company {company.id} (TIN: {company.tin})")
+    efris_managers[company.id] = EfrisManager(
+        tin=company.tin,
+        device_no=company.device_no,
+        cert_path=company.efris_cert_path,
+        test_mode=company.efris_test_mode
+    )
     return efris_managers[company.id]
 
 
@@ -7190,12 +7218,7 @@ def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calcula
         final_net = final_gross - final_tax
         source = "calculated"
     
-    print(f"[T109 DEBUG] Summary calculation (source: {source}):")
-    print(f"  - grossAmount (excl excise): {tax_details_gross}")
-    print(f"  - taxAmount (ALL incl excise): {tax_details_tax}")
-    print(f"  - netAmount = grossAmount - taxAmount = {final_gross} - {final_tax} = {final_net}")
-    print(f"  - client_summary: {client_summary}")
-    print(f"  - final: net={final_net}, tax={final_tax}, gross={final_gross}")
+    logger.debug(f"[T109] Summary (source={source}): net={final_net}, tax={final_tax}, gross={final_gross}")
     
     return {
         "netAmount": str(round(final_net, 2)),
@@ -7329,13 +7352,8 @@ async def external_submit_invoice(
         if not invoice_data["items"] or len(invoice_data["items"]) == 0:
             raise HTTPException(status_code=400, detail="Invoice must have at least one item")
         
-        # Initialize EFRIS Manager
-        efris = EfrisManager(
-            tin=company.tin,
-            device_no=company.device_no,
-            cert_path=company.efris_cert_path,
-            test_mode=company.efris_test_mode
-        )
+        # Get cached EFRIS Manager (avoids T101+T104+T103 handshake on every request)
+        efris = get_efris_manager(company)
         
         # Build EFRIS T109 payload - Handle both Simple and Pre-formatted EFRIS data
         goods_details = []
@@ -7343,15 +7361,10 @@ async def external_submit_invoice(
         total_tax = 0
         total_gross = 0
         
-        print(f"[T109 DEBUG] ===== INCOMING INVOICE DATA =====")
-        print(f"[T109 DEBUG] Invoice Number: {invoice_data.get('invoice_number', 'N/A')}")
-        print(f"[T109 DEBUG] Items count: {len(invoice_data.get('items', []))}")
+        logger.debug(f"[T109] Incoming invoice: {invoice_data.get('invoice_number', 'N/A')}, items: {len(invoice_data.get('items', []))}")
         
         for idx, item in enumerate(invoice_data["items"], 1):
-            print(f"[T109 DEBUG] === Processing Item {idx} ===")
-            print(f"[T109 DEBUG] Raw item keys: {list(item.keys())}")
-            print(f"[T109 DEBUG] Raw itemCode: '{item.get('itemCode', item.get('item_code', 'N/A'))}'")
-            print(f"[T109 DEBUG] Raw goodsCategoryId: '{item.get('goodsCategoryId', item.get('goods_category_id', item.get('commodity_code', 'N/A')))}'")
+            logger.debug(f"[T109] Item {idx}: code={item.get('itemCode', item.get('item_code', 'N/A'))}, catId={item.get('goodsCategoryId', item.get('goods_category_id', 'N/A'))}")
             
             # Support both Simple Custom ERP format AND pre-formatted EFRIS format
             # Simple format: item_name, item_code, quantity, unit_price, tax_rate
@@ -7359,7 +7372,7 @@ async def external_submit_invoice(
             
             # Check if data is already EFRIS-formatted (has "qty" instead of "quantity")
             is_efris_format = "qty" in item or "itemCode" in item
-            print(f"[T109 DEBUG] is_efris_format: {is_efris_format}")
+            logger.debug(f"[T109] is_efris_format: {is_efris_format}")
             
             if is_efris_format:
                 # Data is already EFRIS-formatted - use it directly
@@ -7437,12 +7450,12 @@ async def external_submit_invoice(
             # Valid: "44102906" (8 chars), "1010101" (7 chars), etc.
             # Invalid: "100000000" (9 chars, placeholder), "000000000" (all zeros)
             if raw_goods_category and (len(raw_goods_category) > 8 or raw_goods_category.startswith("10000000") or raw_goods_category == "000000000"):
-                print(f"[T109 DEBUG] WARNING: Invalid goodsCategoryId '{raw_goods_category}' - clearing to let EFRIS use T130 value")
+                logger.warning(f"[T109] Invalid goodsCategoryId '{raw_goods_category}' - clearing to let EFRIS use T130 value")
                 goods_category_id = ""
             else:
                 goods_category_id = raw_goods_category
             
-            print(f"[T109 DEBUG] Final goodsCategoryId: '{goods_category_id}'")
+            logger.debug(f"[T109] Final goodsCategoryId: '{goods_category_id}'")
             
             goods_details.append({
                 "item": item_name,
@@ -7539,19 +7552,14 @@ async def external_submit_invoice(
             total_gross += total_line
         
         # Debug: Print final goods_details before sending to EFRIS
-        print(f"[T109 DEBUG] ===== FINAL GOODS DETAILS =====")
-        for i, gd in enumerate(goods_details):
-            print(f"[T109 DEBUG] Item {i+1}:")
-            print(f"[T109 DEBUG]   item: '{gd.get('item', 'N/A')}'")
-            print(f"[T109 DEBUG]   itemCode: '{gd.get('itemCode', 'N/A')}'")
-            print(f"[T109 DEBUG]   goodsCategoryId: '{gd.get('goodsCategoryId', 'N/A')}'")
-            print(f"[T109 DEBUG]   qty: {gd.get('qty', 'N/A')}")
-            print(f"[T109 DEBUG]   taxRate: '{gd.get('taxRate', 'N/A')}'")
-        print(f"[T109 DEBUG] =====================================")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[T109] Final goods_details ({len(goods_details)} items):")
+            for i, gd in enumerate(goods_details):
+                logger.debug(f"[T109]   {i+1}: {gd.get('item','')}, code={gd.get('itemCode','')}, cat={gd.get('goodsCategoryId','')}, qty={gd.get('qty','')}, rate={gd.get('taxRate','')}")
         
         # Auto-generate tax_details from items if client didn't provide them
         if "tax_details" not in invoice_data or not invoice_data.get("tax_details"):
-            print(f"[T109 DEBUG] No tax_details provided - auto-generating from items")
+            logger.debug("[T109] No tax_details provided - auto-generating from items")
             tax_groups = {}  # taxCategoryCode -> {net, tax, gross, excise_unit, excise_currency, rate_name}
             
             for gd_item in goods_details:
@@ -7603,7 +7611,7 @@ async def external_submit_invoice(
                 }
                 auto_tax_details.append(entry)
             invoice_data["tax_details"] = auto_tax_details
-            print(f"[T109 DEBUG] Auto-generated tax_details: {auto_tax_details}")
+            logger.debug(f"[T109] Auto-generated tax_details: {auto_tax_details}")
         
         # Convert tax_details - support both snake_case and camelCase formats
         # CRITICAL: Recalculate netAmount and grossAmount for EFRIS compliance
@@ -7639,7 +7647,7 @@ async def external_submit_invoice(
                     # Validate: grossAmount should = netAmount + taxAmount for non-excise
                     expected_gross = net_amount + tax_amount
                     if abs(gross_amount - expected_gross) > 0.01:
-                        print(f"[T109 DEBUG] WARNING: Correcting grossAmount for cat {tax_category}: {gross_amount} -> {expected_gross}")
+                        logger.warning(f"[T109] Correcting grossAmount for cat {tax_category}: {gross_amount} -> {expected_gross}")
                         gross_amount = expected_gross
                 
                 # CRITICAL: Format taxRate correctly for EFRIS
@@ -7690,7 +7698,7 @@ async def external_submit_invoice(
                 if tax_rate_name:
                     tax_detail_entry["taxRateName"] = tax_rate_name
                 
-                print(f"[T109 DEBUG] taxDetail entry (corrected): cat={tax_category}, net={net_amount}, tax={tax_amount}, gross={gross_amount}, rate={tax_rate_str}")
+                logger.debug(f"[T109] taxDetail: cat={tax_category}, net={net_amount}, tax={tax_amount}, gross={gross_amount}, rate={tax_rate_str}")
                 tax_details.append(tax_detail_entry)
         
         # Build invoice summary from the finalized tax_details (most accurate for EFRIS validation)
@@ -7700,12 +7708,10 @@ async def external_submit_invoice(
         # This is what the buyer actually pays
         payment_total = float(invoice_summary["netAmount"]) + float(invoice_summary["taxAmount"])
         
-        print(f"[T109 DEBUG] ===== PAYLOAD CONSTRUCTION =====")
-        print(f"[T109 DEBUG] Summary: net={invoice_summary['netAmount']}, tax={invoice_summary['taxAmount']}, gross={invoice_summary['grossAmount']}")
-        print(f"[T109 DEBUG] Payment total: {payment_total}")
-        print(f"[T109 DEBUG] taxDetails count: {len(tax_details)}")
-        for i, td_entry in enumerate(tax_details):
-            print(f"[T109 DEBUG] taxDetail[{i}]: {td_entry}")
+        logger.info(f"[T109] Invoice payload: net={invoice_summary['netAmount']}, tax={invoice_summary['taxAmount']}, gross={invoice_summary['grossAmount']}, payment={payment_total}")
+        if logger.isEnabledFor(logging.DEBUG):
+            for i, td_entry in enumerate(tax_details):
+                logger.debug(f"[T109] taxDetail[{i}]: {td_entry}")
         
         efris_payload = {
             "oriInvoiceId": "",
@@ -7971,12 +7977,8 @@ async def external_register_product(
             if field not in product_data:
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
         
-        efris = EfrisManager(
-            tin=company.tin,
-            device_no=company.device_no,
-            cert_path=company.efris_cert_path,
-            test_mode=company.efris_test_mode
-        )
+        # Get cached EFRIS Manager (avoids T101+T104+T103 handshake on every request)
+        efris = get_efris_manager(company)
         
         # Determine if item has excise tax
         have_excise = product_data.get("have_excise_tax", "102")
@@ -8067,12 +8069,8 @@ async def external_submit_purchase_order(
         if not po_data["items"] or len(po_data["items"]) == 0:
             raise HTTPException(status_code=400, detail="Purchase order must have at least one item")
         
-        efris = EfrisManager(
-            tin=company.tin,
-            device_no=company.device_no,
-            cert_path=company.efris_cert_path,
-            test_mode=company.efris_test_mode
-        )
+        # Get cached EFRIS Manager (avoids T101+T104+T103 handshake on every request)
+        efris = get_efris_manager(company)
         
         # Build T130 payload
         t130_payload = {
@@ -8192,12 +8190,8 @@ async def external_submit_credit_note(
         if not credit_note_data["items"] or len(credit_note_data["items"]) == 0:
             raise HTTPException(status_code=400, detail="Credit note must have at least one item")
         
-        efris = EfrisManager(
-            tin=company.tin,
-            device_no=company.device_no,
-            cert_path=company.efris_cert_path,
-            test_mode=company.efris_test_mode
-        )
+        # Get cached EFRIS Manager (avoids T101+T104+T103 handshake on every request)
+        efris = get_efris_manager(company)
         
         # Build T109 payload for credit note (negative invoice)
         efris_payload = {
@@ -8442,13 +8436,8 @@ async def external_get_excise_duty(
     }
     """
     try:
-        # Initialize EFRIS Manager
-        efris = EfrisManager(
-            tin=company.tin,
-            device_no=company.device_no,
-            cert_path=company.efris_cert_path,
-            test_mode=company.efris_test_mode
-        )
+        # Get cached EFRIS Manager (avoids T101+T104+T103 handshake on every request)
+        efris = get_efris_manager(company)
         
         # Query excise duty from EFRIS (T125)
         result = efris.query_excise_duty()
@@ -8582,13 +8571,8 @@ async def external_get_units_of_measure(
     - Selling liquids? Use code "104" (Litre)
     """
     try:
-        # Initialize EFRIS Manager
-        efris = EfrisManager(
-            tin=company.tin,
-            device_no=company.device_no,
-            cert_path=company.efris_cert_path,
-            test_mode=company.efris_test_mode
-        )
+        # Get cached EFRIS Manager (avoids T101+T104+T103 handshake on every request)
+        efris = get_efris_manager(company)
         
         # Query system dictionary from EFRIS (T115)
         result = efris.get_code_list(None)
@@ -8723,13 +8707,8 @@ async def external_stock_decrease(
                 detail="Stock decrease must have at least one item"
             )
         
-        # Initialize EFRIS Manager
-        efris = EfrisManager(
-            tin=company.tin,
-            device_no=company.device_no,
-            cert_path=company.efris_cert_path,
-            test_mode=company.efris_test_mode
-        )
+        # Get cached EFRIS Manager (avoids T101+T104+T103 handshake on every request)
+        efris = get_efris_manager(company)
         
         # Submit stock decrease to EFRIS (T132)
         result = efris.stock_decrease(stock_data)
@@ -8807,13 +8786,8 @@ async def external_stock_increase(
                 detail="Stock increase must have at least one item"
             )
         
-        # Initialize EFRIS Manager - same as QuickBooks
-        efris = EfrisManager(
-            tin=company.tin,
-            device_no=company.device_no,
-            cert_path=company.efris_cert_path,
-            test_mode=company.efris_test_mode
-        )
+        # Get cached EFRIS Manager (avoids T101+T104+T103 handshake on every request)
+        efris = get_efris_manager(company)
         
         # Pass directly to manager - same as QuickBooks does
         result = efris.stock_increase(stock_data)
