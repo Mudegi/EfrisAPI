@@ -7137,14 +7137,20 @@ def _get_payment_mode_name(mode_code):
 
 def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calculated_gross, goods_details, converted_tax_details=None):
     """
-    Build EFRIS summary section.
+    Build EFRIS summary section from tax_details.
     
-    Priority:
-    1. Calculate from converted tax_details (most accurate for EFRIS validation)
-    2. Use client's summary if provided and valid
-    3. Use calculated values from items
+    EFRIS RULES (verified from official documentation example):
+      - grossAmount = sum of grossAmount in taxDetails EXCLUDING excise ("05")
+                      (Error 1345: must equal sum of non-excise grossAmounts)
+      - taxAmount   = sum of ALL taxAmount in taxDetails INCLUDING excise ("05")
+                      (Error 1344: must equal sum of ALL taxAmounts)
+      - netAmount   = grossAmount - taxAmount
+                      (Error 1343: calculation mistake if this formula doesn't hold)
     
-    CRITICAL: summary.grossAmount MUST equal sum of tax_details.grossAmount (excluding excise)
+    Documentation proof (interface codes.py line ~1610):
+      taxDetails: cat 01 tax=686.45, cat 05 tax=181.82
+      summary: netAmount=8379, taxAmount=868, grossAmount=9247
+      Verify: 9247 - 868 = 8379 ✓
     """
     # Check if client provided a summary
     client_summary = invoice_data.get("summary", {})
@@ -7152,15 +7158,9 @@ def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calcula
     # Get values from converted tax_details (preferred) or raw tax_details (fallback)
     tax_details = converted_tax_details if converted_tax_details else invoice_data.get("tax_details", [])
     
-    # Calculate from tax_details
-    # CRITICAL EFRIS rules:
-    #   - grossAmount = sum of grossAmount EXCLUDING excise ("05")
-    #   - netAmount   = sum of netAmount EXCLUDING excise ("05") 
-    #   - taxAmount   = sum of ALL taxAmount INCLUDING excise ("05")
-    #     (Error 1344: taxAmount must equal sum of ALL taxAmounts in taxDetails)
-    tax_details_gross = 0  # excludes excise
-    tax_details_net = 0    # excludes excise
-    tax_details_tax = 0    # includes ALL taxes (VAT + excise)
+    # Calculate from tax_details per EFRIS rules
+    tax_details_gross = 0  # sum of grossAmount EXCLUDING excise ("05")
+    tax_details_tax = 0    # sum of ALL taxAmount INCLUDING excise ("05")
     
     for td in tax_details:
         category = td.get("taxCategoryCode", td.get("tax_category_code", "01"))
@@ -7169,37 +7169,32 @@ def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calcula
         # taxAmount always includes ALL categories (including excise)
         tax_details_tax += tax_amt
         
-        if category != "05":  # Exclude excise from gross/net calculation
+        if category != "05":  # Only non-excise grossAmounts count
             gross = float(td.get("grossAmount", td.get("gross_amount", 0)))
-            net = float(td.get("netAmount", td.get("net_amount", 0)))
             tax_details_gross += gross
-            tax_details_net += net
     
-    # ALWAYS use tax_details values when available (most accurate for EFRIS validation)
+    # Apply EFRIS formula
     if len(tax_details) > 0:
-        final_net = tax_details_net
-        final_tax = tax_details_tax
         final_gross = tax_details_gross
+        final_tax = tax_details_tax
+        final_net = final_gross - final_tax  # THE KEY FORMULA
         source = "tax_details"
     elif client_summary and client_summary.get("grossAmount"):
-        # Use client summary as fallback
-        final_net = float(client_summary.get("netAmount", calculated_net))
-        final_tax = float(client_summary.get("taxAmount", calculated_tax))
         final_gross = float(client_summary.get("grossAmount", calculated_gross))
+        final_tax = float(client_summary.get("taxAmount", calculated_tax))
+        final_net = final_gross - final_tax
         source = "client_summary"
     else:
-        # Use calculated values as last resort
-        final_net = calculated_net
-        final_tax = calculated_tax
         final_gross = calculated_gross
+        final_tax = calculated_tax
+        final_net = final_gross - final_tax
         source = "calculated"
     
     print(f"[T109 DEBUG] Summary calculation (source: {source}):")
-    print(f"  - tax_details_gross (excl excise): {tax_details_gross}")
-    print(f"  - tax_details_net (excl excise): {tax_details_net}")
-    print(f"  - tax_details_tax (ALL incl excise): {tax_details_tax}")
+    print(f"  - grossAmount (excl excise): {tax_details_gross}")
+    print(f"  - taxAmount (ALL incl excise): {tax_details_tax}")
+    print(f"  - netAmount = grossAmount - taxAmount = {final_gross} - {final_tax} = {final_net}")
     print(f"  - client_summary: {client_summary}")
-    print(f"  - calculated: net={calculated_net}, tax={calculated_tax}, gross={calculated_gross}")
     print(f"  - final: net={final_net}, tax={final_tax}, gross={final_gross}")
     
     return {
