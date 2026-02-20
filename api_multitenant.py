@@ -8360,6 +8360,30 @@ async def external_submit_credit_note(
             
             logger.info(f"[T110] Processing simple-format credit note: {credit_note_data['credit_note_number']}")
             
+            # Look up the original invoice's internal ID (invoiceId) via T108
+            # T110 requires oriInvoiceId = internal invoiceId, oriInvoiceNo = FDN
+            original_fdn = credit_note_data.get("original_fdn", "")
+            ori_invoice_id = ""
+            if original_fdn:
+                try:
+                    logger.info(f"[T110] Looking up invoiceId for FDN: {original_fdn}")
+                    invoice_details = efris.get_invoice_details(original_fdn)
+                    if isinstance(invoice_details, dict):
+                        decrypted = invoice_details.get('data', {}).get('decrypted_content', {})
+                        if isinstance(decrypted, dict):
+                            basic_info = decrypted.get('basicInformation', {})
+                            ori_invoice_id = basic_info.get('invoiceId', '')
+                            logger.info(f"[T110] Found invoiceId: {ori_invoice_id} for FDN: {original_fdn}")
+                        else:
+                            logger.warning(f"[T110] T108 response had no decrypted_content, using FDN as oriInvoiceId")
+                            ori_invoice_id = original_fdn
+                    else:
+                        logger.warning(f"[T110] T108 lookup failed: {invoice_details}, using FDN as oriInvoiceId")
+                        ori_invoice_id = original_fdn
+                except Exception as e:
+                    logger.warning(f"[T110] T108 lookup error: {e}, using FDN as oriInvoiceId")
+                    ori_invoice_id = original_fdn
+            
             # Map reason text to EFRIS reason codes
             reason_text = credit_note_data.get("reason", "")
             reason_code = credit_note_data.get("reason_code", "")
@@ -8485,8 +8509,8 @@ async def external_submit_credit_note(
                 })
             
             efris_payload = {
-                "oriInvoiceId": credit_note_data.get("original_fdn", ""),
-                "oriInvoiceNo": credit_note_data.get("original_fdn", credit_note_data["original_invoice_number"]),
+                "oriInvoiceId": ori_invoice_id,
+                "oriInvoiceNo": original_fdn or credit_note_data["original_invoice_number"],
                 "reasonCode": reason_code,
                 "reason": reason_text if reason_code == "105" else "",
                 "applicationTime": credit_note_data.get("credit_note_date", datetime.now().strftime("%Y-%m-%d")) + " " + datetime.now().strftime("%H:%M:%S"),
