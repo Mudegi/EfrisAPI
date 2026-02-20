@@ -8396,7 +8396,7 @@ async def external_submit_credit_note(
                 else:
                     tax_rate_str = str(tax_rate)
                 
-                tax_amount = float(item.get("tax_amount", round(total * tax_rate, 2) if tax_rate > 0 else 0))
+                tax_amount = float(item.get("tax_amount", round(total * tax_rate / (1 + tax_rate), 2) if tax_rate > 0 else 0))
                 
                 goods_details.append({
                     "item": item.get("item_name", ""),
@@ -8448,15 +8448,19 @@ async def external_submit_credit_note(
                     cat_code = "01"
                     rate_str = str(tax_rate)
                 
-                total = float(item.get("total", float(item.get("quantity", 1)) * float(item.get("unit_price", 0))))
-                tax_amt = float(item.get("tax_amount", 0))
+                qty = float(item.get("quantity", 1))
+                unit_price = float(item.get("unit_price", 0))
+                total = float(item.get("total", qty * unit_price))
+                # Auto-calculate tax if not provided (tax-inclusive formula: tax = total * rate / (1 + rate))
+                tax_amt = float(item.get("tax_amount", round(total * tax_rate / (1 + tax_rate), 2) if tax_rate > 0 else 0))
                 
                 if cat_code not in tax_groups:
                     tax_groups[cat_code] = {"rate": rate_str, "net": 0, "tax": 0, "gross": 0}
                 
-                tax_groups[cat_code]["net"] += total
+                # EFRIS formula: grossAmount = total (tax-inclusive), taxAmount, netAmount = grossAmount - taxAmount
+                tax_groups[cat_code]["gross"] += total
                 tax_groups[cat_code]["tax"] += tax_amt
-                tax_groups[cat_code]["gross"] += total + tax_amt
+                tax_groups[cat_code]["net"] += (total - tax_amt)
             
             tax_details = []
             total_net = 0
@@ -8532,8 +8536,10 @@ async def external_submit_credit_note(
                 }
             }
         
-        # Log the final T110 payload
+        # Log the final T110 payload with key details
         logger.info(f"[T110] Submitting credit note application to EFRIS: oriInvoiceId={efris_payload.get('oriInvoiceId')}, reasonCode={efris_payload.get('reasonCode')}")
+        logger.info(f"[T110] Summary: grossAmount={efris_payload.get('summary', {}).get('grossAmount')}, taxAmount={efris_payload.get('summary', {}).get('taxAmount')}, netAmount={efris_payload.get('summary', {}).get('netAmount')}")
+        logger.info(f"[T110] Items: {len(efris_payload.get('goodsDetails', []))}, TaxDetails: {len(efris_payload.get('taxDetails', []))}")
         logger.debug(f"[T110] Full payload: {json.dumps(efris_payload, indent=2)}")
         
         # Submit to EFRIS using T110 (Credit Note Application)

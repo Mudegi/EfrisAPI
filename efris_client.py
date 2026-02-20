@@ -844,7 +844,7 @@ class EfrisManager:
         else:
             return f'API Error {response.status_code}: {response.text}'
 
-    def submit_credit_note_application(self, credit_note_data):
+    def submit_credit_note_application(self, credit_note_data, _retry=False):
         """Submit credit note application to EFRIS using T110
         
         This is the correct interface for credit note applications.
@@ -855,38 +855,45 @@ class EfrisManager:
         T114 = Credit Note Application Cancel
         
         Args:
-            credit_note_data: Dictionary following the T110 specification:
-                {
-                    "oriInvoiceId": "original_invoice_fdn",
-                    "oriInvoiceNo": "original_invoice_number",
-                    "reasonCode": "101",  # 101-105
-                    "reason": "Return of products",
-                    "applicationTime": "2026-01-01 10:00:00",
-                    "invoiceApplyCategoryCode": "101",  # 101=creditNote
-                    "currency": "UGX",
-                    "contactName": "Contact Person",
-                    "contactMobileNum": "0700000000",
-                    "contactEmail": "contact@example.com",
-                    "source": "103",  # 103=WebService API
-                    "remarks": "Credit note remarks",
-                    "sellersReferenceNo": "CN001",
-                    "goodsDetails": [...],
-                    "taxDetails": [...],
-                    "summary": {...},
-                    "payWay": [...],
-                    "buyerDetails": {...},
-                    "basicInformation": {...}
-                }
+            credit_note_data: Dictionary following the T110 specification
+            _retry: Internal flag - if True, this is a retry after refreshing AES key
         
         Returns:
             Response containing referenceNo for the credit note application
         """
         content = json.dumps(credit_note_data, separators=(',', ':'), sort_keys=True)
+        print(f"[T110] Content length: {len(content)} chars")
+        print(f"[T110] AES key valid: {self.is_key_valid()}, key size: {len(self.aes_key) if self.aes_key else 0} bytes")
+        
         payload = self._build_request_payload("T110", content, encrypt_code=2)
+        
+        print(f"[T110] Encrypted content length: {len(payload.get('data', {}).get('content', ''))} chars")
+        print(f"[T110] codeType: {payload.get('data', {}).get('dataDescription', {}).get('codeType')}")
+        print(f"[T110] encryptCode: {payload.get('data', {}).get('dataDescription', {}).get('encryptCode')}")
+        print(f"[T110] interfaceCode: {payload.get('globalInfo', {}).get('interfaceCode')}")
+        print(f"[T110] deviceNo: {payload.get('globalInfo', {}).get('deviceNo')}")
+        print(f"[T110] tin: {payload.get('globalInfo', {}).get('tin')}")
+        
         response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
         
         if response.status_code == 200:
             result = response.json()
+            
+            # Check for decryption error (code 15) - retry with fresh AES key
+            return_code = result.get('returnStateInfo', {}).get('returnCode', '')
+            return_message = result.get('returnStateInfo', {}).get('returnMessage', '')
+            
+            if return_code == '15' and not _retry:
+                print(f"[T110] Got error 15 'Data decryption error' - refreshing AES key and retrying...")
+                # Force fresh handshake (AES key may have expired on URA side)
+                self.aes_key = None
+                self.aes_key_expires_at = None
+                self._perform_handshake()
+                return self.submit_credit_note_application(credit_note_data, _retry=True)
+            
+            if return_code != '00':
+                print(f"[T110] EFRIS returned error: code={return_code}, message={return_message}")
+                print(f"[T110] Full response: {json.dumps(result, indent=2)[:1000]}")
             
             # Decrypt the response content if encrypted (encryptCode=2)
             try:
@@ -914,6 +921,8 @@ class EfrisManager:
                 
             return result
         else:
+            print(f"[T110] HTTP Error: {response.status_code}")
+            print(f"[T110] Response text: {response.text[:500]}")
             return f'API Error {response.status_code}: {response.text}'
 
     def upload_credit_note(self, credit_note_data):
