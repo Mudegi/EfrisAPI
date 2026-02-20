@@ -844,6 +844,78 @@ class EfrisManager:
         else:
             return f'API Error {response.status_code}: {response.text}'
 
+    def submit_credit_note_application(self, credit_note_data):
+        """Submit credit note application to EFRIS using T110
+        
+        This is the correct interface for credit note applications.
+        T110 = Credit Note Application (submit)
+        T111 = Credit Note Application List Query
+        T112 = Credit Note Application Detail Query
+        T113 = Credit Note Issue Approval
+        T114 = Credit Note Application Cancel
+        
+        Args:
+            credit_note_data: Dictionary following the T110 specification:
+                {
+                    "oriInvoiceId": "original_invoice_fdn",
+                    "oriInvoiceNo": "original_invoice_number",
+                    "reasonCode": "101",  # 101-105
+                    "reason": "Return of products",
+                    "applicationTime": "2026-01-01 10:00:00",
+                    "invoiceApplyCategoryCode": "101",  # 101=creditNote
+                    "currency": "UGX",
+                    "contactName": "Contact Person",
+                    "contactMobileNum": "0700000000",
+                    "contactEmail": "contact@example.com",
+                    "source": "103",  # 103=WebService API
+                    "remarks": "Credit note remarks",
+                    "sellersReferenceNo": "CN001",
+                    "goodsDetails": [...],
+                    "taxDetails": [...],
+                    "summary": {...},
+                    "payWay": [...],
+                    "buyerDetails": {...},
+                    "basicInformation": {...}
+                }
+        
+        Returns:
+            Response containing referenceNo for the credit note application
+        """
+        content = json.dumps(credit_note_data, separators=(',', ':'), sort_keys=True)
+        payload = self._build_request_payload("T110", content, encrypt_code=2)
+        response = self.session.post(self.base_url, json=payload, headers=self._get_headers(), timeout=self.request_timeout, verify=self.verify_ssl)
+        
+        if response.status_code == 200:
+            result = response.json()
+            
+            # Decrypt the response content if encrypted (encryptCode=2)
+            try:
+                data = result.get('data', {})
+                encrypted_content = data.get('content', '')
+                
+                if encrypted_content and isinstance(encrypted_content, str):
+                    decrypted_content = self._decrypt_aes(encrypted_content)
+                    if decrypted_content:
+                        try:
+                            parsed_content = json.loads(decrypted_content)
+                            result['data']['decrypted_content'] = parsed_content
+                            print(f"[T110] Credit note application submitted successfully")
+                            print(f"[T110] Response: {json.dumps(parsed_content, indent=2)[:500]}")
+                        except json.JSONDecodeError:
+                            result['data']['decrypted_content'] = decrypted_content
+                            print(f"[T110] Response decrypted (non-JSON): {decrypted_content[:200]}")
+                else:
+                    print(f"[T110] Response received (no encryption)")
+                    if isinstance(data.get('content'), dict):
+                        result['data']['decrypted_content'] = data['content']
+            except Exception as e:
+                print(f"[T110] Response handling: {e}")
+                print(f"[T110] Raw response data: {result.get('data', {})}")
+                
+            return result
+        else:
+            return f'API Error {response.status_code}: {response.text}'
+
     def upload_credit_note(self, credit_note_data):
         """Upload credit note to EFRIS using T111
         

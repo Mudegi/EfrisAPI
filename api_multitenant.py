@@ -3964,7 +3964,7 @@ async def create_credit_note(
     manager = get_efris_manager(company)
     
     try:
-        result = manager.create_credit_note(credit_note_data)
+        result = manager.submit_credit_note_application(credit_note_data)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -8164,9 +8164,15 @@ async def external_submit_credit_note(
     db: Session = Depends(get_db)
 ):
     """
-    Submit credit note/return to EFRIS (T110 - Cancel Invoice / Credit Note)
+    Submit credit note application to EFRIS (T110 - Credit Note Application)
     
-    Request Body:
+    Accepts both pre-formatted EFRIS T110 payloads and simple format.
+    
+    Pre-formatted (from YourBookSuit / Custom ERPs that build the EFRIS payload):
+    - Must include: oriInvoiceId, reasonCode, applicationTime, goodsDetails, 
+      taxDetails, summary, payWay, buyerDetails, basicInformation
+    
+    Simple format:
     {
         "credit_note_number": "CN-2024-001",
         "credit_note_date": "2024-01-24",
@@ -8174,172 +8180,428 @@ async def external_submit_credit_note(
         "original_fdn": "1234567890123456",
         "customer_name": "ABC Ltd",
         "reason": "Product return - defective item",
-        "items": [...],
+        "reason_code": "101",
+        "items": [{"item_name": "Widget", "quantity": 2, "unit_price": 5000, "tax_rate": 0.18, "tax_amount": 900, "total": 10000}],
         "total_amount": 10000,
         "total_tax": 1800,
         "currency": "UGX"
     }
     """
     try:
-        required_fields = ["credit_note_number", "credit_note_date", "original_invoice_number", 
-                          "customer_name", "reason", "items", "total_amount", "currency"]
-        for field in required_fields:
-            if field not in credit_note_data:
-                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
-        
-        if not credit_note_data["items"] or len(credit_note_data["items"]) == 0:
-            raise HTTPException(status_code=400, detail="Credit note must have at least one item")
-        
-        # Get cached EFRIS Manager (avoids T101+T104+T103 handshake on every request)
+        # Get cached EFRIS Manager
         efris = get_efris_manager(company)
         
-        # Build T109 payload for credit note (negative invoice)
-        efris_payload = {
-            "oriInvoiceId": credit_note_data.get("original_fdn", ""),
-            "oriInvoiceNo": credit_note_data["original_invoice_number"],
-            "invoiceNo": credit_note_data["credit_note_number"],
-            "invoiceDate": credit_note_data["credit_note_date"],
-            "invoiceType": "2",  # Credit note type
-            "invoiceKind": "1",
-            "dataSource": "106",
-            "buyerDetails": {
+        # Detect if this is a pre-formatted EFRIS T110 payload
+        # Pre-formatted payloads have top-level EFRIS fields like reasonCode, applicationTime, goodsDetails
+        is_efris_format = all(k in credit_note_data for k in ["reasonCode", "goodsDetails", "taxDetails", "summary"])
+        
+        if is_efris_format:
+            # ===== PRE-FORMATTED T110 PAYLOAD (from YourBookSuit etc.) =====
+            logger.info(f"[T110] Processing pre-formatted credit note: {credit_note_data.get('sellersReferenceNo', 'N/A')}")
+            
+            # Use the payload as-is, but validate and fix key fields
+            efris_payload = {}
+            
+            # Required top-level T110 fields
+            efris_payload["oriInvoiceId"] = credit_note_data.get("oriInvoiceId", credit_note_data.get("original_fdn", ""))
+            efris_payload["oriInvoiceNo"] = credit_note_data.get("oriInvoiceNo", credit_note_data.get("original_invoice_number", ""))
+            efris_payload["reasonCode"] = credit_note_data.get("reasonCode", "101")
+            efris_payload["reason"] = credit_note_data.get("reason", "")
+            efris_payload["applicationTime"] = credit_note_data.get("applicationTime", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            efris_payload["invoiceApplyCategoryCode"] = credit_note_data.get("invoiceApplyCategoryCode", "101")
+            efris_payload["currency"] = credit_note_data.get("currency", "UGX")
+            efris_payload["contactName"] = credit_note_data.get("contactName", credit_note_data.get("customer_name", ""))
+            efris_payload["contactMobileNum"] = credit_note_data.get("contactMobileNum", "")
+            efris_payload["contactEmail"] = credit_note_data.get("contactEmail", "")
+            efris_payload["source"] = credit_note_data.get("source", "103")
+            efris_payload["remarks"] = credit_note_data.get("remarks", "")
+            efris_payload["sellersReferenceNo"] = credit_note_data.get("sellersReferenceNo", credit_note_data.get("credit_note_number", ""))
+            
+            # Process goodsDetails - ensure quantities/amounts are negative
+            goods_details = []
+            for idx, gd in enumerate(credit_note_data.get("goodsDetails", [])):
+                qty = float(gd.get("qty", 0))
+                total = float(gd.get("total", 0))
+                tax = float(gd.get("tax", 0))
+                unit_price = float(gd.get("unitPrice", 0))
+                
+                # Ensure negative values for credit note
+                if qty > 0:
+                    qty = -qty
+                if total > 0:
+                    total = -total
+                if tax > 0 and float(gd.get("taxRate", "0")) != 0:
+                    tax = -tax
+                
+                goods_detail = {
+                    "item": gd.get("item", ""),
+                    "itemCode": gd.get("itemCode", ""),
+                    "qty": str(qty),
+                    "unitOfMeasure": gd.get("unitOfMeasure", "101"),
+                    "unitPrice": str(abs(unit_price)),  # unitPrice must be POSITIVE per EFRIS spec
+                    "total": str(total),
+                    "taxRate": gd.get("taxRate", "0.18"),
+                    "tax": str(tax),
+                    "orderNumber": str(gd.get("orderNumber", idx)),
+                    "discountFlag": gd.get("discountFlag", "2"),
+                    "deemedFlag": gd.get("deemedFlag", "2"),
+                    "exciseFlag": gd.get("exciseFlag", "2"),
+                    "categoryId": gd.get("categoryId", ""),
+                    "categoryName": gd.get("categoryName", ""),
+                    "goodsCategoryId": gd.get("goodsCategoryId", ""),
+                    "goodsCategoryName": gd.get("goodsCategoryName", ""),
+                    "exciseRate": gd.get("exciseRate", ""),
+                    "exciseRule": gd.get("exciseRule", ""),
+                    "exciseTax": gd.get("exciseTax", "0"),
+                    "pack": gd.get("pack", "1"),
+                    "stick": gd.get("stick", "1"),
+                    "exciseUnit": gd.get("exciseUnit", ""),
+                    "exciseCurrency": gd.get("exciseCurrency", ""),
+                    "exciseRateName": gd.get("exciseRateName", ""),
+                    "vatApplicableFlag": gd.get("vatApplicableFlag", "1")
+                }
+                goods_details.append(goods_detail)
+            efris_payload["goodsDetails"] = goods_details
+            
+            # Process taxDetails - ensure amounts are negative
+            tax_details = []
+            for td in credit_note_data.get("taxDetails", []):
+                net = float(td.get("netAmount", 0))
+                tax_amt = float(td.get("taxAmount", 0))
+                gross = float(td.get("grossAmount", 0))
+                
+                if net > 0:
+                    net = -net
+                if tax_amt > 0:
+                    tax_amt = -tax_amt
+                if gross > 0:
+                    gross = -gross
+                
+                tax_details.append({
+                    "taxCategoryCode": td.get("taxCategoryCode", "01"),
+                    "netAmount": str(net),
+                    "taxRate": td.get("taxRate", "0.18"),
+                    "taxAmount": str(tax_amt),
+                    "grossAmount": str(gross),
+                    "exciseUnit": td.get("exciseUnit", ""),
+                    "exciseCurrency": td.get("exciseCurrency", ""),
+                    "taxRateName": td.get("taxRateName", "")
+                })
+            efris_payload["taxDetails"] = tax_details
+            
+            # Process summary - ensure negative
+            client_summary = credit_note_data.get("summary", {})
+            summary_net = float(client_summary.get("netAmount", 0))
+            summary_tax = float(client_summary.get("taxAmount", 0))
+            summary_gross = float(client_summary.get("grossAmount", 0))
+            
+            if summary_net > 0:
+                summary_net = -summary_net
+            if summary_tax > 0:
+                summary_tax = -summary_tax
+            if summary_gross > 0:
+                summary_gross = -summary_gross
+            
+            efris_payload["summary"] = {
+                "netAmount": str(summary_net),
+                "taxAmount": str(summary_tax),
+                "grossAmount": str(summary_gross),
+                "itemCount": str(client_summary.get("itemCount", len(goods_details))),
+                "modeCode": str(client_summary.get("modeCode", "0")),
+                "qrCode": client_summary.get("qrCode", "")
+            }
+            
+            # PayWay - must be positive per EFRIS spec  
+            pay_way = credit_note_data.get("payWay", [])
+            if isinstance(pay_way, list) and len(pay_way) > 0:
+                efris_payload["payWay"] = pay_way
+            else:
+                efris_payload["payWay"] = [{
+                    "paymentMode": "101",
+                    "paymentAmount": str(abs(summary_gross)),
+                    "orderNumber": "a"
+                }]
+            
+            # Buyer details
+            efris_payload["buyerDetails"] = credit_note_data.get("buyerDetails", {
                 "buyerTin": credit_note_data.get("customer_tin", ""),
                 "buyerNinBrn": "",
                 "buyerPassportNum": "",
-                "buyerLegalName": credit_note_data["customer_name"],
-                "buyerBusinessName": credit_note_data["customer_name"],
+                "buyerLegalName": credit_note_data.get("customer_name", ""),
+                "buyerBusinessName": credit_note_data.get("customer_name", ""),
                 "buyerAddress": "",
-                "buyerEmail": credit_note_data.get("buyer_email", ""),
-                "buyerMobilePhone": credit_note_data.get("buyer_phone", ""),
+                "buyerEmail": "",
+                "buyerMobilePhone": "",
                 "buyerLinePhone": "",
                 "buyerPlaceOfBusi": "",
-                "buyerType": credit_note_data.get("buyer_type", "1"),
-                "buyerCitizenship": "1",
-                "buyerSector": "1",
+                "buyerType": "1",
+                "buyerCitizenship": "",
+                "buyerSector": "",
                 "buyerReferenceNo": ""
-            },
-            "goodsDetails": [],
-            "taxDetails": [],
-            "summary": {
-                "netAmount": credit_note_data["total_amount"],
-                "taxAmount": credit_note_data.get("total_tax", 0),
-                "grossAmount": credit_note_data["total_amount"] + credit_note_data.get("total_tax", 0),
-                "itemCount": len(credit_note_data["items"]),
-                "modeCode": "0",
-                "remarks": credit_note_data.get("reason", "Credit Note"),
-                "qrCode": ""
-            },
-            "payWay": "101",
-            "extend": {
-                "reason": credit_note_data.get("reason", ""),
-                "reasonCode": "102"  # Credit note reason code
-            }
-        }
-        
-        # Process items (same as invoice)
-        tax_categories = {}
-        for item in credit_note_data["items"]:
-            efris_payload["goodsDetails"].append({
-                "item": item.get("item_name", ""),
-                "itemCode": item.get("item_code", ""),
-                "qty": str(item.get("quantity", 1)),
-                "unitOfMeasure": item.get("unit_of_measure", "102"),
-                "unitPrice": str(item.get("unit_price", 0)),
-                "total": str(item.get("total", 0)),
-                "taxRate": str(item.get("tax_rate", 0.18) * 100) if item.get("tax_rate") else "-",
-                "tax": str(item.get("tax_amount", 0)),
-                "discountTotal": str(item.get("discount_amount", 0)),
-                "discountTaxRate": "0",
-                "orderNumber": str(credit_note_data["items"].index(item) + 1),
-                "discountFlag": "0",
-                "deemedFlag": "2",
-                "exciseFlag": "2",
-                "categoryId": "",
-                "categoryName": "",
-                "goodsCategoryId": item.get("commodity_code", "1010101"),
-                "goodsCategoryName": item.get("commodity_name", "General"),
-                "exciseRate": "0",
-                "exciseRule": "1",
-                "exciseTax": "0",
-                "pack": "1",
-                "stick": "1",
-                "exciseUnit": "101",
-                "exciseCurrency": "UGX",
-                "exciseRateName": ""
             })
             
-            # Group by tax rate
-            tax_rate_str = str(item.get("tax_rate", 0.18) * 100) if item.get("tax_rate") else "-"
-            if tax_rate_str not in tax_categories:
-                tax_categories[tax_rate_str] = {
-                    "netAmount": 0,
-                    "taxAmount": 0,
-                    "grossAmount": 0
+            # Basic information
+            efris_payload["basicInformation"] = credit_note_data.get("basicInformation", {
+                "operator": "System",
+                "invoiceKind": "1",
+                "invoiceIndustryCode": "101"
+            })
+            
+        else:
+            # ===== SIMPLE FORMAT (build T110 payload from simple fields) =====
+            required_fields = ["credit_note_number", "credit_note_date", "original_invoice_number", 
+                              "customer_name", "reason", "items", "total_amount", "currency"]
+            for field in required_fields:
+                if field not in credit_note_data:
+                    raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+            
+            if not credit_note_data["items"] or len(credit_note_data["items"]) == 0:
+                raise HTTPException(status_code=400, detail="Credit note must have at least one item")
+            
+            logger.info(f"[T110] Processing simple-format credit note: {credit_note_data['credit_note_number']}")
+            
+            # Map reason text to EFRIS reason codes
+            reason_text = credit_note_data.get("reason", "")
+            reason_code = credit_note_data.get("reason_code", "")
+            if not reason_code:
+                reason_map = {
+                    "GOODS_RETURNED": "101", "RETURN": "101", "EXPIRED": "101", "DAMAGED": "101",
+                    "CANCELLATION": "102", "CANCELLED": "102", "CANCEL": "102",
+                    "WRONG_AMOUNT": "103", "MISCALCULATION": "103", "PRICE_ERROR": "103",
+                    "WAIVE_OFF": "104", "PARTIAL_WAIVE": "104",
                 }
-            tax_categories[tax_rate_str]["netAmount"] += item.get("total", 0)
-            tax_categories[tax_rate_str]["taxAmount"] += item.get("tax_amount", 0)
-            tax_categories[tax_rate_str]["grossAmount"] += item.get("total", 0) + item.get("tax_amount", 0)
+                reason_code = reason_map.get(reason_text.upper(), "105")
+            
+            # Build goods details from simple items
+            goods_details = []
+            for idx, item in enumerate(credit_note_data["items"]):
+                qty = float(item.get("quantity", 1))
+                unit_price = float(item.get("unit_price", 0))
+                total = float(item.get("total", qty * unit_price))
+                tax_rate_raw = item.get("tax_rate", 0.18)
+                
+                # Normalize tax rate
+                if isinstance(tax_rate_raw, (int, float)):
+                    if tax_rate_raw > 1:
+                        tax_rate = tax_rate_raw / 100  # 18 -> 0.18
+                    else:
+                        tax_rate = tax_rate_raw
+                else:
+                    tax_rate = 0.18
+                
+                if tax_rate == 0:
+                    tax_rate_str = "0"
+                elif tax_rate < 0 or str(tax_rate_raw) == "-":
+                    tax_rate_str = "-"
+                else:
+                    tax_rate_str = str(tax_rate)
+                
+                tax_amount = float(item.get("tax_amount", round(total * tax_rate, 2) if tax_rate > 0 else 0))
+                
+                goods_details.append({
+                    "item": item.get("item_name", ""),
+                    "itemCode": item.get("item_code", item.get("item_name", "")),
+                    "qty": str(-abs(qty)),
+                    "unitOfMeasure": item.get("unit_of_measure", "101"),
+                    "unitPrice": str(abs(unit_price)),  # Must be positive
+                    "total": str(-abs(total)),
+                    "taxRate": tax_rate_str,
+                    "tax": str(-abs(tax_amount)) if tax_amount != 0 else "0",
+                    "orderNumber": str(idx),
+                    "discountFlag": "2",
+                    "deemedFlag": "2",
+                    "exciseFlag": "2",
+                    "categoryId": "",
+                    "categoryName": "",
+                    "goodsCategoryId": item.get("commodity_code", item.get("goodsCategoryId", "")),
+                    "goodsCategoryName": item.get("commodity_name", item.get("item_name", "")),
+                    "exciseRate": "",
+                    "exciseRule": "",
+                    "exciseTax": "0",
+                    "pack": "1",
+                    "stick": "1",
+                    "exciseUnit": "",
+                    "exciseCurrency": "",
+                    "exciseRateName": "",
+                    "vatApplicableFlag": "1"
+                })
+            
+            # Build tax details grouped by tax category
+            tax_groups = {}
+            for item in credit_note_data["items"]:
+                tax_rate_raw = item.get("tax_rate", 0.18)
+                if isinstance(tax_rate_raw, (int, float)):
+                    tax_rate = tax_rate_raw / 100 if tax_rate_raw > 1 else tax_rate_raw
+                else:
+                    tax_rate = 0.18
+                
+                if tax_rate == 0.18 or tax_rate == 18:
+                    cat_code = "01"
+                    rate_str = "0.18"
+                elif tax_rate == 0:
+                    cat_code = "02"
+                    rate_str = "0"
+                elif tax_rate < 0 or str(tax_rate_raw) == "-":
+                    cat_code = "03"
+                    rate_str = "-"
+                else:
+                    cat_code = "01"
+                    rate_str = str(tax_rate)
+                
+                total = float(item.get("total", float(item.get("quantity", 1)) * float(item.get("unit_price", 0))))
+                tax_amt = float(item.get("tax_amount", 0))
+                
+                if cat_code not in tax_groups:
+                    tax_groups[cat_code] = {"rate": rate_str, "net": 0, "tax": 0, "gross": 0}
+                
+                tax_groups[cat_code]["net"] += total
+                tax_groups[cat_code]["tax"] += tax_amt
+                tax_groups[cat_code]["gross"] += total + tax_amt
+            
+            tax_details = []
+            total_net = 0
+            total_tax = 0
+            total_gross = 0
+            for cat_code, grp in tax_groups.items():
+                net = -abs(grp["net"])
+                tax_amt = -abs(grp["tax"]) if grp["tax"] != 0 else 0
+                gross = -abs(grp["gross"])
+                total_net += net
+                total_tax += tax_amt
+                total_gross += gross
+                tax_details.append({
+                    "taxCategoryCode": cat_code,
+                    "netAmount": str(net),
+                    "taxRate": grp["rate"],
+                    "taxAmount": str(tax_amt),
+                    "grossAmount": str(gross),
+                    "exciseUnit": "",
+                    "exciseCurrency": "",
+                    "taxRateName": ""
+                })
+            
+            efris_payload = {
+                "oriInvoiceId": credit_note_data.get("original_fdn", ""),
+                "oriInvoiceNo": credit_note_data.get("original_fdn", credit_note_data["original_invoice_number"]),
+                "reasonCode": reason_code,
+                "reason": reason_text if reason_code == "105" else "",
+                "applicationTime": credit_note_data.get("credit_note_date", datetime.now().strftime("%Y-%m-%d")) + " " + datetime.now().strftime("%H:%M:%S"),
+                "invoiceApplyCategoryCode": "101",
+                "currency": credit_note_data.get("currency", "UGX"),
+                "contactName": credit_note_data.get("customer_name", ""),
+                "contactMobileNum": credit_note_data.get("buyer_phone", ""),
+                "contactEmail": credit_note_data.get("buyer_email", ""),
+                "source": "103",
+                "remarks": credit_note_data.get("remarks", f"Credit for Invoice {credit_note_data['original_invoice_number']}"),
+                "sellersReferenceNo": credit_note_data["credit_note_number"],
+                "goodsDetails": goods_details,
+                "taxDetails": tax_details,
+                "summary": {
+                    "netAmount": str(total_net),
+                    "taxAmount": str(total_tax),
+                    "grossAmount": str(total_gross),
+                    "itemCount": str(len(goods_details)),
+                    "modeCode": "0",
+                    "qrCode": ""
+                },
+                "payWay": [{
+                    "paymentMode": "101",
+                    "paymentAmount": str(abs(total_gross)),
+                    "orderNumber": "a"
+                }],
+                "buyerDetails": {
+                    "buyerTin": credit_note_data.get("customer_tin", ""),
+                    "buyerNinBrn": "",
+                    "buyerPassportNum": "",
+                    "buyerLegalName": credit_note_data["customer_name"],
+                    "buyerBusinessName": credit_note_data["customer_name"],
+                    "buyerAddress": "",
+                    "buyerEmail": credit_note_data.get("buyer_email", ""),
+                    "buyerMobilePhone": credit_note_data.get("buyer_phone", ""),
+                    "buyerLinePhone": "",
+                    "buyerPlaceOfBusi": "",
+                    "buyerType": credit_note_data.get("buyer_type", "1"),
+                    "buyerCitizenship": "",
+                    "buyerSector": "",
+                    "buyerReferenceNo": ""
+                },
+                "basicInformation": {
+                    "operator": "System",
+                    "invoiceKind": "1",
+                    "invoiceIndustryCode": "101"
+                }
+            }
         
-        # Add tax details
-        for tax_rate, amounts in tax_categories.items():
-            efris_payload["taxDetails"].append({
-                "taxCategoryCode": tax_rate,
-                "netAmount": str(amounts["netAmount"]),
-                "taxRate": tax_rate,
-                "taxAmount": str(amounts["taxAmount"]),
-                "grossAmount": str(amounts["grossAmount"]),
-                "exciseUnit": "",
-                "exciseCurrency": "",
-                "taxRateName": f"{tax_rate}%-VAT" if tax_rate != "-" else "No Tax"
+        # Log the final T110 payload
+        logger.info(f"[T110] Submitting credit note application to EFRIS: oriInvoiceId={efris_payload.get('oriInvoiceId')}, reasonCode={efris_payload.get('reasonCode')}")
+        logger.debug(f"[T110] Full payload: {json.dumps(efris_payload, indent=2)}")
+        
+        # Submit to EFRIS using T110 (Credit Note Application)
+        result = efris.submit_credit_note_application(efris_payload)
+        
+        # Handle string error response from efris_client
+        if isinstance(result, str):
+            raise HTTPException(status_code=502, detail={
+                "success": False,
+                "error_code": "CONNECTION_ERROR",
+                "message": result
             })
         
-        # Submit to EFRIS (T109 for credit note)
-        result = efris.upload_invoice(efris_payload)
+        return_code = result.get("returnStateInfo", {}).get("returnCode", "")
+        return_message = result.get("returnStateInfo", {}).get("returnMessage", "Unknown error")
         
-        if result.get("returnStateInfo", {}).get("returnCode") == "00":
-            # Success
+        if return_code == "00":
+            # Success - T110 returns a referenceNo
             data = result.get("data", {})
-            fdn = data.get("basicInformation", {}).get("invoiceNo", "")
-            verification_code = data.get("basicInformation", {}).get("antifakeCode", "")
-            qr_code = data.get("summary", {}).get("qrCode", "")
+            decrypted = data.get("decrypted_content", {})
+            
+            reference_no = ""
+            if isinstance(decrypted, dict):
+                reference_no = decrypted.get("referenceNo", "")
+            
+            cn_number = credit_note_data.get("credit_note_number", credit_note_data.get("sellersReferenceNo", ""))
+            cn_date = credit_note_data.get("credit_note_date", credit_note_data.get("applicationTime", "")[:10])
+            customer_name = credit_note_data.get("customer_name", credit_note_data.get("contactName", ""))
+            total_amount = credit_note_data.get("total_amount", 0)
             
             # Save to database
-            credit_memo = CreditMemo(
-                company_id=company.id,
-                qb_credit_memo_id=credit_note_data["credit_note_number"],
-                qb_doc_number=credit_note_data["credit_note_number"],
-                qb_customer_name=credit_note_data["customer_name"],
-                qb_txn_date=datetime.strptime(credit_note_data["credit_note_date"], "%Y-%m-%d"),
-                qb_total_amt=credit_note_data["total_amount"],
-                qb_data=credit_note_data
-            )
-            db.add(credit_memo)
-            db.commit()
+            try:
+                credit_memo = CreditMemo(
+                    company_id=company.id,
+                    qb_credit_memo_id=cn_number,
+                    qb_doc_number=cn_number,
+                    qb_customer_name=customer_name,
+                    qb_txn_date=datetime.strptime(cn_date, "%Y-%m-%d") if cn_date else datetime.utcnow(),
+                    qb_total_amt=total_amount if total_amount else 0,
+                    qb_data=credit_note_data
+                )
+                db.add(credit_memo)
+                db.commit()
+            except Exception as db_err:
+                logger.warning(f"[T110] Failed to save credit memo to DB: {db_err}")
+                db.rollback()
             
             return {
                 "success": True,
-                "fdn": fdn,
-                "verification_code": verification_code,
-                "qr_code": qr_code,
-                "credit_note_number": credit_note_data["credit_note_number"],
-                "fiscalized_at": datetime.utcnow().isoformat(),
-                "message": "Credit note fiscalized successfully"
+                "referenceNo": reference_no,
+                "credit_note_number": cn_number,
+                "submitted_at": datetime.utcnow().isoformat(),
+                "message": "Credit note application submitted successfully to EFRIS"
             }
         else:
-            error_msg = result.get("returnStateInfo", {}).get("returnMessage", "Unknown error")
-            error_code = result.get("returnStateInfo", {}).get("returnCode", "")
-            
+            logger.warning(f"[T110] EFRIS rejected credit note: code={return_code}, msg={return_message}")
             raise HTTPException(
                 status_code=400,
                 detail={
                     "success": False,
-                    "error_code": error_code,
-                    "message": error_msg
+                    "error_code": return_code,
+                    "message": return_message
                 }
             )
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"[T110] Internal error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
