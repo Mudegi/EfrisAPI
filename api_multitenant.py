@@ -7225,7 +7225,7 @@ def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calcula
         "netAmount": f"{final_net:.2f}",
         "taxAmount": f"{final_tax:.2f}",
         "grossAmount": f"{final_gross:.2f}",
-        "itemCount": str(len(goods_details)),
+        "itemCount": str(sum(1 for item in goods_details if item.get('discountFlag', '2') != '0')),  # Product lines only, excludes discount lines
         "modeCode": "0",
         "remarks": invoice_data.get("remarks", client_summary.get("remarks", "")),
         "qrCode": ""
