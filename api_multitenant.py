@@ -7417,8 +7417,8 @@ async def external_submit_invoice(
                     except:
                         tax_rate_str = str(raw_tax_rate)
                 
-                # Calculate net amount
-                net_amount = total_line - tax_amount if tax_amount > 0 else total_line
+                # Calculate net amount (unconditional: works for both positive items and negative discount lines)
+                net_amount = total_line - tax_amount
                 
             else:
                 # Simple Custom ERP format - calculate everything
@@ -7498,7 +7498,14 @@ async def external_submit_invoice(
                 "exciseUnit": item.get("exciseUnit", "") if item.get("exciseFlag", "2") == "1" else "",
                 "exciseCurrency": item.get("exciseCurrency", "") if item.get("exciseFlag", "2") == "1" else "",
                 "exciseRateName": item.get("exciseRateName", "") if item.get("exciseFlag", "2") == "1" else "",
-                "vatApplicableFlag": item.get("vatApplicableFlag", "1")
+                "vatApplicableFlag": item.get("vatApplicableFlag", "1"),
+                # Tax classification fields (required by EFRIS, same as QB mapper)
+                "taxCategoryCode": item.get("taxCategoryCode", item.get("tax_category_code",
+                    "03" if tax_rate_str == "-" else ("02" if tax_rate_str == "0" else "01"))),
+                "isZeroRate": item.get("isZeroRate", item.get("is_zero_rate",
+                    "101" if tax_rate_str == "0" else "102")),
+                "isExempt": item.get("isExempt", item.get("is_exempt",
+                    "101" if tax_rate_str == "-" else "102"))
             })
             
             # EFRIS Discount Line Generation (for simple format items with discount)
@@ -7551,7 +7558,11 @@ async def external_submit_invoice(
                     "exciseUnit": "",
                     "exciseCurrency": "",
                     "exciseRateName": "",
-                    "vatApplicableFlag": item.get("vatApplicableFlag", "1")
+                    "vatApplicableFlag": item.get("vatApplicableFlag", "1"),
+                    # Inherit tax classification from parent item
+                    "taxCategoryCode": "03" if tax_rate_str == "-" else ("02" if tax_rate_str == "0" else "01"),
+                    "isZeroRate": "101" if tax_rate_str == "0" else "102",
+                    "isExempt": "101" if tax_rate_str == "-" else "102"
                 }
                 goods_details.append(discount_line)
                 
@@ -7585,9 +7596,10 @@ async def external_submit_invoice(
                 else:
                     cat = "01"  # Standard VAT
                 
-                item_total = float(gd_item.get("total", 0))
-                item_tax = float(gd_item.get("tax", 0))
-                item_net = item_total - item_tax if item_tax > 0 else item_total
+                item_total = float(gd_item.get("total", 0) or 0)
+                item_tax = float(gd_item.get("tax", 0) or 0)
+                # netAmount = grossAmount - taxAmount (works for both positive and negative values)
+                item_net = item_total - item_tax
                 
                 if cat not in tax_groups:
                     tax_groups[cat] = {"net": 0, "tax": 0, "gross": 0}

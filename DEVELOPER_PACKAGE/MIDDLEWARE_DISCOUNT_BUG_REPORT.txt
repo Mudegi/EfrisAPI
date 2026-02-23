@@ -91,22 +91,35 @@ ERRORS ENCOUNTERED
    empty! Collection index:1"
    (This means EFRIS received a default value for qty instead of empty)
 
+4) After fixing qty (null passes through to EFRIS):
+   EFRIS error 1206: "goodsDetails-->total:Must be the same as the
+   discountTotal value of the discounted row! Collection index:1"
+   (The middleware appears to recompute total = qty * unitPrice for ALL lines,
+   overwriting the total we provide. Since qty is null for discount lines,
+   the recomputed total becomes 0 or null, which doesn't match discountTotal.)
+
 
 ROOT CAUSE
 ----------
-The middleware appears to call float() on the qty field for ALL goodsDetails
-lines without first checking the discountFlag value. For discount lines
-(discountFlag = '0'), the middleware should:
+The middleware has TWO issues with discount lines (discountFlag = '0'):
 
-  - Accept qty as null, empty string, or omitted
-  - NOT attempt to convert it to float
-  - Pass it to EFRIS as empty/omitted in the XML/JSON payload
+Issue 1 — qty parsing:
+  The middleware calls float() on the qty field for ALL goodsDetails lines
+  without first checking the discountFlag value. For discount lines, qty must
+  be empty/null per EFRIS spec.
+
+Issue 2 — total recomputation:
+  The middleware appears to recompute the 'total' field as qty * unitPrice
+  instead of passing through the total value we provide. For discount lines
+  where qty is null/empty, this causes total to become 0 or null, which
+  triggers EFRIS error 1206 (total must match discountTotal of discounted row).
 
 
-REQUESTED FIX
--------------
-In the middleware's invoice submission handler (likely in the goodsDetails
-serialization), please add a check:
+REQUESTED FIXES
+---------------
+In the middleware's invoice submission handler (goodsDetails serialization):
+
+Fix 1 — Do not parse qty as float for discount lines:
 
   if discountFlag == '0':
       # Discount amount line — qty and unitOfMeasure must be empty
@@ -116,8 +129,14 @@ serialization), please add a check:
       qty = float(item['qty'])
       unitOfMeasure = item['unitOfMeasure']
 
-The same logic should apply to unitOfMeasure — the EFRIS spec states it is
-only "Required if discountFlag is 1 or 2".
+Fix 2 — Do not recompute total for discount lines:
+
+  if discountFlag == '0':
+      # Use the total as provided — do NOT recompute from qty * unitPrice
+      total = item['total']  # Will be a negative value like "-236000.00"
+  else:
+      # Normal computation is fine
+      total = float(item['qty']) * float(item['unitPrice'])
 
 
 ADDITIONAL NOTES
