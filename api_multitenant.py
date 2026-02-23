@@ -7222,9 +7222,9 @@ def _build_invoice_summary(invoice_data, calculated_net, calculated_tax, calcula
     logger.debug(f"[T109] Summary (source={source}): net={final_net}, tax={final_tax}, gross={final_gross}")
     
     return {
-        "netAmount": str(round(final_net, 2)),
-        "taxAmount": str(round(final_tax, 2)),
-        "grossAmount": str(round(final_gross, 2)),
+        "netAmount": f"{final_net:.2f}",
+        "taxAmount": f"{final_tax:.2f}",
+        "grossAmount": f"{final_gross:.2f}",
         "itemCount": str(len(goods_details)),
         "modeCode": "0",
         "remarks": invoice_data.get("remarks", client_summary.get("remarks", "")),
@@ -7474,10 +7474,10 @@ async def external_submit_invoice(
                 "itemCode": item_code,
                 "qty": "" if is_discount_line else str(qty),
                 "unitOfMeasure": "" if is_discount_line else item.get("unitOfMeasure", item.get("unit_of_measure", "102")),
-                "unitPrice": "" if is_discount_line else str(round(unit_price, 2)),
-                "total": str(round(total_line, 2)),
+                "unitPrice": "" if is_discount_line else f"{unit_price:.2f}",
+                "total": f"{total_line:.2f}",
                 "taxRate": tax_rate_str,
-                "tax": str(round(tax_amount, 2)),
+                "tax": f"{tax_amount:.2f}",
                 # EFRIS validation: If discountFlag is "2" (no discount) or "0", discountTotal MUST be empty
                 "discountTotal": "" if item.get("discountFlag", "2") in ["0", "2"] else item.get("discountTotal", ""),
                 "discountTaxRate": "" if item.get("discountFlag", "2") in ["0", "2"] else item.get("discountTaxRate", ""),
@@ -7513,7 +7513,7 @@ async def external_submit_invoice(
             if not is_efris_format and discount > 0:
                 # Mark the original item as discounted
                 goods_details[-1]["discountFlag"] = "1"
-                goods_details[-1]["discountTotal"] = str(round(-discount, 2))
+                goods_details[-1]["discountTotal"] = f"{-discount:.2f}"
                 goods_details[-1]["discountTaxRate"] = tax_rate_str
                 
                 # Calculate discount tax/net breakdown
@@ -7537,9 +7537,9 @@ async def external_submit_invoice(
                     "qty": "",
                     "unitOfMeasure": "",
                     "unitPrice": "",
-                    "total": str(round(-discount, 2)),
+                    "total": f"{-discount:.2f}",
                     "taxRate": tax_rate_str,
-                    "tax": str(round(-discount_tax, 2)),
+                    "tax": f"{-discount_tax:.2f}",
                     "discountTotal": "",  # Must be empty for discountFlag=0
                     "discountTaxRate": "",
                     "orderNumber": str(idx),  # Next order number after the original item
@@ -7626,10 +7626,10 @@ async def external_submit_invoice(
             for cat, amounts in sorted(tax_groups.items()):
                 entry = {
                     "taxCategoryCode": cat,
-                    "netAmount": str(round(amounts["net"], 2)),
+                    "netAmount": f"{amounts['net']:.2f}",
                     "taxRate": "0.18" if cat == "01" else ("0" if cat in ["02", "05"] else ("-" if cat == "03" else "0.18")),
-                    "taxAmount": str(round(amounts["tax"], 2)),
-                    "grossAmount": str(round(amounts["gross"], 2)),
+                    "taxAmount": f"{amounts['tax']:.2f}",
+                    "grossAmount": f"{amounts['gross']:.2f}",
                     "taxRateName": cat_names.get(cat, ""),
                     "exciseUnit": amounts.get("excise_unit", ""),
                     "exciseCurrency": amounts.get("excise_currency", "")
@@ -7710,10 +7710,10 @@ async def external_submit_invoice(
                 
                 tax_detail_entry = {
                     "taxCategoryCode": str(tax_category),
-                    "netAmount": str(round(net_amount, 2)),
+                    "netAmount": f"{net_amount:.2f}",
                     "taxRate": tax_rate_str,
-                    "taxAmount": str(round(tax_amount, 2)),
-                    "grossAmount": str(round(gross_amount, 2)),
+                    "taxAmount": f"{tax_amount:.2f}",
+                    "grossAmount": f"{gross_amount:.2f}",
                     # EFRIS spec requires exciseUnit and exciseCurrency in ALL taxDetails entries
                     "exciseUnit": td.get("exciseUnit", td.get("excise_unit", "")),
                     "exciseCurrency": td.get("exciseCurrency", td.get("excise_currency", ""))
