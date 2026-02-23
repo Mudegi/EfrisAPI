@@ -8006,9 +8006,18 @@ async def external_register_product(
             "pieceScaledValue": "1"
         }]
         
-        # Add stockPrewarning if provided
-        if "stock_quantity" in product_data:
-            t130_payload[0]["stockPrewarning"] = str(product_data["stock_quantity"])
+        # Add stockPrewarning - required for physical products, optional for services
+        is_service = product_data.get("is_service", False)
+        if not is_service:
+            # Accept any of these field names, fall back to "0" if none provided
+            stock_prewarning = (
+                product_data.get("stock_prewarning") or
+                product_data.get("stock_quantity") or
+                product_data.get("low_stock_warning") or
+                product_data.get("stockPrewarning") or
+                "0"
+            )
+            t130_payload[0]["stockPrewarning"] = str(stock_prewarning)
         
         # Add excise duty code ONLY if item has excise tax
         if have_excise == "101" and product_data.get("excise_duty_code"):
