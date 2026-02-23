@@ -7375,14 +7375,19 @@ async def external_submit_invoice(
             is_efris_format = "qty" in item or "itemCode" in item
             logger.debug(f"[T109] is_efris_format: {is_efris_format}")
             
+            # Check if this is a discount amount line (discountFlag='0')
+            is_discount_line = str(item.get("discountFlag", item.get("discount_flag", "2"))) == "0"
+            
             if is_efris_format:
                 # Data is already EFRIS-formatted - use it directly
                 item_name = item.get("item", "")
                 item_code = item.get("itemCode", "")
-                qty = float(item.get("qty", 1))
-                unit_price = float(item.get("unitPrice", 0))
-                total_line = float(item.get("total", 0))
-                tax_amount = float(item.get("tax", 0))
+                # Discount lines (discountFlag=0): qty must be empty per EFRIS spec (error 1181)
+                raw_qty = item.get("qty")
+                qty = None if is_discount_line or raw_qty is None or str(raw_qty).strip() == "" else float(raw_qty or 1)
+                unit_price = float(item.get("unitPrice", 0) or 0)
+                total_line = float(item.get("total", 0) or 0)
+                tax_amount = float(item.get("tax", 0) or 0)
                 
                 # Normalize taxRate for EFRIS compliance
                 # EFRIS accepts: "0.18" (standard), "0" (zero-rated/excise), "-" (exempt)
@@ -7419,13 +7424,19 @@ async def external_submit_invoice(
                 # Simple Custom ERP format - calculate everything
                 item_name = item.get("item_name", "")
                 item_code = item.get("item_code", "")
-                qty = float(item.get("quantity", 1))
-                unit_price = float(item.get("unit_price", 0))
+                # Discount lines: qty must be empty
+                raw_qty = item.get("quantity", 1)
+                qty = None if is_discount_line or raw_qty is None or str(raw_qty).strip() == "" else float(raw_qty or 1)
+                unit_price = float(item.get("unit_price", 0) or 0)
                 tax_rate_pct = float(item.get("tax_rate", 18))  # Default 18%
                 discount = float(item.get("discount", 0))
                 
                 # Tax inclusive calculation
-                total_line = (qty * unit_price)
+                # For discount lines (qty=None), use total directly from item if provided
+                if is_discount_line:
+                    total_line = float(item.get("total", item.get("unit_price", 0)) or 0)
+                else:
+                    total_line = (qty * unit_price)
                 if tax_rate_pct > 0:
                     tax_rate_decimal = tax_rate_pct / 100 if tax_rate_pct > 1 else tax_rate_pct
                     net_amount = total_line / (1 + tax_rate_decimal)
@@ -7461,9 +7472,9 @@ async def external_submit_invoice(
             goods_details.append({
                 "item": item_name,
                 "itemCode": item_code,
-                "qty": str(qty),
-                "unitOfMeasure": item.get("unitOfMeasure", item.get("unit_of_measure", "102")),
-                "unitPrice": str(round(unit_price, 2)),
+                "qty": "" if is_discount_line else str(qty),
+                "unitOfMeasure": "" if is_discount_line else item.get("unitOfMeasure", item.get("unit_of_measure", "102")),
+                "unitPrice": "" if is_discount_line else str(round(unit_price, 2)),
                 "total": str(round(total_line, 2)),
                 "taxRate": tax_rate_str,
                 "tax": str(round(tax_amount, 2)),
@@ -7512,12 +7523,13 @@ async def external_submit_invoice(
                     discount_tax = 0
                 
                 # Add the EFRIS discount line (discountFlag="0", negative amounts)
+                # EFRIS spec: qty and unitOfMeasure MUST be empty for discount lines (error 1181)
                 discount_line = {
                     "item": f"{item_name} (discount)",
                     "itemCode": item_code,
-                    "qty": "1",
-                    "unitOfMeasure": item.get("unitOfMeasure", item.get("unit_of_measure", "102")),
-                    "unitPrice": str(round(-discount, 2)),
+                    "qty": "",
+                    "unitOfMeasure": "",
+                    "unitPrice": "",
                     "total": str(round(-discount, 2)),
                     "taxRate": tax_rate_str,
                     "tax": str(round(-discount_tax, 2)),
@@ -8231,13 +8243,15 @@ async def external_submit_credit_note(
             # Process goodsDetails - ensure quantities/amounts are negative
             goods_details = []
             for idx, gd in enumerate(credit_note_data.get("goodsDetails", [])):
-                qty = float(gd.get("qty", 0))
-                total = float(gd.get("total", 0))
-                tax = float(gd.get("tax", 0))
-                unit_price = float(gd.get("unitPrice", 0))
+                is_cn_discount = str(gd.get("discountFlag", "2")) == "0"
+                raw_qty = gd.get("qty")
+                qty = None if is_cn_discount or raw_qty is None or str(raw_qty).strip() == "" else float(raw_qty or 0)
+                total = float(gd.get("total", 0) or 0)
+                tax = float(gd.get("tax", 0) or 0)
+                unit_price = float(gd.get("unitPrice", 0) or 0)
                 
-                # Ensure negative values for credit note
-                if qty > 0:
+                # Ensure negative values for credit note (skip qty check for discount lines)
+                if qty is not None and qty > 0:
                     qty = -qty
                 if total > 0:
                     total = -total
@@ -8247,8 +8261,8 @@ async def external_submit_credit_note(
                 goods_detail = {
                     "item": gd.get("item", ""),
                     "itemCode": gd.get("itemCode", ""),
-                    "qty": str(qty),
-                    "unitOfMeasure": gd.get("unitOfMeasure", "101"),
+                    "qty": "" if is_cn_discount else str(qty),
+                    "unitOfMeasure": "" if is_cn_discount else gd.get("unitOfMeasure", "101"),
                     "unitPrice": str(abs(unit_price)),  # unitPrice must be POSITIVE per EFRIS spec
                     "total": str(total),
                     "taxRate": gd.get("taxRate", "0.18"),

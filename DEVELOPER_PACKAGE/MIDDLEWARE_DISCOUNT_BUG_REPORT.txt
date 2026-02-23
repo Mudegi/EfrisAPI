@@ -1,0 +1,138 @@
+================================================================================
+  EFRIS MIDDLEWARE BUG REPORT — Discount Line Handling
+  Date: 2026-02-23
+  Reporter: YourBooks Lite App Team
+  Middleware: https://efrisintegration.nafacademy.com/api/external/efris
+  Endpoint: POST /submit-invoice
+================================================================================
+
+SUMMARY
+-------
+The middleware cannot handle EFRIS discount lines (discountFlag = '0') in the
+goodsDetails array of T109 invoice submissions. EFRIS requires that discount
+lines have empty/null qty and unitOfMeasure fields, but the middleware crashes
+when these fields are empty, null, or omitted.
+
+
+EFRIS SPECIFICATION (from EFRIS Interface Codes document)
+---------------------------------------------------------
+EFRIS T109 goodsDetails supports a 3-value discount model via discountFlag:
+
+  discountFlag = '2'  →  Non-discount good (normal item)
+  discountFlag = '1'  →  Discounted good (the item that has a discount)
+  discountFlag = '0'  →  Discount amount line (the discount itself)
+
+Rules from EFRIS spec:
+  - The first line cannot have discountFlag '0'
+  - The last line cannot have discountFlag '1'
+  - When discountFlag is '0': item name = discounted item name + " (Discount)"
+  - When discountFlag is '1': discountTotal must be negative, equal to the
+    absolute value of the discount line's total
+  - unitOfMeasure is "Required if discountFlag is 1 or 2" — meaning it is
+    NOT required when discountFlag is '0'
+  - qty for discount lines should be empty/null per EFRIS validation
+    (EFRIS error 1181: "Discount line is the 'qty' must be empty!")
+
+
+EXAMPLE PAYLOAD (what our app sends)
+-------------------------------------
+{
+  "items": [
+    {
+      "item": "Lenovo Legion II",
+      "itemCode": "P001",
+      "qty": "1",
+      "unitOfMeasure": "101",
+      "unitPrice": "2360000.00",
+      "total": "2360000.00",
+      "taxRate": "0.18",
+      "tax": "360000.00",
+      "orderNumber": "0",
+      "discountFlag": "1",
+      "discountTotal": "-236000.00",
+      "discountTaxRate": "0.18",
+      "deemedFlag": "2",
+      "exciseFlag": "2",
+      "goodsCategoryId": "10101",
+      "vatApplicableFlag": "1"
+    },
+    {
+      "item": "Lenovo Legion II (Discount)",
+      "itemCode": "P001",
+      "qty": null,
+      "unitOfMeasure": null,
+      "unitPrice": "-236000.00",
+      "total": "-236000.00",
+      "taxRate": "0.18",
+      "tax": "-36000.00",
+      "orderNumber": "1",
+      "discountFlag": "0",
+      "deemedFlag": "2",
+      "exciseFlag": "2",
+      "goodsCategoryId": "10101",
+      "vatApplicableFlag": "1"
+    }
+  ]
+}
+
+
+ERRORS ENCOUNTERED
+------------------
+
+1) When qty is "" (empty string):
+   HTTP 500: "Internal error: could not convert string to float: ''"
+
+2) When qty is null:
+   HTTP 500: "Internal error: float() argument must be a string or a number,
+   not 'NoneType'"
+
+3) When qty key is omitted entirely from JSON:
+   EFRIS error 1181: "goodsDetails-->qty:Discount line is the 'qty' must be
+   empty! Collection index:1"
+   (This means EFRIS received a default value for qty instead of empty)
+
+
+ROOT CAUSE
+----------
+The middleware appears to call float() on the qty field for ALL goodsDetails
+lines without first checking the discountFlag value. For discount lines
+(discountFlag = '0'), the middleware should:
+
+  - Accept qty as null, empty string, or omitted
+  - NOT attempt to convert it to float
+  - Pass it to EFRIS as empty/omitted in the XML/JSON payload
+
+
+REQUESTED FIX
+-------------
+In the middleware's invoice submission handler (likely in the goodsDetails
+serialization), please add a check:
+
+  if discountFlag == '0':
+      # Discount amount line — qty and unitOfMeasure must be empty
+      qty = None  (or omit from EFRIS payload)
+      unitOfMeasure = None  (or omit from EFRIS payload)
+  else:
+      qty = float(item['qty'])
+      unitOfMeasure = item['unitOfMeasure']
+
+The same logic should apply to unitOfMeasure — the EFRIS spec states it is
+only "Required if discountFlag is 1 or 2".
+
+
+ADDITIONAL NOTES
+----------------
+- EFRIS validates this strictly: error 1181 confirms qty MUST be empty for
+  discount lines. The middleware must pass this through correctly.
+- The discount line total and unitPrice are negative values (e.g., "-236000.00")
+- The discount line tax is also negative
+- discountTotal and discountTaxRate should only be present on the discounted
+  good line (discountFlag = '1'), not on the discount amount line (flag = '0')
+  or non-discount goods (flag = '2')
+
+Once this fix is deployed, please notify us so we can verify the full discount
+flow end-to-end.
+
+================================================================================
+  END OF BUG REPORT
+================================================================================
