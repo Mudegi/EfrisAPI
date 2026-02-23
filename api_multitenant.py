@@ -4820,7 +4820,8 @@ async def sync_products_to_efris(
                 "currency": "101",
                 "commodityCategoryId": item.get('Sku', default_category_id),
                 "haveExciseTax": "101" if item.get('HasExcise') else "102",
-                "goodsTypeCode": "102" if is_service else "101",
+                "goodsTypeCode": "101",  # 101=Goods, 102=Fuel only — services use serviceMark
+                "serviceMark": "101" if is_service else "102",  # 101=Service, 102=Goods
                 "description": goods_code,
                 "havePieceUnit": "101",
                 "pieceMeasureUnit": measure_unit,
@@ -7994,7 +7995,8 @@ async def external_register_product(
             "currency": "101",  # 101=UGX
             "commodityCategoryId": product_data["commodity_code"],
             "haveExciseTax": have_excise,
-            "goodsTypeCode": product_data.get("goods_type_code", "101"),  # 101=Goods, 102=Fuel
+            "goodsTypeCode": product_data.get("goods_type_code", "101"),  # 101=Goods, 102=Fuel (NOT service!)
+            "serviceMark": "101" if product_data.get("is_service", False) else "102",  # 101=Service, 102=Goods
             "description": product_data.get("description", ""),
             # Match QuickBooks working format
             "havePieceUnit": "101",  # Same as QuickBooks
