@@ -1,0 +1,754 @@
+================================================================================
+  EFRIS INVOICE PAYLOAD GUIDE FOR ERP DEVELOPERS
+  Middleware: https://efrisintegration.nafacademy.com
+  Endpoint:  POST /api/external/efris/submit-invoice
+  Updated:   2026-02-24
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+  1. Authentication
+  2. Required Headers
+  3. Field Reference (all codes)
+  ★ 4. RECOMMENDED: Simple Format (any ERP)
+  5. Scenario A: Simple Invoice (no discount)
+  6. Scenario B: Invoice with Discount
+  7. Scenario C: Mixed Tax Types (Standard + Zero-Rated + Exempt)
+  8. Scenario D: Multiple Items with Discount
+  9. Tax Calculation Rules
+  10. Common Errors and Solutions
+  11. Response Format
+
+
+================================================================================
+1. AUTHENTICATION
+================================================================================
+
+Every request requires an API key in the header:
+
+    X-API-Key: your-company-api-key-here
+
+The API key identifies your company. Get it from the admin dashboard.
+
+
+================================================================================
+2. REQUIRED HEADERS
+================================================================================
+
+    Content-Type: application/json
+    X-API-Key: <your-api-key>
+
+
+================================================================================
+3. FIELD REFERENCE
+================================================================================
+
+BUYER TYPE (buyer_type):
+    "0" = B2B (Business) — customer_tin is REQUIRED
+    "1" = B2C (Individual) — customer_tin is optional
+    "2" = B2G (Government) — customer_tin is REQUIRED
+
+PAYMENT METHOD (payment_method):
+    "101" = Cash
+    "102" = Credit
+    "103" = Cheque
+    "104" = Mobile Money (e.g., MTN MoMo, Airtel Money)
+    "105" = Visa/MasterCard
+
+CURRENCY (currency):
+    "UGX" = Uganda Shillings (default)
+    "USD" = US Dollars
+    "EUR" = Euros
+    "GBP" = British Pounds
+
+UNIT OF MEASURE (unitOfMeasure):
+    "101" = Piece/Unit
+    "102" = Set/Box
+    "103" = Kilogram (kg)
+    "104" = Metre
+    "105" = Litre
+    "106" = Square Metre
+    "107" = Cubic Metre
+    "108" = Pair
+    Note: Must match what was registered via T130 (product registration)
+
+TAX RATE (taxRate):
+    "0.18" = Standard VAT 18%
+    "0"    = Zero-Rated (0% VAT)
+    "-"    = Exempt from VAT
+
+DISCOUNT FLAG (discountFlag):
+    "2" = Normal item (no discount)
+    "1" = Discounted item (has a discount applied)
+    "0" = Discount amount line (the discount itself — MUST follow a "1" line)
+
+    RULES:
+    - First line CANNOT be "0"
+    - Last line CANNOT be "1"
+    - A "1" line must be immediately followed by a "0" line
+    - A "0" line has negative total and negative tax
+
+VAT APPLICABLE FLAG (vatApplicableFlag):
+    "1" = VAT applicable (use for ALL items: standard, zero-rated, AND exempt)
+
+EXCISE FLAG (exciseFlag):
+    "1" = Item has excise duty
+    "2" = No excise duty (default for most items)
+
+DEEMED FLAG (deemedFlag):
+    "1" = Deemed VAT
+    "2" = Not deemed (default)
+
+
+================================================================================
+★★★ 4. RECOMMENDED: SIMPLE FORMAT (FOR ALL ERPs) ★★★
+================================================================================
+
+Add "format": "simple" to your payload. The middleware then handles EVERYTHING:
+  - Tax calculation (tax-inclusive math)
+  - Discount line generation (flag=1 + flag=0 pairs)
+  - Decimal formatting (always .00)
+  - orderNumber sequencing
+  - tax_details auto-generation
+  - Summary, itemCount, all EFRIS-specific rules
+
+YOUR ERP ONLY SENDS RAW TRANSACTION DATA. No EFRIS knowledge needed.
+
+SIMPLE FORMAT FIELDS PER ITEM:
+  item_name    (or item)         — Product name               REQUIRED
+  item_code    (or itemCode)     — EFRIS-registered code      REQUIRED
+  quantity     (or qty)          — How many                    REQUIRED
+  unit_price   (or unitPrice)    — Price per unit (tax-incl.)  REQUIRED
+  tax_rate     (or taxRate)      — 18, 0, or -1               REQUIRED
+  discount                       — Discount amount (positive)  OPTIONAL (default: 0)
+  unit_of_measure (or unitOfMeasure) — Unit code              OPTIONAL (default: "102")
+  goods_category_id (or goodsCategoryId) — Commodity code     OPTIONAL
+
+TAX RATE VALUES:
+  18   or 0.18  → Standard VAT (18%)
+  0             → Zero-Rated
+  -1   or "-"   → Exempt
+
+──────────────────────────────────────────────────────────────
+EXAMPLE A: Simple invoice, no discount
+──────────────────────────────────────────────────────────────
+
+{
+    "format": "simple",
+    "invoice_number": "INV-2026-001",
+    "invoice_date": "2026-02-24",
+    "customer_name": "Timothy Khabusi",
+    "buyer_type": "1",
+    "payment_method": "101",
+    "items": [
+        {
+            "item_name": "Lenovo Legion Laptop",
+            "item_code": "P001",
+            "quantity": 1,
+            "unit_price": 2360000,
+            "tax_rate": 18
+        }
+    ]
+}
+
+That's it. The middleware computes:
+  total = 1 × 2,360,000 = 2,360,000.00
+  tax   = 2,360,000 × 0.18 / 1.18 = 360,000.00
+  Formats everything, generates tax_details, summary, sends to EFRIS.
+
+──────────────────────────────────────────────────────────────
+EXAMPLE B: Invoice with discount
+──────────────────────────────────────────────────────────────
+
+{
+    "format": "simple",
+    "invoice_number": "INV-2026-002",
+    "invoice_date": "2026-02-24",
+    "customer_name": "Sarah Nakamya",
+    "buyer_type": "1",
+    "payment_method": "101",
+    "items": [
+        {
+            "item_name": "Lenovo Legion Laptop",
+            "item_code": "P001",
+            "quantity": 1,
+            "unit_price": 2360000,
+            "tax_rate": 18,
+            "discount": 236000
+        }
+    ]
+}
+
+The middleware automatically:
+  1. Creates the product line (discountFlag="1", total="2360000.00")
+  2. Creates the discount line (discountFlag="0", total="-236000.00")
+  3. Sets discountTotal="-236000.00" on the product line
+  4. Calculates tax on both the item and discount
+  5. Names the discount line "Lenovo Legion Laptop (discount)"
+  NO discount pairs, NO negative values, NO EFRIS formatting needed from your ERP.
+
+──────────────────────────────────────────────────────────────
+EXAMPLE C: Mixed tax types with discounts
+──────────────────────────────────────────────────────────────
+
+{
+    "format": "simple",
+    "invoice_number": "INV-2026-003",
+    "invoice_date": "2026-02-24",
+    "customer_name": "Kampala General Store",
+    "customer_tin": "1001234567",
+    "buyer_type": "0",
+    "payment_method": "102",
+    "items": [
+        {
+            "item_name": "Laptop",
+            "item_code": "P001",
+            "quantity": 1,
+            "unit_price": 2360000,
+            "tax_rate": 18,
+            "discount": 100000
+        },
+        {
+            "item_name": "Fresh Milk 1L",
+            "item_code": "MILK001",
+            "quantity": 10,
+            "unit_price": 5000,
+            "tax_rate": 0
+        },
+        {
+            "item_name": "Surgical Gloves",
+            "item_code": "MED001",
+            "quantity": 5,
+            "unit_price": 30000,
+            "tax_rate": -1
+        }
+    ]
+}
+
+The middleware handles everything:
+  - Laptop: standard 18% VAT, auto-generates discount pair
+  - Milk: zero-rated, no tax
+  - Gloves: exempt (taxRate "-"), no tax
+  - Auto-groups tax_details by category (01, 02, 03)
+
+──────────────────────────────────────────────────────────────
+EXAMPLE D: CamelCase field names (also works)
+──────────────────────────────────────────────────────────────
+
+Both naming styles work in simple format. Use whichever fits your ERP:
+
+{
+    "format": "simple",
+    "invoice_number": "INV-2026-004",
+    "invoice_date": "2026-02-24",
+    "customer_name": "John Mukasa",
+    "buyer_type": "1",
+    "payment_method": "104",
+    "items": [
+        {
+            "item": "Samsung Galaxy S25",
+            "itemCode": "PHONE001",
+            "qty": 1,
+            "unitPrice": 3540000,
+            "taxRate": 18,
+            "discount": 354000,
+            "unitOfMeasure": "101"
+        }
+    ]
+}
+
+──────────────────────────────────────────────────────────────
+WHY USE SIMPLE FORMAT?
+──────────────────────────────────────────────────────────────
+  ✓ No EFRIS knowledge needed — just send your transaction data
+  ✓ No decimal formatting headaches (middleware uses .2f everywhere)
+  ✓ No discount line pairs to construct
+  ✓ No tax_details or summary to calculate
+  ✓ No orderNumber management
+  ✓ Works with any field naming convention
+  ✓ One format for ALL ERPs — no per-ERP adjustments needed
+
+
+================================================================================
+5. SCENARIO A: SIMPLE INVOICE — EFRIS FORMAT (No Discount)
+================================================================================
+
+NOTE: Sections 5-8 show the raw EFRIS format for reference. For new ERP
+integrations, use "format": "simple" (Section 4) instead — it's much easier.
+
+One item, standard VAT 18%, sold to an individual, cash payment.
+
+Product: "Lenovo Legion Laptop"
+Quantity: 1
+Price: UGX 2,360,000 (tax-inclusive)
+
+Tax calculation (tax-inclusive):
+    tax  = 2,360,000 × 0.18 / (1 + 0.18) = 360,000.00
+    net  = 2,360,000 - 360,000 = 2,000,000.00
+
+{
+    "invoice_number": "INV-2026-001",
+    "invoice_date": "2026-02-24",
+    "customer_name": "Timothy Khabusi",
+    "buyer_type": "1",
+    "payment_method": "101",
+    "currency": "UGX",
+    "items": [
+        {
+            "item": "Lenovo Legion Laptop",
+            "itemCode": "P001",
+            "qty": "1",
+            "unitOfMeasure": "101",
+            "unitPrice": "2360000.00",
+            "total": "2360000.00",
+            "taxRate": "0.18",
+            "tax": "360000.00",
+            "orderNumber": "0",
+            "discountFlag": "2",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "10101",
+            "vatApplicableFlag": "1"
+        }
+    ]
+}
+
+NOTES:
+- itemCode "P001" must be already registered in EFRIS via T130
+- All prices are TAX-INCLUSIVE (EFRIS standard for Uganda)
+- tax_details are auto-calculated by middleware — you do NOT need to send them
+- orderNumber starts at "0" and increments by 1 for each line
+
+
+================================================================================
+6. SCENARIO B: INVOICE WITH DISCOUNT — EFRIS FORMAT
+================================================================================
+
+One item with a 10% discount, standard VAT 18%, individual, cash.
+
+Product: "Lenovo Legion Laptop"
+Quantity: 1
+Price: UGX 2,360,000 (tax-inclusive)
+Discount: 10% = UGX 236,000
+
+Tax on discount:
+    discount_tax = 236,000 × 0.18 / (1 + 0.18) = 36,000.00
+
+EFRIS requires TWO lines for a discounted item:
+  Line 1 (discountFlag="1"): The item at FULL price, with discountTotal showing the discount
+  Line 2 (discountFlag="0"): The discount amount line with NEGATIVE total and tax
+
+{
+    "invoice_number": "INV-2026-002",
+    "invoice_date": "2026-02-24",
+    "customer_name": "Sarah Nakamya",
+    "buyer_type": "1",
+    "payment_method": "101",
+    "currency": "UGX",
+    "items": [
+        {
+            "item": "Lenovo Legion Laptop",
+            "itemCode": "P001",
+            "qty": "1",
+            "unitOfMeasure": "101",
+            "unitPrice": "2360000.00",
+            "total": "2360000.00",
+            "taxRate": "0.18",
+            "tax": "360000.00",
+            "orderNumber": "0",
+            "discountFlag": "1",
+            "discountTotal": "-236000.00",
+            "discountTaxRate": "0.18",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "10101",
+            "vatApplicableFlag": "1"
+        },
+        {
+            "item": "Lenovo Legion Laptop (Discount)",
+            "itemCode": "P001",
+            "qty": "",
+            "unitOfMeasure": "",
+            "unitPrice": "",
+            "total": "-236000.00",
+            "taxRate": "0.18",
+            "tax": "-36000.00",
+            "orderNumber": "1",
+            "discountFlag": "0",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "10101",
+            "vatApplicableFlag": "1"
+        }
+    ]
+}
+
+CRITICAL RULES FOR DISCOUNT LINES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. discountFlag="1" line (the product):
+   - total = FULL price (before discount), POSITIVE
+   - tax = tax on FULL price, POSITIVE
+   - discountTotal = MUST be NEGATIVE, e.g., "-236000.00"
+   - discountTotal must equal the NEGATIVE of the discount line's total
+     (i.e., abs(discountTotal on flag=1) == abs(total on flag=0))
+   - discountTaxRate = the tax rate applied to the discount (e.g., "0.18")
+   - qty, unitOfMeasure, unitPrice = normal values
+
+2. discountFlag="0" line (the discount):
+   - item name = original item name + " (Discount)"
+   - itemCode = SAME as the discounted item
+   - qty = "" (EMPTY STRING — NOT "0", NOT null, NOT omitted)
+   - unitOfMeasure = "" (EMPTY STRING)
+   - unitPrice = "" (EMPTY STRING)
+   - total = NEGATIVE value matching discountTotal on the flag=1 line
+   - tax = NEGATIVE (tax component of the discount)
+   - discountTotal = "" (empty — only flag=1 has discountTotal)
+   - discountTaxRate = "" (empty — only flag=1 has discountTaxRate)
+   - orderNumber = next sequential number
+
+3. DECIMAL FORMATTING:
+   - ALWAYS use exactly 2 decimal places: "236000.00" NOT "236000" or "236000.0"
+   - The total on flag=0 and discountTotal on flag=1 must be EXACT string matches
+     when you take absolute values. "-236000.00" matches "-236000.00" ✓
+     "-236000.0" does NOT match "-236000.00" ✗ (EFRIS error 1206)
+
+
+================================================================================
+7. SCENARIO C: MIXED TAX TYPES — EFRIS FORMAT
+================================================================================
+
+Three items with different tax categories on one invoice:
+  1. Laptop — standard VAT 18%
+  2. Milk — zero-rated 0%
+  3. Medical supplies — exempt
+
+{
+    "invoice_number": "INV-2026-003",
+    "invoice_date": "2026-02-24",
+    "customer_name": "Kampala General Store",
+    "customer_tin": "1001234567",
+    "buyer_type": "0",
+    "payment_method": "102",
+    "currency": "UGX",
+    "items": [
+        {
+            "item": "Lenovo Legion Laptop",
+            "itemCode": "P001",
+            "qty": "1",
+            "unitOfMeasure": "101",
+            "unitPrice": "2360000.00",
+            "total": "2360000.00",
+            "taxRate": "0.18",
+            "tax": "360000.00",
+            "orderNumber": "0",
+            "discountFlag": "2",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "10101",
+            "vatApplicableFlag": "1"
+        },
+        {
+            "item": "Fresh Milk 1L",
+            "itemCode": "MILK001",
+            "qty": "10",
+            "unitOfMeasure": "105",
+            "unitPrice": "5000.00",
+            "total": "50000.00",
+            "taxRate": "0",
+            "tax": "0.00",
+            "orderNumber": "1",
+            "discountFlag": "2",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "50151515",
+            "vatApplicableFlag": "1"
+        },
+        {
+            "item": "Surgical Gloves Box",
+            "itemCode": "MED001",
+            "qty": "5",
+            "unitOfMeasure": "102",
+            "unitPrice": "30000.00",
+            "total": "150000.00",
+            "taxRate": "-",
+            "tax": "0.00",
+            "orderNumber": "2",
+            "discountFlag": "2",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "42131600",
+            "vatApplicableFlag": "1"
+        }
+    ]
+}
+
+KEY POINTS FOR MIXED TAX TYPES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Standard VAT 18%: taxRate = "0.18", tax = calculated amount
+- Zero-Rated:       taxRate = "0",    tax = "0.00"
+- Exempt:           taxRate = "-",    tax = "0.00"
+- vatApplicableFlag is ALWAYS "1" for ALL tax types (even exempt)
+- For zero-rated items: tax is 0 but the item IS within the VAT system
+- For exempt items: taxRate is literally the dash character "-"
+- The middleware auto-generates tax_details grouped by category
+
+
+================================================================================
+8. SCENARIO D: MULTIPLE ITEMS WITH DISCOUNT — EFRIS FORMAT
+================================================================================
+
+Two items, each with a discount, individual customer, credit payment.
+
+Product 1: "Samsung Galaxy S25" — UGX 3,540,000, discount UGX 354,000
+Product 2: "Phone Case" — UGX 59,000, discount UGX 5,900
+
+{
+    "invoice_number": "INV-2026-004",
+    "invoice_date": "2026-02-24",
+    "customer_name": "John Mukasa",
+    "buyer_type": "1",
+    "payment_method": "102",
+    "currency": "UGX",
+    "items": [
+        {
+            "item": "Samsung Galaxy S25",
+            "itemCode": "PHONE001",
+            "qty": "1",
+            "unitOfMeasure": "101",
+            "unitPrice": "3540000.00",
+            "total": "3540000.00",
+            "taxRate": "0.18",
+            "tax": "540000.00",
+            "orderNumber": "0",
+            "discountFlag": "1",
+            "discountTotal": "-354000.00",
+            "discountTaxRate": "0.18",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "43211500",
+            "vatApplicableFlag": "1"
+        },
+        {
+            "item": "Samsung Galaxy S25 (Discount)",
+            "itemCode": "PHONE001",
+            "qty": "",
+            "unitOfMeasure": "",
+            "unitPrice": "",
+            "total": "-354000.00",
+            "taxRate": "0.18",
+            "tax": "-54000.00",
+            "orderNumber": "1",
+            "discountFlag": "0",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "43211500",
+            "vatApplicableFlag": "1"
+        },
+        {
+            "item": "Phone Case",
+            "itemCode": "ACC001",
+            "qty": "1",
+            "unitOfMeasure": "101",
+            "unitPrice": "59000.00",
+            "total": "59000.00",
+            "taxRate": "0.18",
+            "tax": "9000.00",
+            "orderNumber": "2",
+            "discountFlag": "1",
+            "discountTotal": "-5900.00",
+            "discountTaxRate": "0.18",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "43211500",
+            "vatApplicableFlag": "1"
+        },
+        {
+            "item": "Phone Case (Discount)",
+            "itemCode": "ACC001",
+            "qty": "",
+            "unitOfMeasure": "",
+            "unitPrice": "",
+            "total": "-5900.00",
+            "taxRate": "0.18",
+            "tax": "-900.00",
+            "orderNumber": "3",
+            "discountFlag": "0",
+            "deemedFlag": "2",
+            "exciseFlag": "2",
+            "goodsCategoryId": "43211500",
+            "vatApplicableFlag": "1"
+        }
+    ]
+}
+
+ORDERING RULES:
+  orderNumber: 0 = Phone (flag=1)
+  orderNumber: 1 = Phone Discount (flag=0) — MUST immediately follow its flag=1
+  orderNumber: 2 = Case (flag=1)
+  orderNumber: 3 = Case Discount (flag=0) — MUST immediately follow its flag=1
+
+  The LAST line in the items array CANNOT be discountFlag="1".
+  It must be either "0" (discount line) or "2" (normal item).
+
+
+================================================================================
+9. TAX CALCULATION RULES
+================================================================================
+
+EFRIS uses TAX-INCLUSIVE pricing. All prices include VAT.
+
+FORMULAS (for standard 18% VAT):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    tax = total × taxRate / (1 + taxRate)
+    tax = total × 0.18 / 1.18
+    net = total - tax
+
+EXAMPLE:
+    total = 2,360,000.00  (what the customer pays, VAT included)
+    tax   = 2,360,000 × 0.18 / 1.18 = 360,000.00
+    net   = 2,360,000 - 360,000 = 2,000,000.00
+
+FOR DISCOUNT LINES (discountFlag="0"):
+    Same formula but everything is NEGATIVE:
+    total = -236,000.00
+    tax   = -236,000 × 0.18 / 1.18 = -36,000.00
+
+FOR ZERO-RATED (taxRate = "0"):
+    tax = 0.00
+    net = total
+
+FOR EXEMPT (taxRate = "-"):
+    tax = 0.00
+    net = total
+
+SUMMARY ITEM COUNT:
+    itemCount = number of product lines EXCLUDING discount lines
+    Example: 2 products + 2 discounts = itemCount of 2 (not 4)
+    The middleware handles this automatically.
+
+
+================================================================================
+10. COMMON ERRORS AND SOLUTIONS
+================================================================================
+
+ERROR 1206: "total: Must be the same as the discountTotal value"
+  CAUSE: String mismatch between total on flag=0 and discountTotal on flag=1
+  FIX:   Use exactly 2 decimal places everywhere.
+         "-236000.00" ✓   "-236000.0" ✗   "-236000" ✗
+
+ERROR 1304: "itemCount: Must match the Number of all product lines minus
+            discount lines"
+  CAUSE: itemCount includes discount lines (discountFlag=0)
+  FIX:   Handled by middleware automatically. You don't send itemCount.
+
+ERROR 1181: "qty: Discount line is the qty must be empty"
+  CAUSE: qty is not empty on a discountFlag=0 line
+  FIX:   Set qty to "" (empty string) for all discount lines
+
+ERROR 1343: "netAmount calculation mistake"
+  CAUSE: Summary netAmount ≠ grossAmount - taxAmount
+  FIX:   Let middleware auto-calculate. Don't send your own summary.
+
+ERROR 1344: "taxAmount must equal sum of taxDetails taxAmount"
+  CAUSE: Summary taxAmount doesn't match sum of tax_details
+  FIX:   Let middleware auto-calculate. Don't send tax_details unless sure.
+
+ERROR 1345: "grossAmount must equal sum of non-excise grossAmounts"
+  CAUSE: Summary grossAmount doesn't match sum of taxDetails (excl. excise)
+  FIX:   Let middleware auto-calculate.
+
+ERROR 2253: "Invoice already fiscalized"
+  CAUSE: Same invoice submitted twice
+  FIX:   Invoice was already submitted. Use the FDN from the first response.
+
+
+================================================================================
+11. RESPONSE FORMAT
+================================================================================
+
+On success, the middleware returns everything you need to render a fiscal receipt:
+
+{
+    "success": true,
+    "message": "Invoice fiscalized successfully",
+
+    "seller": {
+        "tin": "1014409555",
+        "legal_name": "Your Company Name",
+        "trade_name": "Your Company Name",
+        "reference_number": "INV-2026-001"
+    },
+
+    "fiscal_data": {
+        "document_type": "Original",
+        "fdn": "325043056477",
+        "verification_code": "234893273725405146366",
+        "device_number": "1014409555_02",
+        "issued_date": "24/02/2026",
+        "issued_time": "12:00:00",
+        "qr_code": "<base64-encoded QR code image>"
+    },
+
+    "buyer": {
+        "name": "Timothy Khabusi",
+        "tin": "",
+        "buyer_type": "1"
+    },
+
+    "items": [ ... ],
+
+    "tax_details": [
+        {
+            "taxCategoryCode": "01",
+            "netAmount": "2000000.00",
+            "taxRate": "0.18",
+            "taxAmount": "360000.00",
+            "grossAmount": "2360000.00"
+        }
+    ],
+
+    "summary": {
+        "net_amount": 2000000.00,
+        "tax_amount": 360000.00,
+        "gross_amount": 2360000.00,
+        "gross_amount_words": "Two million three hundred sixty thousand shillings only",
+        "payment_mode": "Cash",
+        "currency": "UGX",
+        "number_of_items": 1
+    }
+}
+
+KEY FIELDS TO DISPLAY ON RECEIPT:
+  - fiscal_data.fdn → Fiscal Document Number (print prominently)
+  - fiscal_data.verification_code → Anti-fake code
+  - fiscal_data.device_number → Device number
+  - fiscal_data.qr_code → QR code image (base64)
+  - seller.tin → Seller TIN
+  - summary.gross_amount_words → Total in words
+
+
+  The biggest trap your devs need to know: all monetary values must have exactly 2 decimal places ("-236000.00" not "-236000" or "-236000.0"), and discount lines need qty="", unitOfMeasure="", unitPrice="" as empty strings.
+
+
+================================================================================
+  CHECKLIST BEFORE SENDING
+================================================================================
+
+  [ ] All prices are TAX-INCLUSIVE (gross amounts)
+  [ ] All monetary values have exactly 2 decimal places ("5900.00" not "5900")
+  [ ] itemCode matches a product registered in EFRIS via T130
+  [ ] orderNumber starts at 0 and increments sequentially (0, 1, 2, 3...)
+  [ ] Every discountFlag="1" line is immediately followed by a discountFlag="0"
+  [ ] Discount line: qty="", unitOfMeasure="", unitPrice="" (empty strings)
+  [ ] Discount line: total is NEGATIVE
+  [ ] Discount line: item name = original name + " (Discount)"
+  [ ] Discount line: itemCode = same as the discounted product
+  [ ] abs(discountTotal on flag=1) == abs(total on flag=0) — exact string match
+  [ ] Last item in array is NOT discountFlag="1"
+  [ ] taxRate is "0.18" or "0" or "-" (not "18" or "18%" etc.)
+  [ ] buyer_type="0" (B2B) has customer_tin filled in
+  [ ] X-API-Key header is present
+
+================================================================================
+  END OF GUIDE
+================================================================================

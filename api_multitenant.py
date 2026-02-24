@@ -7364,15 +7364,26 @@ async def external_submit_invoice(
         
         logger.debug(f"[T109] Incoming invoice: {invoice_data.get('invoice_number', 'N/A')}, items: {len(invoice_data.get('items', []))}")
         
+        # Check if client explicitly requested simple format
+        # Simple format: ERP sends raw transaction data, middleware handles ALL EFRIS formatting
+        # This is the RECOMMENDED format for new ERP integrations
+        force_simple = str(invoice_data.get("format", "")).lower() == "simple"
+        if force_simple:
+            logger.info("[T109] Simple format requested — middleware will compute all EFRIS fields")
+        
         for idx, item in enumerate(invoice_data["items"], 1):
             logger.debug(f"[T109] Item {idx}: code={item.get('itemCode', item.get('item_code', 'N/A'))}, catId={item.get('goodsCategoryId', item.get('goods_category_id', 'N/A'))}")
             
             # Support both Simple Custom ERP format AND pre-formatted EFRIS format
-            # Simple format: item_name, item_code, quantity, unit_price, tax_rate
-            # EFRIS format: item, itemCode, qty, unitPrice, taxRate, total, tax
+            # Simple format: item_name/item, item_code/itemCode, quantity/qty, unit_price/unitPrice, tax_rate/taxRate
+            # EFRIS format: item, itemCode, qty, unitPrice, taxRate, total, tax (all pre-computed)
             
-            # Check if data is already EFRIS-formatted (has "qty" instead of "quantity")
-            is_efris_format = "qty" in item or "itemCode" in item
+            # Determine format: explicit "format":"simple" overrides auto-detection
+            # Auto-detection: if item has "qty" or "itemCode", assume EFRIS-formatted
+            if force_simple:
+                is_efris_format = False
+            else:
+                is_efris_format = "qty" in item or "itemCode" in item
             logger.debug(f"[T109] is_efris_format: {is_efris_format}")
             
             # Check if this is a discount amount line (discountFlag='0')
@@ -7421,15 +7432,21 @@ async def external_submit_invoice(
                 net_amount = total_line - tax_amount
                 
             else:
-                # Simple Custom ERP format - calculate everything
-                item_name = item.get("item_name", "")
-                item_code = item.get("item_code", "")
+                # Simple Custom ERP format - middleware computes everything
+                # Accept both snake_case and camelCase field names from any ERP
+                item_name = item.get("item_name", item.get("item", ""))
+                item_code = item.get("item_code", item.get("itemCode", ""))
                 # Discount lines: qty must be empty
-                raw_qty = item.get("quantity", 1)
+                raw_qty = item.get("quantity", item.get("qty", 1))
                 qty = None if is_discount_line or raw_qty is None or str(raw_qty).strip() == "" else float(raw_qty or 1)
-                unit_price = float(item.get("unit_price", 0) or 0)
-                tax_rate_pct = float(item.get("tax_rate", 18))  # Default 18%
-                discount = float(item.get("discount", 0))
+                unit_price = float(item.get("unit_price", item.get("unitPrice", 0)) or 0)
+                tax_rate_raw = item.get("tax_rate", item.get("taxRate", 18))
+                # Handle string "-" for exempt (sent by some ERPs)
+                if str(tax_rate_raw).strip() == "-":
+                    tax_rate_pct = -1  # Will be treated as exempt below
+                else:
+                    tax_rate_pct = float(tax_rate_raw)  # Default 18%, accepts: 18, 0.18, 0, -1 (exempt)
+                discount = float(item.get("discount", 0) or 0)
                 
                 # Tax inclusive calculation
                 # For discount lines (qty=None), use total directly from item if provided
