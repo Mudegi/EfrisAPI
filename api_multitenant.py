@@ -7257,7 +7257,7 @@ async def external_submit_invoice(
                 "item": "Product A",  // Or "item_name"
                 "itemCode": "PROD-001",  // Must be registered via T130
                 "qty": "10",
-                "unitOfMeasure": "101",  // 101=Piece, 102=Box, etc.
+                "unitOfMeasure": "101",  // 101=Stick, 102=Litre, 103=Kg (must match T130 registration)
                 "unitPrice": "5900",  // Tax inclusive
                 "total": "59000",
                 "taxRate": "18",  // Or "-" for tax-exempt
@@ -7992,7 +7992,7 @@ async def external_register_product(
         "unit_price": 5000,
         "commodity_code": "1010101",
         "commodity_name": "General Goods",
-        "unit_of_measure": "102",  // 102=Pieces, 101=Box, etc. (see EFRIS codes)
+        "unit_of_measure": "103",  // 101=Stick, 102=Litre, 103=Kg (see EFRIS T115 codes)
         "have_excise_tax": "102",  // 101=Yes, 102=No (default: 102)
         "excise_duty_code": "",  // Required ONLY if have_excise_tax="101"
         "stock_quantity": 100,

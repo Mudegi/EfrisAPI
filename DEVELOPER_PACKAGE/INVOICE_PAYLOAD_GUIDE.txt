@@ -62,14 +62,15 @@ CURRENCY (currency):
     "GBP" = British Pounds
 
 UNIT OF MEASURE (unitOfMeasure):
-    "101" = Piece/Unit
-    "102" = Set/Box
-    "103" = Kilogram (kg)
-    "104" = Metre
-    "105" = Litre
-    "106" = Square Metre
-    "107" = Cubic Metre
-    "108" = Pair
+    "101" = Stick
+    "102" = Litre
+    "103" = Kg (Kilogram)
+    "104" = User per day of access
+    "105" = Minute
+    "106" = 1,000 sticks
+    "107" = 50 kgs
+    "108" = - (dash/not applicable)
+    "109" = g (gram)
     Note: Must match what was registered via T130 (product registration)
 
 TAX RATE (taxRate):
@@ -121,7 +122,7 @@ SIMPLE FORMAT FIELDS PER ITEM:
   unit_price   (or unitPrice)    — Price per unit (tax-incl.)  REQUIRED
   tax_rate     (or taxRate)      — 18, 0, or -1               REQUIRED
   discount                       — Discount amount (positive)  OPTIONAL (default: 0)
-  unit_of_measure (or unitOfMeasure) — Unit code              OPTIONAL (default: "102")
+  unit_of_measure (or unitOfMeasure) — Unit code              OPTIONAL (default: "102" Litre)
   goods_category_id (or goodsCategoryId) — Commodity code     OPTIONAL
 
 TAX RATE VALUES:
