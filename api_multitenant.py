@@ -7549,7 +7549,7 @@ async def external_submit_invoice(
                 # Add the EFRIS discount line (discountFlag="0", negative amounts)
                 # EFRIS spec: qty and unitOfMeasure MUST be empty for discount lines (error 1181)
                 discount_line = {
-                    "item": f"{item_name} (discount)",
+                    "item": f"{item_name} (Discount)",
                     "itemCode": item_code,
                     "qty": "",
                     "unitOfMeasure": "",
