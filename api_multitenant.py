@@ -7592,6 +7592,11 @@ async def external_submit_invoice(
             total_tax += tax_amount
             total_gross += total_line
         
+        # Re-number all orderNumbers sequentially (0, 1, 2, 3...)
+        # Must be done AFTER building the full list because discount lines shift indices
+        for seq_idx, gd_item in enumerate(goods_details):
+            gd_item["orderNumber"] = str(seq_idx)
+        
         # Debug: Print final goods_details before sending to EFRIS
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"[T109] Final goods_details ({len(goods_details)} items):")
