@@ -717,7 +717,7 @@ async def public_test_t111():
         )
 
         # Single call first so we can inspect the raw response structure
-        result = efris.get_goods_and_services(page_no=1, page_size=100)
+        result = efris.get_goods_and_services(page_no=1, page_size=99)
 
         if not isinstance(result, dict):
             return {"status": "error", "message": "Non-dict response from EFRIS", "raw": str(result)[:500]}
@@ -772,7 +772,7 @@ async def public_test_t111():
         total_pages = int(records_source.get('page', {}).get('pageCount', 1))
 
         for page_no in range(2, min(total_pages + 1, 51)):
-            r = efris.get_goods_and_services(page_no=page_no, page_size=100)
+            r = efris.get_goods_and_services(page_no=page_no, page_size=99)
             if not isinstance(r, dict) or 'data' not in r:
                 break
             d = r['data'].get('decrypted_content') or r['data'].get('content')
@@ -3778,7 +3778,7 @@ async def get_goods_and_services(
     try:
         all_records = []
         page_no = 1
-        page_size = 100
+        page_size = 99
         
         while True:
             kwargs = {"page_no": page_no, "page_size": page_size}
@@ -9165,7 +9165,7 @@ async def external_query_goods(
         # Fetch ALL pages from EFRIS (T127 caps at 100 per page)
         all_records = []
         page_no = 1
-        page_size = 100  # Max allowed by EFRIS
+        page_size = 99  # EFRIS rejects 100 (error 1526)
 
         while True:
             kwargs = {"page_no": page_no, "page_size": page_size}
