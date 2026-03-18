@@ -738,7 +738,15 @@ async def public_test_t111(
             if not isinstance(result, dict) or 'data' not in result:
                 break
 
+            # Handle both encrypted (decrypted_content) and plain (content) responses
             decrypted = result.get('data', {}).get('decrypted_content')
+            if not decrypted:
+                raw_content = result.get('data', {}).get('content')
+                if raw_content:
+                    try:
+                        decrypted = json.loads(raw_content)
+                    except Exception:
+                        pass
             if not decrypted:
                 break
 
@@ -3767,20 +3775,31 @@ async def get_goods_and_services(
             
             result = manager.get_goods_and_services(**kwargs)
             
-            if isinstance(result, dict) and 'data' in result and 'decrypted_content' in result['data']:
-                data = result['data']['decrypted_content']
-                records = data.get('records', [])
-                if not records:
-                    break
-                all_records.extend(records)
-                
-                total_pages = int(data.get('page', {}).get('pageCount', 1))
-                if page_no >= total_pages:
-                    break
-                page_no += 1
-                if page_no > 50:
-                    break
-            else:
+            if not isinstance(result, dict) or 'data' not in result:
+                break
+            
+            # Handle both encrypted (decrypted_content) and plain (content) responses
+            data = result['data'].get('decrypted_content')
+            if not data:
+                raw = result['data'].get('content')
+                if raw:
+                    try:
+                        data = json.loads(raw)
+                    except Exception:
+                        pass
+            if not data:
+                break
+            
+            records = data.get('records', [])
+            if not records:
+                break
+            all_records.extend(records)
+            
+            total_pages = int(data.get('page', {}).get('pageCount', 1))
+            if page_no >= total_pages:
+                break
+            page_no += 1
+            if page_no > 50:
                 break
         
         return {
@@ -9146,7 +9165,15 @@ async def external_query_goods(
             if not isinstance(result, dict) or 'data' not in result:
                 break
 
+            # Handle both encrypted (decrypted_content) and plain (content) responses
             decrypted = result.get('data', {}).get('decrypted_content')
+            if not decrypted:
+                raw_content = result.get('data', {}).get('content')
+                if raw_content:
+                    try:
+                        decrypted = json.loads(raw_content)
+                    except Exception:
+                        pass
             if not decrypted:
                 break
 
