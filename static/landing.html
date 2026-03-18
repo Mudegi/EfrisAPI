@@ -439,7 +439,7 @@
                 
                 <div class="demo-card">
                     <h4>T127: Query All Goods</h4>
-                    <p>Query ALL registered products/services for a taxpayer (full list, auto-paginates)</p>
+                    <p>Query ALL registered products/services from EFRIS (full list, auto-paginates)</p>
                     <button class="test-button" onclick="testT111()">Query All Goods</button>
                 </div>
                 
@@ -957,14 +957,12 @@
         async function testT111() {
             showLoading();
             try {
-                const tin = prompt('Enter taxpayer TIN to query goods for:', '1014409555');
-                if (!tin) return showResponse('Cancelled', true);
-                const response = await fetch(`${API_BASE}/api/public/efris/test/t111?tin=${encodeURIComponent(tin)}`);
+                const response = await fetch(`${API_BASE}/api/public/efris/test/t111`);
                 const data = await response.json();
                 
                 let message = '';
                 if (data.status === 'success') {
-                    message = `✅ SUCCESS T127 - Found ${data.total} goods/services for TIN ${data.tin}\n\n`;
+                    message = `✅ SUCCESS T127 - Found ${data.total} goods/services!\n\n`;
                     if (data.goods && data.goods.length > 0) {
                         message += `Items:\n`;
                         data.goods.slice(0, 20).forEach((g, i) => {

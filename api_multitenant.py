@@ -707,20 +707,19 @@ async def public_test_t103():
 
 @app.get("/api/public/efris/test/t111")
 async def public_test_t111(
-    tin: str = Query("1014409555", description="Taxpayer TIN to query goods for"),
     goods_name: Optional[str] = Query(None, description="Filter by goods name"),
     search: Optional[str] = Query(None, description="Search by goods code or goods name"),
     service_only: Optional[bool] = Query(None, description="True=services only, False=products only"),
 ):
     """Public Demo: T127 Query ALL Goods & Services - READ ONLY
     
-    Returns complete list of registered goods/services for a taxpayer.
+    Returns complete list of registered goods/services.
     Automatically fetches all pages from EFRIS.
     """
     try:
         efris = EfrisManager(
-            tin=tin,
-            device_no=f"{tin}_02",
+            tin="1014409555",
+            device_no="1014409555_02",
             cert_path="keys/wandera.pfx",
             test_mode=True
         )
@@ -798,7 +797,6 @@ async def public_test_t111(
             "status": "success",
             "interface": "T127",
             "description": "All registered goods & services from EFRIS",
-            "tin": tin,
             "goods": goods,
             "total": len(goods)
         }
