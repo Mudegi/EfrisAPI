@@ -438,9 +438,9 @@
                 </div>
                 
                 <div class="demo-card">
-                    <h4>T111: Query Goods</h4>
-                    <p>Search EFRIS product codes and categories (e.g., search for "cement")</p>
-                    <button class="test-button" onclick="testT111()">Test Product Search</button>
+                    <h4>T127: Query All Goods</h4>
+                    <p>Query ALL registered products/services for a taxpayer (full list, auto-paginates)</p>
+                    <button class="test-button" onclick="testT111()">Query All Goods</button>
                 </div>
                 
                 <div class="demo-card">
@@ -957,9 +957,26 @@
         async function testT111() {
             showLoading();
             try {
-                const response = await fetch(`${API_BASE}/api/public/efris/test/t111`);
+                const tin = prompt('Enter taxpayer TIN to query goods for:', '1014409555');
+                if (!tin) return showResponse('Cancelled', true);
+                const response = await fetch(`${API_BASE}/api/public/efris/test/t111?tin=${encodeURIComponent(tin)}`);
                 const data = await response.json();
-                showResponse(`SUCCESS T111 Product Search Complete!\n\n${JSON.stringify(data, null, 2)}`);
+                
+                let message = '';
+                if (data.status === 'success') {
+                    message = `✅ SUCCESS T127 - Found ${data.total} goods/services for TIN ${data.tin}\n\n`;
+                    if (data.goods && data.goods.length > 0) {
+                        message += `Items:\n`;
+                        data.goods.slice(0, 20).forEach((g, i) => {
+                            message += `  ${i+1}. [${g.item_code}] ${g.item_name} - ${g.is_service ? 'SERVICE' : 'PRODUCT'} - UGX ${g.unit_price} (Tax: ${g.tax_rate})\n`;
+                        });
+                        if (data.total > 20) message += `  ... and ${data.total - 20} more\n`;
+                    }
+                    message += `\nFull Response:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    message = `⚠️ ${data.message}\n\n${JSON.stringify(data, null, 2)}`;
+                }
+                showResponse(message);
             } catch (error) {
                 showResponse(`Error: ${error.message}`, true);
             }

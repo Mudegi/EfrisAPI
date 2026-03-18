@@ -706,43 +706,114 @@ async def public_test_t103():
 
 
 @app.get("/api/public/efris/test/t111")
-async def public_test_t111():
-    """Public Demo: T111 Query Goods & Services - READ ONLY
+async def public_test_t111(
+    tin: str = Query("1014409555", description="Taxpayer TIN to query goods for"),
+    goods_name: Optional[str] = Query(None, description="Filter by goods name"),
+    search: Optional[str] = Query(None, description="Search by goods code or goods name"),
+    service_only: Optional[bool] = Query(None, description="True=services only, False=products only"),
+):
+    """Public Demo: T127 Query ALL Goods & Services - READ ONLY
     
-    Calls real EFRIS server. Shows error if server is unavailable.
+    Returns complete list of registered goods/services for a taxpayer.
+    Automatically fetches all pages from EFRIS.
     """
     try:
         efris = EfrisManager(
-            tin="1014409555",
-            device_no="1014409555_02",
+            tin=tin,
+            device_no=f"{tin}_02",
             cert_path="keys/wandera.pfx",
             test_mode=True
         )
         
-        # Search for cement products in EFRIS database
-        result = efris.get_goods_and_services(
-            page_no=1,
-            page_size=10,
-            goods_name="cement"
-        )
+        all_records = []
+        page_no = 1
+        page_size = 100
+
+        while True:
+            kwargs = {"page_no": page_no, "page_size": page_size}
+            if goods_name:
+                kwargs["goods_name"] = goods_name
+
+            result = efris.get_goods_and_services(**kwargs)
+
+            if not isinstance(result, dict) or 'data' not in result:
+                break
+
+            decrypted = result.get('data', {}).get('decrypted_content')
+            if not decrypted:
+                break
+
+            records = decrypted.get('records', [])
+            if not records:
+                break
+
+            all_records.extend(records)
+
+            total_pages = int(decrypted.get('page', {}).get('pageCount', 1))
+            if page_no >= total_pages:
+                break
+            page_no += 1
+            if page_no > 50:
+                break
+
+        # Apply client-side filters
+        filtered = all_records
+        if search:
+            search_lower = search.lower()
+            filtered = [r for r in filtered if
+                       search_lower in (r.get('goodsCode', '') or '').lower() or
+                       search_lower in (r.get('goodsName', '') or '').lower()]
+
+        if service_only is not None:
+            target_mark = "101" if service_only else "102"
+            filtered = [r for r in filtered if r.get('serviceMark') == target_mark]
+
+        goods = []
+        for record in filtered:
+            service_mark = record.get('serviceMark', '102')
+            status_code = record.get('statusCode', '101')
+            goods.append({
+                "item_code": record.get('goodsCode', ''),
+                "item_name": record.get('goodsName', ''),
+                "is_service": service_mark == "101",
+                "description": record.get('remarks', '') or '',
+                "commodity_category_code": record.get('commodityCategoryCode', ''),
+                "commodity_category_name": record.get('commodityCategoryName', ''),
+                "unit_of_measure": record.get('measureUnit', ''),
+                "unit_price": record.get('unitPrice', '0'),
+                "currency": record.get('currency', '101'),
+                "tax_rate": record.get('taxRate', '0.18'),
+                "is_zero_rate": record.get('isZeroRate') == "101",
+                "is_exempt": record.get('isExempt') == "101",
+                "has_excise_tax": record.get('haveExciseTax') == "101",
+                "excise_duty_code": record.get('exciseDutyCode', '') or '',
+                "excise_duty_name": record.get('exciseDutyName', '') or '',
+                "excise_rate": record.get('exciseRate', '') or '',
+                "stock": record.get('stock', '0'),
+                "status": "active" if status_code == "101" else "disabled",
+                "goods_type": "fuel" if record.get('goodsTypeCode') == "102" else "non-fuel",
+            })
+
         return {
             "status": "success",
-            "interface": "T111",
-            "description": "Product search in EFRIS goods database",
-            "data": result
+            "interface": "T127",
+            "description": "All registered goods & services from EFRIS",
+            "tin": tin,
+            "goods": goods,
+            "total": len(goods)
         }
     except Exception as e:
         error_msg = str(e)
         if "HTML" in error_msg or "<!DOCTYPE" in error_msg:
             return {
                 "status": "error",
-                "interface": "T111",
+                "interface": "T127",
                 "message": "EFRIS server is currently unavailable. The test server may be down for maintenance.",
                 "details": "Server returned HTML error page instead of JSON response"
             }
         return {
             "status": "error",
-            "interface": "T111",
+            "interface": "T127",
             "message": f"Failed to query EFRIS goods database: {error_msg}"
         }
 
@@ -3672,14 +3743,12 @@ async def get_code_list(
 @app.get("/api/companies/{company_id}/goods-and-services")
 async def get_goods_and_services(
     company_id: int,
-    page_no: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100),
     goods_code: str = Query(None),
     goods_name: str = Query(None),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """T127 - Goods/Services Inquiry"""
+    """T127 - Goods/Services Inquiry - returns ALL goods (auto-paginates)"""
     if not verify_company_access(current_user, company_id, db):
         raise HTTPException(status_code=403, detail="Access denied")
     
@@ -3687,18 +3756,39 @@ async def get_goods_and_services(
     manager = get_efris_manager(company)
     
     try:
-        result = manager.get_goods_and_services(
-            page_no=page_no,
-            page_size=page_size,
-            goods_code=goods_code,
-            goods_name=goods_name
-        )
+        all_records = []
+        page_no = 1
+        page_size = 100
         
-        if isinstance(result, dict) and 'data' in result:
-            if 'decrypted_content' in result['data']:
-                return result['data']['decrypted_content']
+        while True:
+            kwargs = {"page_no": page_no, "page_size": page_size}
+            if goods_code:
+                kwargs["goods_code"] = goods_code
+            if goods_name:
+                kwargs["goods_name"] = goods_name
+            
+            result = manager.get_goods_and_services(**kwargs)
+            
+            if isinstance(result, dict) and 'data' in result and 'decrypted_content' in result['data']:
+                data = result['data']['decrypted_content']
+                records = data.get('records', [])
+                if not records:
+                    break
+                all_records.extend(records)
+                
+                total_pages = int(data.get('page', {}).get('pageCount', 1))
+                if page_no >= total_pages:
+                    break
+                page_no += 1
+                if page_no > 50:
+                    break
+            else:
+                break
         
-        return result
+        return {
+            "records": all_records,
+            "total": len(all_records)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -9006,6 +9096,177 @@ async def external_get_units_of_measure(
             "message": "Using cached units of measure (EFRIS connection issue)",
             "warning": str(e)
         }
+
+
+@app.get("/api/external/efris/goods")
+async def external_query_goods(
+    goods_code: Optional[str] = Query(None, description="Filter by exact goods/item code"),
+    goods_name: Optional[str] = Query(None, description="Filter by goods name (partial match)"),
+    search: Optional[str] = Query(None, description="Search by goods code or goods name (combined keyword search)"),
+    service_only: Optional[bool] = Query(None, description="True = services only, False = products only, None = all"),
+    company: Company = Depends(get_company_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    Query ALL registered goods and services for a taxpayer from EFRIS (T127)
+
+    Returns the complete list of goods/services — automatically fetches all pages
+    from EFRIS so your app gets everything in one call.
+
+    Authentication: X-API-Key header
+
+    Query Parameters:
+    - goods_code (str): Filter by exact item code
+    - goods_name (str): Filter by goods name
+    - search (str): Combined keyword search (matches goods code or name)
+    - service_only (bool): True=services only, False=products only, omit=all
+
+    Response:
+    {
+        "success": true,
+        "goods": [ ... ],
+        "total": 120
+    }
+    """
+    try:
+        efris = get_efris_manager(company)
+
+        # Fetch ALL pages from EFRIS (T127 caps at 100 per page)
+        all_records = []
+        page_no = 1
+        page_size = 100  # Max allowed by EFRIS
+
+        while True:
+            kwargs = {"page_no": page_no, "page_size": page_size}
+            if goods_code:
+                kwargs["goods_code"] = goods_code
+            if goods_name:
+                kwargs["goods_name"] = goods_name
+
+            result = efris.get_goods_and_services(**kwargs)
+
+            if not isinstance(result, dict) or 'data' not in result:
+                break
+
+            decrypted = result.get('data', {}).get('decrypted_content')
+            if not decrypted:
+                break
+
+            records = decrypted.get('records', [])
+            if not records:
+                break
+
+            all_records.extend(records)
+
+            # Check if we've fetched all pages
+            page_info = decrypted.get('page', {})
+            total_pages = int(page_info.get('pageCount', 1))
+            if page_no >= total_pages:
+                break
+
+            page_no += 1
+
+            # Safety limit to prevent infinite loops
+            if page_no > 50:
+                logger.warning(f"[T127] Safety limit reached at page {page_no} for company {company.id}")
+                break
+
+        if not all_records:
+            return {
+                "success": True,
+                "goods": [],
+                "total": 0,
+                "message": "No goods/services found"
+            }
+
+        # Apply client-side filters not supported by T127 natively
+        filtered_records = all_records
+        if search:
+            search_lower = search.lower()
+            filtered_records = [r for r in filtered_records if
+                       search_lower in (r.get('goodsCode', '') or '').lower() or
+                       search_lower in (r.get('goodsName', '') or '').lower()]
+
+        if service_only is not None:
+            target_mark = "101" if service_only else "102"
+            filtered_records = [r for r in filtered_records if r.get('serviceMark') == target_mark]
+
+        # Transform to clean, mobile-friendly response
+        goods = []
+        for record in filtered_records:
+            service_mark = record.get('serviceMark', '102')
+            status_code = record.get('statusCode', '101')
+
+            goods.append({
+                "item_code": record.get('goodsCode', ''),
+                "item_name": record.get('goodsName', ''),
+                "is_service": service_mark == "101",
+                "description": record.get('remarks', '') or '',
+                "commodity_category_code": record.get('commodityCategoryCode', ''),
+                "commodity_category_name": record.get('commodityCategoryName', ''),
+                "unit_of_measure": record.get('measureUnit', ''),
+                "unit_price": record.get('unitPrice', '0'),
+                "currency": record.get('currency', '101'),
+                "tax_rate": record.get('taxRate', '0.18'),
+                "is_zero_rate": record.get('isZeroRate') == "101",
+                "is_exempt": record.get('isExempt') == "101",
+                "has_excise_tax": record.get('haveExciseTax') == "101",
+                "excise_duty_code": record.get('exciseDutyCode', '') or '',
+                "excise_duty_name": record.get('exciseDutyName', '') or '',
+                "excise_rate": record.get('exciseRate', '') or '',
+                "stock": record.get('stock', '0'),
+                "status": "active" if status_code == "101" else "disabled",
+                "goods_type": "fuel" if record.get('goodsTypeCode') == "102" else "non-fuel",
+            })
+
+        # Save/update ALL fetched records to database for caching
+        for record in all_records:
+            code = record.get('goodsCode')
+            if not code:
+                continue
+            existing = db.query(EFRISGood).filter(
+                EFRISGood.company_id == company.id,
+                EFRISGood.goods_code == code
+            ).first()
+            if existing:
+                existing.goods_name = record.get('goodsName')
+                existing.commodity_category_code = record.get('commodityCategoryCode')
+                existing.commodity_category_name = record.get('commodityCategoryName')
+                existing.unit_price = float(record.get('unitPrice', 0))
+                existing.currency = record.get('currency')
+                existing.tax_rate = float(record.get('taxRate', 0))
+                existing.have_excise_tax = record.get('haveExciseTax')
+                existing.stock = float(record.get('stock', 0))
+                existing.efris_data = record
+                existing.updated_at = datetime.now()
+            else:
+                db.add(EFRISGood(
+                    company_id=company.id,
+                    goods_code=code,
+                    goods_name=record.get('goodsName'),
+                    commodity_category_code=record.get('commodityCategoryCode'),
+                    commodity_category_name=record.get('commodityCategoryName'),
+                    unit_price=float(record.get('unitPrice', 0)),
+                    currency=record.get('currency'),
+                    tax_rate=float(record.get('taxRate', 0)),
+                    have_excise_tax=record.get('haveExciseTax'),
+                    stock=float(record.get('stock', 0)),
+                    efris_data=record
+                ))
+        db.commit()
+
+        return {
+            "success": True,
+            "goods": goods,
+            "total": len(goods)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[T127] External goods query error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to query goods from EFRIS: {str(e)}")
 
 
 @app.post("/api/external/efris/stock-decrease")
