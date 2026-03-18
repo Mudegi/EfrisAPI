@@ -729,42 +729,26 @@ async def public_test_t111():
         return_code = result.get('returnStateInfo', {}).get('returnCode')
         return_msg = result.get('returnStateInfo', {}).get('returnMessage')
 
-        # Try every possible way to get the records
+        # Extract records from decrypted content or raw content
         records_source = None
-        decode_method = None
 
         if decrypted_content:
             records_source = decrypted_content
-            decode_method = "decrypted_content (AES)"
         elif raw_content:
             if isinstance(raw_content, dict):
                 records_source = raw_content
-                decode_method = "content (already dict)"
             elif isinstance(raw_content, str):
                 try:
                     records_source = json.loads(raw_content)
-                    decode_method = "content (JSON string)"
                 except Exception:
-                    try:
-                        import base64
-                        records_source = json.loads(base64.b64decode(raw_content).decode('utf-8'))
-                        decode_method = "content (base64 -> JSON)"
-                    except Exception:
-                        pass
+                    pass
 
         if not records_source:
-            # Return debug info so we can see exactly what EFRIS sent
             return {
-                "status": "debug",
-                "message": "Could not extract records - see debug info",
-                "returnCode": return_code,
-                "returnMessage": return_msg,
-                "encryptCode": encrypt_code,
-                "content_type": type(raw_content).__name__,
-                "content_preview": str(raw_content)[:300] if raw_content else None,
-                "has_decrypted_content": decrypted_content is not None,
-                "data_keys": list(data_block.keys()) if data_block else [],
-                "top_level_keys": list(result.keys()),
+                "status": "error",
+                "interface": "T127",
+                "message": return_msg or "Could not retrieve goods from EFRIS",
+                "returnCode": return_code
             }
 
         # Fetch remaining pages
@@ -818,7 +802,6 @@ async def public_test_t111():
             "status": "success",
             "interface": "T127",
             "description": "All registered goods & services from EFRIS",
-            "decode_method": decode_method,
             "goods": goods,
             "total": len(goods)
         }
