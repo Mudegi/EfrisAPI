@@ -706,16 +706,8 @@ async def public_test_t103():
 
 
 @app.get("/api/public/efris/test/t111")
-async def public_test_t111(
-    goods_name: Optional[str] = Query(None, description="Filter by goods name"),
-    search: Optional[str] = Query(None, description="Search by goods code or goods name"),
-    service_only: Optional[bool] = Query(None, description="True=services only, False=products only"),
-):
-    """Public Demo: T127 Query ALL Goods & Services - READ ONLY
-    
-    Returns complete list of registered goods/services.
-    Automatically fetches all pages from EFRIS.
-    """
+async def public_test_t111():
+    """Public Demo: T127 Query ALL Goods & Services - READ ONLY"""
     try:
         efris = EfrisManager(
             tin="1014409555",
@@ -723,60 +715,81 @@ async def public_test_t111(
             cert_path="keys/wandera.pfx",
             test_mode=True
         )
-        
-        all_records = []
-        page_no = 1
-        page_size = 100
 
-        while True:
-            kwargs = {"page_no": page_no, "page_size": page_size}
-            if goods_name:
-                kwargs["goods_name"] = goods_name
+        # Single call first so we can inspect the raw response structure
+        result = efris.get_goods_and_services(page_no=1, page_size=100)
 
-            result = efris.get_goods_and_services(**kwargs)
+        if not isinstance(result, dict):
+            return {"status": "error", "message": "Non-dict response from EFRIS", "raw": str(result)[:500]}
 
-            if not isinstance(result, dict) or 'data' not in result:
-                break
+        data_block = result.get('data', {})
+        encrypt_code = data_block.get('dataDescription', {}).get('encryptCode')
+        raw_content = data_block.get('content')
+        decrypted_content = data_block.get('decrypted_content')
+        return_code = result.get('returnStateInfo', {}).get('returnCode')
+        return_msg = result.get('returnStateInfo', {}).get('returnMessage')
 
-            # Handle both encrypted (decrypted_content) and plain (content) responses
-            decrypted = result.get('data', {}).get('decrypted_content')
-            if not decrypted:
-                raw_content = result.get('data', {}).get('content')
-                if raw_content:
+        # Try every possible way to get the records
+        records_source = None
+        decode_method = None
+
+        if decrypted_content:
+            records_source = decrypted_content
+            decode_method = "decrypted_content (AES)"
+        elif raw_content:
+            if isinstance(raw_content, dict):
+                records_source = raw_content
+                decode_method = "content (already dict)"
+            elif isinstance(raw_content, str):
+                try:
+                    records_source = json.loads(raw_content)
+                    decode_method = "content (JSON string)"
+                except Exception:
                     try:
-                        decrypted = json.loads(raw_content)
+                        import base64
+                        records_source = json.loads(base64.b64decode(raw_content).decode('utf-8'))
+                        decode_method = "content (base64 -> JSON)"
                     except Exception:
                         pass
-            if not decrypted:
+
+        if not records_source:
+            # Return debug info so we can see exactly what EFRIS sent
+            return {
+                "status": "debug",
+                "message": "Could not extract records - see debug info",
+                "returnCode": return_code,
+                "returnMessage": return_msg,
+                "encryptCode": encrypt_code,
+                "content_type": type(raw_content).__name__,
+                "content_preview": str(raw_content)[:300] if raw_content else None,
+                "has_decrypted_content": decrypted_content is not None,
+                "data_keys": list(data_block.keys()) if data_block else [],
+                "top_level_keys": list(result.keys()),
+            }
+
+        # Fetch remaining pages
+        all_records = list(records_source.get('records', []))
+        total_pages = int(records_source.get('page', {}).get('pageCount', 1))
+
+        for page_no in range(2, min(total_pages + 1, 51)):
+            r = efris.get_goods_and_services(page_no=page_no, page_size=100)
+            if not isinstance(r, dict) or 'data' not in r:
                 break
-
-            records = decrypted.get('records', [])
-            if not records:
+            d = r['data'].get('decrypted_content') or r['data'].get('content')
+            if isinstance(d, str):
+                try:
+                    d = json.loads(d)
+                except Exception:
+                    break
+            if not d:
                 break
-
-            all_records.extend(records)
-
-            total_pages = int(decrypted.get('page', {}).get('pageCount', 1))
-            if page_no >= total_pages:
+            page_records = d.get('records', [])
+            if not page_records:
                 break
-            page_no += 1
-            if page_no > 50:
-                break
-
-        # Apply client-side filters
-        filtered = all_records
-        if search:
-            search_lower = search.lower()
-            filtered = [r for r in filtered if
-                       search_lower in (r.get('goodsCode', '') or '').lower() or
-                       search_lower in (r.get('goodsName', '') or '').lower()]
-
-        if service_only is not None:
-            target_mark = "101" if service_only else "102"
-            filtered = [r for r in filtered if r.get('serviceMark') == target_mark]
+            all_records.extend(page_records)
 
         goods = []
-        for record in filtered:
+        for record in all_records:
             service_mark = record.get('serviceMark', '102')
             status_code = record.get('statusCode', '101')
             goods.append({
@@ -805,6 +818,7 @@ async def public_test_t111(
             "status": "success",
             "interface": "T127",
             "description": "All registered goods & services from EFRIS",
+            "decode_method": decode_method,
             "goods": goods,
             "total": len(goods)
         }
@@ -814,7 +828,7 @@ async def public_test_t111(
             return {
                 "status": "error",
                 "interface": "T127",
-                "message": "EFRIS server is currently unavailable. The test server may be down for maintenance.",
+                "message": "EFRIS server is currently unavailable.",
                 "details": "Server returned HTML error page instead of JSON response"
             }
         return {
